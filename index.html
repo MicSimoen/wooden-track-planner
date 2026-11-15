@@ -186,14 +186,52 @@
     aside{border-right:0;border-bottom:1px solid var(--line);order:2}
     .help{display:none}
   }
+  /* ---- kids mode: bigger, brighter, fewer choices ---- */
+  body:not(.kids) .kidonly{ display:none !important }
+  body.kids .adult{ display:none !important }
+  body.kids{ --bg:#fff6e3; --panel:#fff; --accent:#ff6b4a; font-family:"Arial Rounded MT Bold","Nunito","Varela Round",ui-rounded,system-ui,sans-serif }
+  body.kids aside{ background:linear-gradient(180deg,#fff1cf,#ffe3ee); border-right:0 }
+  body.kids aside header{ border-bottom:0; padding:16px 12px 4px }
+  body.kids aside h1{ font-size:26px; text-align:center; color:#e8573c; margin:0 }
+  body.kids #svg{ background:#e6f6dc }
+  body.kids .toolbar{ gap:10px }
+  body.kids .toolbar button{ font-size:20px; font-weight:700; min-height:60px; padding:8px 18px; border-radius:20px; border:0; color:#fff;
+                             box-shadow:0 5px 0 rgba(0,0,0,.18); transition:transform .08s }
+  body.kids .toolbar button:active{ transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.18) }
+  body.kids #bSide{ background:#3d9bff } body.kids #bUndo{ background:#ffad1f } body.kids #b3d{ background:#9b5de5 }
+  body.kids #bFit{ background:#00b894 } body.kids #bDemo{ background:#ff5fa2 }
+  body.kids #bGrown{ position:relative; overflow:hidden; background:#9c9285; font-size:15px; min-height:48px; padding:6px 14px }
+  body.kids #bGrown::after{ content:""; position:absolute; left:0; bottom:0; height:6px; width:0; background:#fff; opacity:.8 }
+  body.kids #bGrown.holding::after{ width:100%; transition:width 1.6s linear }
+  .ktiles{ display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:14px; padding:10px 8px 20px }
+  .ktile{ position:relative; display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 6px 10px; border-radius:22px;
+          background:var(--kc,#ffd6a5); box-shadow:0 6px 0 rgba(0,0,0,.13); cursor:pointer; touch-action:manipulation; transition:transform .08s }
+  .ktile:hover{ background:var(--kc,#ffd6a5); filter:brightness(1.04) }
+  .ktile:active{ transform:translateY(4px) scale(.97); box-shadow:0 2px 0 rgba(0,0,0,.13) }
+  .ktile svg{ width:92px; height:66px }
+  .ktile .tn{ font-size:15px; font-weight:700; line-height:1.15; text-align:center; color:#4a3b2c }
+  .ktile .kcount{ position:absolute; top:-8px; right:-6px; min-width:38px; height:38px; padding:0 8px; border-radius:19px; background:#fff;
+                  color:#e8573c; font-size:20px; font-weight:800; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.2) }
+  .ktile.none{ opacity:.4 } .ktile.none .kcount{ color:#999 }
+  .khint{ text-align:center; font-size:17px; color:#7a5a3c; margin:6px 12px 0 }
+  body.kids #selbar{ border-radius:24px; padding:8px; gap:8px }
+  body.kids #selbar button{ min-width:68px; min-height:68px; font-size:30px; border-radius:18px; border:0; color:#fff; box-shadow:0 4px 0 rgba(0,0,0,.18) }
+  body.kids #sbRot{ background:#3d9bff } body.kids #sbFlip{ background:#00b894 } body.kids #sbDel{ background:#ff5a4e }
+  body.kids .pill{ font-size:19px; font-weight:700; padding:10px 18px; border:0; box-shadow:0 3px 0 rgba(0,0,0,.1) }
+  body.kids .pill.ok{ background:#d6f5df } body.kids .pill.warn{ background:#fff0c7 } body.kids .pill.bad{ background:#ffe0dc }
+  body.kids #toast{ font-size:20px; padding:12px 20px; border-radius:16px; top:84px }
+  body.kids .v3bar button{ font-size:20px; min-height:56px; border-radius:18px }
+  #confetti{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:6 }
+  #confetti i{ position:absolute; top:-30px; font-style:normal; font-size:30px; animation:fall linear forwards }
+  @keyframes fall{ to{ transform:translateY(110vh) rotate(540deg) } }
 </style>
 </head>
 <body>
 <div id="app">
   <aside>
     <header>
-      <h1>Wooden Track Planner</h1>
-      <nav class="tabs" id="tabs"><button data-tab="pieces">Pieces</button><button data-tab="inventory">Inventory</button><button data-tab="settings">Settings</button></nav>
+      <h1><span class="adult">Wooden Track Planner</span><span class="kidonly">🚂 My train track</span></h1>
+      <nav class="tabs adult" id="tabs"><button data-tab="pieces">Pieces</button><button data-tab="inventory">Inventory</button><button data-tab="settings">Settings</button></nav>
     </header>
     <div id="inv"></div>
     <div id="pinfo"></div>
@@ -211,24 +249,26 @@
     </svg>
     <div class="toolbar">
       <button id="bSide" title="Show or hide the piece list">☰ Pieces</button>
-      <button id="bUndo" title="Undo (Ctrl+Z)">↶ Undo</button>
-      <button id="bRedo" title="Redo (Ctrl+Y)">↷</button>
-      <button id="bRot" title="Rotate 45° / cycle which end connects (R)">⟳ Rotate</button>
-      <button id="bFlip" title="Flip curve left/right (F)">⇋ Flip</button>
-      <button id="bUp" title="Raise one level, e.g. onto bridge supports (PageUp)">▲ Raise</button>
-      <button id="bDown" title="Lower one level (PageDown)">▼ Lower</button>
-      <button id="bDel" class="danger" title="Delete (Del)">✕ Delete</button>
+      <button id="bUndo" title="Undo (Ctrl+Z)">↶ <span class="adult">Undo</span><span class="kidonly">Oops</span></button>
+      <button id="bRedo" class="adult" title="Redo (Ctrl+Y)">↷</button>
+      <button id="bRot" class="adult" title="Rotate 45° / cycle which end connects (R)">⟳ Rotate</button>
+      <button id="bFlip" class="adult" title="Flip curve left/right (F)">⇋ Flip</button>
+      <button id="bUp" class="adult" title="Raise one level, e.g. onto bridge supports (PageUp)">▲ Raise</button>
+      <button id="bDown" class="adult" title="Lower one level (PageDown)">▼ Lower</button>
+      <button id="bDel" class="danger adult" title="Delete (Del)">✕ Delete</button>
       <span class="sp"></span>
-      <button id="b3d" class="primary" title="Look at the layout in 3D">3D view</button>
-      <button id="bFit" title="Zoom to layout">Fit</button>
-      <button id="bZin">＋</button><button id="bZout">－</button>
-      <button id="bDemo">Demo oval</button>
-      <button id="bIO">Save / load</button>
-      <button id="bClear" class="danger">Clear</button>
-      <button id="bHelp" title="Help">?</button>
+      <button id="b3d" class="primary" title="Look at the layout in 3D"><span class="adult">3D view</span><span class="kidonly">👀 3D</span></button>
+      <button id="bFit" title="Zoom to layout"><span class="adult">Fit</span><span class="kidonly">🔍 All</span></button>
+      <button id="bZin" class="adult">＋</button><button id="bZout" class="adult">－</button>
+      <button id="bDemo"><span class="adult">Demo oval</span><span class="kidonly">🎲 Example</span></button>
+      <button id="bIO" class="adult">Save / load</button>
+      <button id="bClear" class="danger adult">Clear</button>
+      <button id="bKids" class="adult" title="Big, colourful and simple — for little builders">🧸 Kids mode</button>
+      <button id="bHelp" class="adult" title="Help">?</button>
+      <button id="bGrown" class="kidonly" title="Hold to go back to the full planner">🔒 Grown-ups</button>
     </div>
     <div class="status" id="status"></div>
-    <div class="help" id="help">
+    <div class="help adult" id="help">
       <div class="touchonly"><b>Build:</b> tap an open end (●/○), then tap pieces in the list — they snap on and the chain continues.<br>
       <b>Edit:</b> tap a piece for its buttons (⟳ rotate, ⇋ flip, ▲▼ bridge level, ⛓ move whole section, 🗑 delete) · drag a piece to move it, it snaps to ends · one finger on empty space pans · pinch to zoom.<br>
       Grid: small = 5 cm, big = 50 cm. <span class="hideHelp" style="color:var(--accent);cursor:pointer">hide</span></div>
@@ -240,22 +280,23 @@
     <div id="selbar" role="toolbar" aria-label="Selected piece">
       <button id="sbRot" title="Rotate / use the other end">⟳</button>
       <button id="sbFlip" title="Flip left/right">⇋</button>
-      <button id="sbUp" title="Raise one level">▲</button>
-      <button id="sbDown" title="Lower one level">▼</button>
-      <button id="sbGroup" title="Drag the whole connected section">⛓</button>
+      <button id="sbUp" class="adult" title="Raise one level">▲</button>
+      <button id="sbDown" class="adult" title="Lower one level">▼</button>
+      <button id="sbGroup" class="adult" title="Drag the whole connected section">⛓</button>
       <button id="sbDel" class="danger" title="Delete">🗑</button>
     </div>
     <div id="toast"></div>
+    <div id="confetti" aria-hidden="true"></div>
     <div id="v3d">
       <div id="v3dCanvas"></div>
       <div class="v3bar">
         <button id="b3dClose" class="primary">← Back to plan</button>
-        <label class="chk"><input type="checkbox" id="c3Env" checked> Show train height</label>
-        <label class="chk"><input type="checkbox" id="c3Lab" checked> Clearance labels</label>
+        <label class="chk adult"><input type="checkbox" id="c3Env" checked> Show train height</label>
+        <label class="chk adult"><input type="checkbox" id="c3Lab" checked> Clearance labels</label>
         <span class="sp"></span>
         <button id="b3dTop">Top</button><button id="b3dSide">Side</button><button id="b3dIso">3/4</button>
       </div>
-      <div class="v3help">Drag to orbit · right-drag / two fingers to pan · wheel to zoom. Blue haze = room your tallest train needs (set in Settings) · red marks = not enough room.</div>
+      <div class="v3help adult">Drag to orbit · right-drag / two fingers to pan · wheel to zoom. Blue haze = room your tallest train needs (set in Settings) · red marks = not enough room.</div>
       <div id="v3dMsg"></div>
     </div>
     <div class="modal" id="modal">
@@ -700,7 +741,24 @@ function bbox(){
   S.pieces.forEach(p=>types[p.type].pts.forEach(q=>{const w=worldPt(p,q.x,q.y); x0=Math.min(x0,w.x);y0=Math.min(y0,w.y);x1=Math.max(x1,w.x);y1=Math.max(y1,w.y);}));
   return x0>x1?null:{x0,y0,x1,y1};
 }
+let wasClosed=null;
+function confetti(){ const box=document.getElementById("confetti"), em=["🎉","⭐","🚂","🎈","✨","🟥","🟦","🟨","🟩"];
+  for(let i=0;i<40;i++){ const e=document.createElement("i"); e.textContent=em[i%em.length]; e.style.left=(Math.random()*100)+"%";
+    e.style.animationDuration=(1.6+Math.random()*1.6)+"s"; e.style.animationDelay=(Math.random()*0.5)+"s"; box.appendChild(e); }
+  setTimeout(()=>box.innerHTML="",4000); }
+function renderKidStatus(free){
+  const st=document.getElementById("status"), n=S.pieces.length;
+  const flexOK=GAPS.filter(g=>g.fx.ok), cov=new Set(); flexOK.forEach(g=>{ cov.add(g.A.p.id+":"+g.A.ci); cov.add(g.B.p.id+":"+g.B.ci); });
+  const openLeft=free.filter(f=>!cov.has(f.p.id+":"+f.ci)).length, closed=n>=3&&!openLeft;
+  if(!n) st.innerHTML=`<span class="pill">👋 Tap a piece to start building!</span>`;
+  else if(closed) st.innerHTML=`<span class="pill ok">🎉 Your track goes all the way round!${free.length?" Tap the green label to join it.":""}</span>`;
+  else st.innerHTML=`<span class="pill">🛤 ${n} piece${n>1?"s":""}</span>`;
+  if(n&&typeList.some(t=>used(t.id)>(S.inv[t.id]||0))) st.innerHTML+=`<span class="pill bad">😮 Not enough pieces at home</span>`;
+  if(closed && wasClosed===false) confetti();
+  wasClosed=closed;
+}
 function renderStatus(free){
+  if(S.kids) return renderKidStatus(free);
   const st=document.getElementById("status"); const n=S.pieces.length;
   if(!n){ st.innerHTML=`<span class="pill">Empty — click a piece in the list to start</span>`; return; }
   const clashes=links.filter(l=>l.clash).length, b=bbox();
@@ -739,7 +797,13 @@ function renderInv(){
   const el=document.getElementById("inv"); let h="";
   document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.classList.toggle("on",b.dataset.tab===(S.tab||"pieces")));
   const tab=S.tab||"pieces", owned=t=>(S.inv[t.id]||0)>0;
-  if(tab==="pieces"){
+  if(S.kids){
+    const KC={"Straights":"#ffd6a5","Curves":"#c8f7b5","Switches":"#a8eefc","Crossings":"#cdc3ff","Double track":"#ffc9f5","Adapters & ends":"#fdf8a8","Bridges & ramps":"#b5d3ff","Custom":"#e6e0d6"};
+    const anyOwned=typeList.some(owned), list=typeList.filter(t=>anyOwned?owned(t):!isRetired(t)&&makeOf(t)!=="Custom");
+    h+=`<p class="khint">Tap a piece to add it 👇</p><div class="ktiles">`+list.map(t=>{ const own=S.inv[t.id]||0, left=own-used(t.id);
+      return `<div class="tile ktile ${anyOwned&&left<=0?"none":""}" style="--kc:${KC[catOf(t)]||"#ffd6a5"}" data-type="${t.id}">${iconSVG(t)}<span class="tn">${esc(shortName(t))}</span>${anyOwned?`<span class="kcount">${Math.max(0,left)}</span>`:""}</div>`; }).join("")+`</div>`;
+  }
+  else if(tab==="pieces"){
     const anyOwned=typeList.some(owned), showAll=S.showAll||!anyOwned;
     h+=`<div class="bar">${groupToggle()}<label class="chk2"><input type="checkbox" data-showall ${showAll?"checked":""} ${anyOwned?"":"disabled"}> All pieces</label></div>`;
     if(!anyOwned) h+=`<p class="hint2">You haven't entered any track yet — showing everything. Set your counts in <b>Inventory</b> (or scan them) and this list shows just your pieces.</p>`;
@@ -752,7 +816,7 @@ function renderInv(){
           <button class="info" data-info="${t.id}" aria-label="Details">i</button></div>`; }).join("")+`</div>`;
     });
   }
-  if(tab==="inventory"){
+  if(!S.kids && tab==="inventory"){
     const total=typeList.reduce((s,t)=>s+(S.inv[t.id]||0),0);
     h+=`<button id="bScan" class="scanbtn">📷 Scan pieces with the camera</button>
       <div class="bar">${groupToggle()}<label class="chk2"><input type="checkbox" data-retired ${S.showRetired?"checked":""}> Retired BRIO</label></div>
@@ -777,8 +841,11 @@ function renderInv(){
       ${S.custom.length?`<p>Custom: ${S.custom.map(c=>`${esc(c.name)} <a href="#" data-delc="${c.id}">remove</a>`).join(" · ")}</p>`:""}
     </details>`;
   }
-  if(tab==="settings"){
+  if(!S.kids && tab==="settings"){
     h+=`<div class="sets">
+    <h3>Kids mode</h3>
+    <p class="hint2">Big colourful buttons, only the pieces you own, and no settings to break. Hold <b>🔒 Grown-ups</b> for 2 seconds to come back.</p>
+    <p><button id="sKids" class="primary">🧸 Switch to kids mode</button></p>
     <h3>Joining</h3>
     <label class="chk2"><input type="checkbox" id="sGender" ${S.gender?"checked":""}> Respect male/female ends</label>
     <label>Snap tolerance — distance (mm)<input id="sTolP" type="number" min="0.5" step="0.5" value="${S.tolPos}"></label>
@@ -1110,6 +1177,19 @@ document.getElementById("bFit").onclick=fit;
 document.getElementById("bZin").onclick=()=>zoom(1/1.3);
 document.getElementById("bZout").onclick=()=>zoom(1.3);
 document.getElementById("bDemo").onclick=demo;
+function setKids(on){
+  S.kids=!!on; document.body.classList.toggle("kids",S.kids); wasClosed=null;
+  if(S.kids){ S.sideHidden=false; document.getElementById("app").classList.remove("noside"); document.getElementById("pinfo").classList.remove("show"); groupMode=false; }
+  save(); renderInv(); refresh(false); setTimeout(()=>refresh(false),60);
+  toast(S.kids?"Kids mode — have fun! 🚂":"Back to the full planner");
+}
+document.getElementById("bKids").onclick=()=>setKids(true);
+document.getElementById("inv").addEventListener("click",e=>{ if(e.target.id==="sKids") setKids(true); });
+{ const g=document.getElementById("bGrown"); let t=null;
+  const stop=()=>{ clearTimeout(t); t=null; g.classList.remove("holding"); };
+  g.addEventListener("pointerdown",e=>{ e.preventDefault(); g.classList.add("holding"); t=setTimeout(()=>{ stop(); setKids(false); },1600); });
+  ["pointerup","pointerleave","pointercancel"].forEach(ev=>g.addEventListener(ev,()=>{ if(t){ stop(); toast("Grown-ups: keep holding the button 🔒"); } }));
+  g.addEventListener("contextmenu",e=>e.preventDefault()); }
 const bClear=document.getElementById("bClear"); let clearArm=null;
 bClear.onclick=()=>{
   if(!clearArm){ bClear.textContent="Sure? Click again"; clearArm=setTimeout(()=>{clearArm=null;bClear.textContent="Clear";},2500); return; }
@@ -1883,7 +1963,7 @@ window.__planner={addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:(
 window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
 /* ---------- Start ---------- */
-load(); rebuildTypes(); setView();
+load(); document.body.classList.toggle("kids",!!S.kids); rebuildTypes(); setView();
 { const before=S.pieces.length; S.pieces=S.pieces.filter(p=>types[p.type]); const gone=before-S.pieces.length;
   if(gone) setTimeout(()=>toast(`${gone} piece${gone>1?"s":""} of a type that's no longer in the catalogue ${gone>1?"were":"was"} left out of your layout`),600); }
 if(S.helpHidden) helpEl.style.display="none";
