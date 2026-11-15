@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wooden Track Planner</title>
+<meta name="description" content="Plan BRIO and IKEA LILLABO wooden train layouts from the pieces you own, with bridges and a 3D clearance check.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#2f6fde">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Track Planner">
+<style>
+  :root{
+    --bg:#f4f1ea; --panel:#fffdf8; --ink:#2b2620; --muted:#7a7064; --line:#e3dccf;
+    --wood:#dcb37c; --wood-edge:#a8794a; --groove:#8c613a; --accent:#2f6fde; --warn:#d98a00; --bad:#d23c2f; --ok:#2e8b57;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font:14px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+  #app{display:grid;grid-template-columns:300px 1fr;height:100vh;height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);box-sizing:border-box}
+  aside{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  aside header{padding:14px 16px 10px;border-bottom:1px solid var(--line)}
+  aside h1{font-size:16px;margin:0 0 2px}
+  aside header p{margin:0;color:var(--muted);font-size:12px}
+  #inv{overflow:auto;flex:1;padding:6px 8px 12px}
+  .grp{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 8px 4px}
+  .row{display:grid;grid-template-columns:46px 1fr auto;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer;border:1px solid transparent}
+  .row:hover{background:#f6efe2;border-color:var(--line)}
+  .row svg{width:46px;height:34px}
+  .row .nm{font-weight:600;font-size:13px}
+  .row .nm code{font-weight:500;color:var(--muted);font-size:11px;margin-left:4px}
+  .row .dim{color:var(--muted);font-size:11.5px}
+  .row .cnt{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:11px;color:var(--muted)}
+  .row input{width:46px;padding:2px 4px;border:1px solid var(--line);border-radius:5px;text-align:right;font:inherit;font-size:12px;background:#fff}
+  .row .left.neg{color:var(--bad);font-weight:700}
+  .row .left.zero{color:var(--warn)}
+  details{margin:10px 8px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+  details summary{cursor:pointer;font-weight:600;font-size:13px}
+  details label{display:block;font-size:12px;color:var(--muted);margin-top:6px}
+  details input,details select,textarea{width:100%;padding:4px 6px;border:1px solid var(--line);border-radius:5px;font:inherit;font-size:13px}
+  details p{font-size:12px;color:var(--muted);margin:6px 0}
+  main{position:relative;min-width:0;min-height:0}
+  #svg{width:100%;height:100%;display:block;touch-action:none;cursor:grab;background:#f8f6f1}
+  #svg.panning{cursor:grabbing}
+  .toolbar{position:absolute;top:10px;left:10px;right:10px;display:flex;flex-wrap:wrap;gap:6px;pointer-events:none}
+  .toolbar .sp{flex:1}
+  button{pointer-events:auto;font:inherit;font-size:13px;padding:6px 10px;border-radius:7px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  button:hover{background:#f3ead9}
+  button:disabled{opacity:.4;cursor:default}
+  button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  button.danger{color:var(--bad)}
+  .status{position:absolute;left:10px;bottom:10px;display:flex;gap:6px;flex-wrap:wrap;pointer-events:none}
+  .pill{background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12px}
+  .pill.ok{color:var(--ok);border-color:#bfe3cf}
+  .pill.warn{color:var(--warn);border-color:#f0d9a8}
+  .pill.bad{color:var(--bad);border-color:#f2c1bc}
+  .help{position:absolute;right:10px;bottom:48px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);max-width:330px}
+  .help b{color:var(--ink)}
+  .help kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;font-size:11px;background:#fff;color:var(--ink)}
+  #toast{position:absolute;top:56px;left:50%;transform:translateX(-50%);background:#2b2620;color:#fff;padding:6px 12px;border-radius:7px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+  #toast.show{opacity:.92}
+  .modal{position:absolute;inset:0;background:rgba(40,30,20,.35);display:none;align-items:center;justify-content:center;z-index:5}
+  .modal.show{display:flex}
+  .modal .card{background:var(--panel);border-radius:12px;padding:16px;width:min(560px,92%);box-shadow:0 10px 40px rgba(0,0,0,.2)}
+  .modal h3{margin:0 0 8px}
+  .modal textarea{height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
+  .modal .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+  .piece{cursor:move}
+  #v3d{position:absolute;inset:0;background:#eef2f6;display:none;z-index:4}
+  #v3d.show{display:block}
+  #v3dCanvas{position:absolute;inset:0}
+  #v3dCanvas canvas{display:block;width:100%;height:100%}
+  .v3bar{position:absolute;top:10px;left:10px;right:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .v3bar .sp{flex:1}
+  .chk{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:5px 9px;font-size:13px;display:flex;gap:5px;align-items:center}
+  .v3help{position:absolute;left:10px;bottom:10px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;font-size:12px;color:var(--muted)}
+  #v3dMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:14px;color:var(--muted)}
+  .lbl3{position:absolute;transform:translate(-50%,-120%);background:#fff;border:1px solid;border-radius:5px;padding:1px 6px;font-size:11px;font-weight:600;white-space:nowrap;pointer-events:none}
+  .end{cursor:pointer}
+  @media (max-width:760px){
+    #app{grid-template-columns:1fr;grid-template-rows:42vh 1fr}
+    aside{border-right:0;border-bottom:1px solid var(--line);order:2}
+    .help{display:none}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <aside>
+    <header>
+      <h1>Wooden Track Planner</h1>
+      <p>BRIO &amp; IKEA LILLABO compatible · set how many you own, click a piece to add it</p>
+    </header>
+    <div id="inv"></div>
+  </aside>
+  <main>
+    <svg id="svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="gMinor" width="50" height="50" patternUnits="userSpaceOnUse"><path d="M50 0H0V50" fill="none" stroke="#ece6da" stroke-width="0.6"/></pattern>
+        <pattern id="gMajor" width="500" height="500" patternUnits="userSpaceOnUse"><rect width="500" height="500" fill="url(#gMinor)"/><path d="M500 0H0V500" fill="none" stroke="#ddd3c2" stroke-width="1.4"/></pattern>
+      </defs>
+      <defs id="rampDefs"></defs>
+      <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#gMajor)" id="bg"/>
+      <g id="layerPieces"></g>
+      <g id="layerMarks"></g>
+    </svg>
+    <div class="toolbar">
+      <button id="bUndo" title="Undo (Ctrl+Z)">↶ Undo</button>
+      <button id="bRedo" title="Redo (Ctrl+Y)">↷</button>
+      <button id="bRot" title="Rotate 45° / cycle which end connects (R)">⟳ Rotate</button>
+      <button id="bFlip" title="Flip curve left/right (F)">⇋ Flip</button>
+      <button id="bUp" title="Raise one level, e.g. onto bridge supports (PageUp)">▲ Raise</button>
+      <button id="bDown" title="Lower one level (PageDown)">▼ Lower</button>
+      <button id="bDel" class="danger" title="Delete (Del)">✕ Delete</button>
+      <span class="sp"></span>
+      <button id="b3d" class="primary" title="Look at the layout in 3D">3D view</button>
+      <button id="bFit" title="Zoom to layout">Fit</button>
+      <button id="bZin">＋</button><button id="bZout">－</button>
+      <button id="bDemo">Demo oval</button>
+      <button id="bIO">Save / load</button>
+      <button id="bClear" class="danger">Clear</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="help" id="help">
+      <b>Build:</b> click an open end (●/○), then click pieces in the list — they snap on and the chain continues.<br>
+      <b>Edit:</b> drag pieces (snap to ends) · <kbd>Shift</kbd>+drag moves a whole connected section · <kbd>R</kbd> rotate / pick other end · <kbd>F</kbd> flip curve · <kbd>PgUp</kbd>/<kbd>PgDn</kbd> raise/lower (bridges) · <kbd>Del</kbd> remove · wheel to zoom, drag background to pan.<br>
+      Bridges: ramps join floor (orange ends) to bridge level (blue ends); raised track casts a shadow and can cross over floor track. Grid: small = 5 cm, big = 50 cm. <span id="hideHelp" style="color:var(--accent);cursor:pointer">hide</span>
+    </div>
+    <div id="toast"></div>
+    <div id="v3d">
+      <div id="v3dCanvas"></div>
+      <div class="v3bar">
+        <button id="b3dClose" class="primary">← Back to plan</button>
+        <label class="chk"><input type="checkbox" id="c3Env" checked> Show train height</label>
+        <label class="chk"><input type="checkbox" id="c3Lab" checked> Clearance labels</label>
+        <span class="sp"></span>
+        <button id="b3dTop">Top</button><button id="b3dSide">Side</button><button id="b3dIso">3/4</button>
+      </div>
+      <div class="v3help">Drag to orbit · right-drag / two fingers to pan · wheel to zoom. Blue haze = room your tallest train needs (set in Settings) · red marks = not enough room.</div>
+      <div id="v3dMsg"></div>
+    </div>
+    <div class="modal" id="modal">
+      <div class="card">
+        <h3>Save / load layout</h3>
+        <p style="margin:0 0 6px;font-size:12px;color:var(--muted)">Your layout and inventory are saved automatically in this browser. To keep a copy elsewhere, copy the text below; paste a saved text and press Load to restore it.</p>
+        <textarea id="ioText" spellcheck="false"></textarea>
+        <div class="btns">
+          <input type="file" id="ioFile" accept=".json,.txt,application/json" style="flex:1;font-size:12px">
+          <button id="ioCopy">Copy</button>
+          <button id="ioLoad" class="primary">Load</button>
+          <button id="ioClose">Close</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+"use strict";
+const D2R = Math.PI/180, HALF = 20, GROOVE = 11; // BRIO track is 40 mm wide
+const TAU = Math.PI*2;
+
+/* ---------- Piece catalogue (dimensions in mm, curve radius = centre line) ----------
+   Source: woodenrailway.info BRIO track guide. E: inner edge ~182, outer ~222 → centre 202.
+   E1: inner edge ~90 → centre 110. Both are 45° (8 make a circle). */
+/* S-shaped branch of a parallel switch: shifts sideways by d over length L (two opposite arcs). */
+function sCurve(L,d){
+  const th=2*Math.atan(d/L), r=L/(2*Math.sin(th)), deg=th/D2R;
+  return [{k:"a",r,deg,c:[true,false]},
+          {k:"a",r,deg:-deg,c:[false,true],p0:{x:r*Math.sin(th),y:r*(1-Math.cos(th)),a:deg}}];
+}
+/* same, but bending to the other side (side = -1) and/or with genders set on every lane */
+function sCurveSide(L,d,side,g){
+  return sCurve(L,d).map(l=>{ const o={...l, deg:l.deg*side};
+    if(l.p0) o.p0={x:l.p0.x, y:l.p0.y*side, a:l.p0.a*side};
+    if(g) o.g=g; return o; });
+}
+const BASE = [
+  {grp:"Straights", id:"D",  name:"Long straight",  dim:"216 mm", lanes:[{k:"s",len:216}]},
+  {grp:"Straights", id:"A",  name:"Medium straight",dim:"144 mm", lanes:[{k:"s",len:144}]},
+  {grp:"Straights", id:"A1", name:"Short straight", dim:"108 mm", lanes:[{k:"s",len:108}]},
+  {grp:"Straights", id:"A3", name:"Short straight", dim:"72 mm",  lanes:[{k:"s",len:72}]},
+  {grp:"Straights", id:"A2", name:"Mini straight",  dim:"54 mm",  lanes:[{k:"s",len:54}]},
+  {grp:"Curves",    id:"E",  name:"Large curve",    dim:"45° · R 202 mm centre (182 inner)", lanes:[{k:"a",r:202,deg:45}]},
+  {grp:"Curves",    id:"E1", name:"Short curve",    dim:"45° · R 110 mm centre (90 inner)",  lanes:[{k:"a",r:110,deg:45}]},
+  {grp:"Switches & crossings", id:"LM", name:"Curved switch", dim:"144 straight + large curve", lanes:[{k:"s",len:144},{k:"a",r:202,deg:45}]},
+  {grp:"Switches & crossings", id:"O1", name:"Short curved switch", dim:"108 straight + short curve", lanes:[{k:"s",len:108},{k:"a",r:110,deg:45}]},
+  {grp:"Switches & crossings", id:"Y",  name:"Y switch", dim:"two large curves", lanes:[{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45}]},
+  {grp:"Switches & crossings", id:"IYS", name:"Straight + curve switch", dim:"145 mm straight + 45° curve (common 3rd-party Y)", lanes:[{k:"s",len:145},{k:"a",r:202,deg:45}]},
+  {grp:"Switches & crossings", id:"F1", name:"Parallel switch", dim:"144 mm · branch shifts ~46 mm sideways (estimated)", lanes:[{k:"s",len:144},...sCurve(144,46)]},
+  {grp:"Switches & crossings", id:"H",  name:"Crossing 90°", dim:"108 × 108 mm", lanes:[{k:"s",len:108},{k:"s",len:108,p0:{x:54,y:-54,a:90}}]},
+  {grp:"Adapters", id:"MM", name:"Male–male", dim:"54 mm", lanes:[{k:"s",len:54,g:["M","M"]}]},
+  {grp:"Adapters", id:"FF", name:"Female–female", dim:"54 mm", lanes:[{k:"s",len:54,g:["F","F"]}]},
+  /* IKEA LILLABO — measured from a reproduction of LILLABO track bought in 2025 (MakerWorld 2181560,
+     read off its meshes by the ChooChooCAD project). Curves share BRIO's large radius (~202 mm centre);
+     IKEA has no tight-radius curve, its "small" curve is a half-length 22.5° piece. */
+  {grp:"IKEA LILLABO", id:"I240", name:"IKEA long straight",   dim:"240 mm (BRIO D is 216)", lanes:[{k:"s",len:240}]},
+  {grp:"IKEA LILLABO", id:"I205", name:"IKEA straight",        dim:"205 mm (≠ BRIO 216)",    lanes:[{k:"s",len:205}]},
+  {grp:"IKEA LILLABO", id:"I145", name:"IKEA medium straight", dim:"145 mm (≈ BRIO A 144)",  lanes:[{k:"s",len:145}]},
+  {grp:"IKEA LILLABO", id:"I100", name:"IKEA short straight",  dim:"100 mm (≠ BRIO A1 108)", lanes:[{k:"s",len:100}]},
+  {grp:"IKEA LILLABO", id:"I50",  name:"IKEA mini straight",   dim:"50 mm (≠ BRIO A2 54)",   lanes:[{k:"s",len:50}]},
+  {grp:"IKEA LILLABO", id:"IC45", name:"IKEA curve",       dim:"45° · R 202 mm centre (same as BRIO E)", lanes:[{k:"a",r:202,deg:45}]},
+  {grp:"IKEA LILLABO", id:"IC22", name:"IKEA short curve", dim:"22.5° · R 202 mm — half a curve, not a tight one", lanes:[{k:"a",r:202,deg:22.5}]},
+  {grp:"IKEA LILLABO", id:"IC90", name:"IKEA 90° curve",   dim:"90° · R 202 mm centre", lanes:[{k:"a",r:202,deg:90}]},
+  /* LILLABO 50-piece set (103.200.77): wide "double-track Y" — one end single, the other two side-by-side ends.
+     Shape from IKEA's product photos; length ≈ medium straight and track spacing are estimates. Two variants in the set. */
+  {grp:"IKEA LILLABO", id:"IYP",  name:"IKEA double Y (hole at single end)", dim:"1 → 2 parallel tracks · ~145 mm long, ~46 mm apart (estimated)", lanes:[...sCurveSide(145,23,1,["F","M"]),...sCurveSide(145,23,-1,["F","M"])]},
+  {grp:"IKEA LILLABO", id:"IYP2", name:"IKEA double Y (peg at single end)",  dim:"1 → 2 parallel tracks · ~145 mm long, ~46 mm apart (estimated)", lanes:[...sCurveSide(145,23,1,["M","F"]),...sCurveSide(145,23,-1,["M","F"])]},
+  {grp:"IKEA LILLABO", id:"IDS",  name:"IKEA double straight (2 tracks)", dim:"~145 mm · two parallel tracks ~46 mm apart (estimated)", lanes:[{k:"s",len:145,p0:{x:0,y:-23,a:0}},{k:"s",len:145,p0:{x:0,y:23,a:0}}]},
+  {grp:"IKEA LILLABO", id:"IY",   name:"IKEA Y fork",      dim:"two 45° curves · estimated, check yours", lanes:[{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45}]},
+  {grp:"IKEA LILLABO", id:"IMM",  name:"IKEA male–male",   dim:"50 mm · estimated", lanes:[{k:"s",len:50,g:["M","M"]}]},
+  {grp:"IKEA LILLABO", id:"IFF",  name:"IKEA female–female", dim:"50 mm · estimated", lanes:[{k:"s",len:50,g:["F","F"]}]},
+  /* Bridges: decks are raised straights (woodenrailway.info span table, deck length excludes ramps).
+     BRIO ascending track #33332 is 216 mm. IKEA ramp peaks at ~65 mm; its length is an estimate. */
+  {grp:"Bridges & ramps", id:"N",     name:"BRIO ascending track N",  dim:"216 mm · hole at the bottom, peg at the top", lanes:[{k:"s",len:216,g:["F","M"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"N1",    name:"BRIO ascending track N1", dim:"216 mm · peg at the bottom, hole at the top", lanes:[{k:"s",len:216,g:["M","F"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"B144",  name:"Short bridge deck",  dim:"144 mm · tied arch, drawbridge", deck:true, lanes:[{k:"s",len:144}]},
+  {grp:"Bridges & ramps", id:"B216",  name:"Medium bridge deck", dim:"216 mm · arch, girder, lifting, swing", deck:true, lanes:[{k:"s",len:216}]},
+  {grp:"Bridges & ramps", id:"B324",  name:"Long bridge deck",   dim:"324 mm · double suspension", deck:true, lanes:[{k:"s",len:324}]},
+  {grp:"Bridges & ramps", id:"B360",  name:"Extra-long bridge deck", dim:"360 mm · suspension, viaduct, Sydney", deck:true, lanes:[{k:"s",len:360}]},
+  {grp:"Bridges & ramps", id:"IRAMP", name:"IKEA ramp (hole at bottom)", dim:"~240 mm estimated · 65 mm high at top", lanes:[{k:"s",len:240,g:["F","M"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"IRAMP2",name:"IKEA ramp (peg at bottom)",  dim:"~240 mm estimated · 65 mm high at top", lanes:[{k:"s",len:240,g:["M","F"],lv:[0,1]}]},
+];
+const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,O1:0,Y:0,H:0,MM:1,FF:1};
+
+/* ---------- State ---------- */
+let S = {pieces:[], inv:{...DEFAULT_INV}, custom:[], tolPos:3, tolAng:3, gender:true, nextId:1, collapsed:{}, rise:64, trainH:45, thick:12};
+let types = {}, typeList = [];
+let sel = null;        // selected piece id
+let active = null;     // {pid, ci} open end to extend from
+let hist = [], redo = [];
+const KEY = "woodenTrackPlanner.v1";
+
+function load(){ try{ const t = localStorage.getItem(KEY); if(t){ const o = JSON.parse(t); S = Object.assign(S,o); } }catch(e){} }
+function save(){ try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function snapshot(){ hist.push(JSON.stringify(S.pieces)); if(hist.length>200) hist.shift(); redo=[]; }
+function undo(){ if(!hist.length) return; redo.push(JSON.stringify(S.pieces)); S.pieces = JSON.parse(hist.pop()); fixRefs(); refresh(); }
+function redoF(){ if(!redo.length) return; hist.push(JSON.stringify(S.pieces)); S.pieces = JSON.parse(redo.pop()); fixRefs(); refresh(); }
+function fixRefs(){ if(sel && !byId(sel)) sel=null; if(active && !byId(active.pid)) active=null; }
+
+/* ---------- Geometry ---------- */
+const compose = (p,q) => { const c=Math.cos(p.a), s=Math.sin(p.a); return {x:p.x+q.x*c-q.y*s, y:p.y+q.x*s+q.y*c, a:p.a+q.a}; };
+const normA = a => { a%=TAU; if(a>Math.PI) a-=TAU; if(a<-Math.PI) a+=TAU; return a; };
+
+function lanePose(l,t,off){
+  let x,y,a;
+  if(l.k==="s"){ x=t*l.len; y=0; a=0; }
+  else { const s=Math.sign(l.deg), th=Math.abs(l.deg)*D2R, ph=t*th; x=l.r*Math.sin(ph); y=s*l.r*(1-Math.cos(ph)); a=s*ph; }
+  x += -Math.sin(a)*off; y += Math.cos(a)*off;
+  return compose(l.p0r,{x,y,a});
+}
+function buildType(t){
+  t.lanes.forEach(l => { const p=l.p0||{x:0,y:0,a:0}; l.p0r={x:p.x,y:p.y,a:(p.a||0)*D2R}; });
+  // connectors
+  const C=[];
+  const add = c => { if(!C.some(o=>Math.hypot(o.x-c.x,o.y-c.y)<0.5 && Math.abs(normA(o.a-c.a))<0.01)) C.push(c); };
+  t.lanes.forEach(l => {
+    const s=lanePose(l,0,0), e=lanePose(l,1,0), g=l.g||["F","M"], c=l.c||[true,true], lv=l.lv||[0,0];
+    if(c[0]) add({x:s.x,y:s.y,a:normA(s.a+Math.PI),g:g[0],lv:lv[0]});
+    if(c[1]) add({x:e.x,y:e.y,a:normA(e.a),g:g[1],lv:lv[1]});
+  });
+  t.conns=C;
+  t.ramp = C.some(c=>c.lv>0);
+  // drawing
+  let band="", grooves="", pts=[];
+  t.lanes.forEach(l => {
+    const n = l.k==="s"?1:Math.max(6,Math.ceil(Math.abs(l.deg)/3));
+    const P=o=>{const a=[];for(let i=0;i<=n;i++){const p=lanePose(l,i/n,o);a.push(p);}return a;};
+    const o1=P(HALF), o2=P(-HALF).reverse();
+    pts.push(...o1,...o2);
+    band += "M"+o1.concat(o2).map(p=>p.x.toFixed(2)+" "+p.y.toFixed(2)).join("L")+"Z";
+    [GROOVE,-GROOVE].forEach(o=>{ grooves += "M"+P(o).map(p=>p.x.toFixed(2)+" "+p.y.toFixed(2)).join("L"); });
+  });
+  t.band=band; t.grooves=grooves; t.pts=pts;
+  const cx=C.reduce((s,c)=>s+c.x,0)/C.length, cy=C.reduce((s,c)=>s+c.y,0)/C.length;
+  t.center={x:cx,y:cy};
+  return t;
+}
+function rebuildTypes(){
+  types={}; typeList=[];
+  BASE.concat(S.custom).forEach(t0 => { const t=buildType(JSON.parse(JSON.stringify(t0))); types[t.id]=t; typeList.push(t); });
+  // gradients for ramps: dark at floor end, light at the top
+  const defs=document.getElementById("rampDefs"); let g="";
+  typeList.filter(t=>t.ramp).forEach(t=>{ const l=t.lanes[0], up=l.lv&&l.lv[1]>l.lv[0];
+    g+=`<linearGradient id="rg-${t.id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${l.len}" y2="0"><stop offset="0" stop-color="${up?"#c99a60":"#f0d3a4"}"/><stop offset="1" stop-color="${up?"#f0d3a4":"#c99a60"}"/></linearGradient>`; });
+  if(defs) defs.innerHTML=g;
+}
+const byId = id => S.pieces.find(p=>p.id===id);
+function localConns(p){ return types[p.type].conns.map(c => p.mirror ? {x:c.x,y:-c.y,a:-c.a,g:c.g,lv:c.lv} : c); }
+function toWorld(p,c){ const q=compose({x:p.x,y:p.y,a:p.rot},{x:c.x,y:c.y,a:c.a}); q.a=normA(q.a); q.g=c.g; q.lv=(p.level||0)+c.lv; return q; }
+/* level the piece must sit at so its connector ci meets target T (null if impossible) */
+function levelFor(p,ci,T){ const l=T.lv-localConns(p)[ci].lv; return l>=0 ? l : null; }
+function worldConns(p){ return localConns(p).map(c=>toWorld(p,c)); }
+function worldPt(p,x,y){ return compose({x:p.x,y:p.y,a:p.rot},{x, y:p.mirror?-y:y, a:0}); }
+function alignTo(p,ci,T){
+  const c=localConns(p)[ci]; const rot=normA(T.a+Math.PI-c.a);
+  const cs=Math.cos(rot), sn=Math.sin(rot);
+  p.rot=rot; p.x=T.x-(c.x*cs-c.y*sn); p.y=T.y-(c.x*sn+c.y*cs);
+}
+const genderOK = (a,b) => !S.gender || a!==b;
+
+/* connections: list of {a:{pid,ci}, b:{pid,ci}, clash} */
+let W = {};  // world connectors by pid
+let links = [], linkOf = {}; // linkOf["pid:ci"] = {pid,ci,clash}
+function computeLinks(){
+  W={}; S.pieces.forEach(p=>W[p.id]=worldConns(p));
+  links=[]; linkOf={};
+  const all=[]; S.pieces.forEach(p=>W[p.id].forEach((c,ci)=>all.push({pid:p.id,ci,c})));
+  for(let i=0;i<all.length;i++) for(let j=i+1;j<all.length;j++){
+    const A=all[i],B=all[j]; if(A.pid===B.pid || A.c.lv!==B.c.lv) continue;
+    if(linkOf[A.pid+":"+A.ci]||linkOf[B.pid+":"+B.ci]) continue;
+    const d=Math.hypot(A.c.x-B.c.x,A.c.y-B.c.y); if(d>S.tolPos) continue;
+    const da=Math.abs(normA(A.c.a-B.c.a-Math.PI))/D2R; if(da>S.tolAng) continue;
+    const clash = A.c.g===B.c.g;
+    links.push({A,B,clash});
+    linkOf[A.pid+":"+A.ci]={pid:B.pid,ci:B.ci,clash}; linkOf[B.pid+":"+B.ci]={pid:A.pid,ci:A.ci,clash};
+  }
+}
+const isFree = (pid,ci) => !linkOf[pid+":"+ci];
+
+/* ---------- Rendering ---------- */
+const svg=document.getElementById("svg"), LP=document.getElementById("layerPieces"), LM=document.getElementById("layerMarks");
+let view={x:-600,y:-400,w:1200,h:800};
+function setView(){ svg.setAttribute("viewBox",`${view.x} ${view.y} ${view.w} ${view.h}`); }
+/* ---------- Heights & clearance ----------
+   Track planks are S.thick (12 mm) thick; each level is S.rise (BRIO ramps rise 64 mm) higher.
+   For every place where one piece passes over another, free height = bottom of upper − top of lower. */
+function pieceSamples(p, step=10){
+  const t=types[p.type], out=[];
+  t.lanes.forEach(l=>{
+    const len = l.k==="s" ? l.len : Math.abs(l.deg)*D2R*l.r;
+    const n=Math.max(2,Math.ceil(len/step)), lv=l.lv||[0,0];
+    for(let i=0;i<=n;i++){ const u=i/n, q=lanePose(l,u,0), w=worldPt(p,q.x,q.y);
+      out.push({x:w.x,y:w.y,h:((p.level||0)+lv[0]+(lv[1]-lv[0])*u)*S.rise}); }
+  });
+  return out;
+}
+let CLR = {pairs:[], minOK:null};
+function computeClearance(){
+  const cell=40, grid=new Map(), pts={};
+  S.pieces.forEach(p=>{ if(!types[p.type]) return; pts[p.id]=pieceSamples(p);
+    pts[p.id].forEach(q=>{ const k=Math.floor(q.x/cell)+","+Math.floor(q.y/cell); if(!grid.has(k)) grid.set(k,[]); grid.get(k).push({pid:p.id,q}); }); });
+  const linked=new Set(); links.forEach(l=>{ linked.add(l.A.pid+"-"+l.B.pid); linked.add(l.B.pid+"-"+l.A.pid); });
+  const best={};
+  S.pieces.forEach(p=>{ (pts[p.id]||[]).forEach(P=>{
+    const cx=Math.floor(P.x/cell), cy=Math.floor(P.y/cell);
+    for(let i=-1;i<=1;i++) for(let j=-1;j<=1;j++){ const arr=grid.get((cx+i)+","+(cy+j)); if(!arr) continue;
+      arr.forEach(o=>{ if(o.pid===p.id || linked.has(p.id+"-"+o.pid)) return;
+        const Q=o.q, d=Math.hypot(P.x-Q.x,P.y-Q.y);
+        if(P.h>Q.h+1 && d<38){            // p passes over o
+          const gap=P.h-(Q.h+S.thick), k=p.id+">"+o.pid;
+          if(!best[k]||gap<best[k].gap) best[k]={upper:p.id,lower:o.pid,x:(P.x+Q.x)/2,y:(P.y+Q.y)/2,gap,hLow:Q.h+S.thick,hHigh:P.h};
+        } else if(Math.abs(P.h-Q.h)<=1 && d<30 && p.id<o.pid){ // same height, on top of each other
+          const k=p.id+"="+o.pid; if(!best[k]) best[k]={upper:p.id,lower:o.pid,x:(P.x+Q.x)/2,y:(P.y+Q.y)/2,gap:-1,overlap:true,hLow:Q.h,hHigh:P.h};
+        }
+      });
+    }
+  }); });
+  const pairs=Object.values(best);
+  pairs.forEach(c=>c.kind = c.overlap?"overlap" : c.gap<0?"hit" : c.gap<S.trainH?"low":"ok");
+  CLR={pairs, minOK: pairs.filter(c=>c.kind==="ok").reduce((m,c)=>m===null?c.gap:Math.min(m,c.gap),null)};
+}
+function renderClearance(){
+  let h="";
+  CLR.pairs.forEach(c=>{
+    const col = c.kind==="ok"?"var(--ok)":"var(--bad)";
+    const txt = c.kind==="overlap"?"tracks overlap": c.kind==="hit"?"collides": `${Math.round(c.gap)} mm free`;
+    const w = txt.length*6.4+14;
+    h+=`<g pointer-events="none"><circle cx="${c.x}" cy="${c.y}" r="${c.kind==="ok"?6:12}" fill="none" stroke="${col}" stroke-width="3"/>`+
+       `<g transform="translate(${c.x} ${c.y+26})"><rect x="${-w/2}" y="-11" width="${w}" height="18" rx="5" fill="#fff" stroke="${col}"/><text text-anchor="middle" y="2" font-size="11" fill="${col}" font-weight="600">${c.kind==="ok"?"":"⚠ "}${txt}</text></g></g>`;
+  });
+  return h;
+}
+function renderPieces(){
+  let h="";
+  const key=p=>(p.level||0)+(types[p.type]&&types[p.type].ramp?0.5:0);
+  S.pieces.filter(p=>types[p.type]).slice().sort((a,b)=>key(a)-key(b)).forEach(p=>{
+    const t=types[p.type], s=p.id===sel, lv=key(p);
+    const tf=(dx,dy)=>`translate(${(p.x+dx).toFixed(2)} ${(p.y+dy).toFixed(2)}) rotate(${(p.rot/D2R).toFixed(3)}) scale(1 ${p.mirror?-1:1})`;
+    if(lv>0){ // shadow on the floor below a raised piece or ramp
+      h+=`<path d="${t.band}" transform="${tf(7*lv,10*lv)}" fill="#000" opacity="${t.ramp?0.10:0.16}" pointer-events="none"/>`;
+    }
+    const fill = s?"#ecc794": t.ramp?`url(#rg-${t.id})`: (p.level>0?"#e6c08b":"var(--wood)");
+    const stroke = s?"var(--accent)": t.deck?"#b8452f": (p.level>0?"#6d7f99":"var(--wood-edge)");
+    const sw = s?2.2: (t.deck?4:(p.level>0||t.ramp?1.8:1));
+    h+=`<g class="piece" data-id="${p.id}" transform="${tf(0,0)}">`+
+       `<path d="${t.band}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`+
+       `<path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="3.2" stroke-linecap="round" opacity=".55"/>`;
+    if(t.ramp){ const L=t.lanes[0].len; for(let x=L*0.3;x<L*0.85;x+=L*0.22) h+=`<path d="M${x-8} -9 L${x+4} 0 L${x-8} 9" fill="none" stroke="#7a5530" stroke-width="2.5" opacity=".7"/>`; }
+    if(p.level>0 && !t.ramp){ const c=t.center; h+=`<text x="${c.x}" y="${(p.mirror?-1:1)*(c.y)+4}" transform="scale(1 ${p.mirror?-1:1})" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5a72">▲${p.level}</text>`; }
+    h+=`</g>`;
+  });
+  LP.innerHTML=h;
+}
+function renderMarks(){
+  let h=""; const z=view.w/ (svg.clientWidth||1000);
+  // free ends
+  const free=[];
+  S.pieces.forEach(p=>W[p.id].forEach((c,ci)=>{
+    const L=linkOf[p.id+":"+ci];
+    if(L){ if(L.clash && p.id<L.pid) h+=`<g><circle cx="${c.x}" cy="${c.y}" r="11" fill="var(--bad)" opacity=".85"/><text x="${c.x}" y="${c.y+4}" text-anchor="middle" font-size="12" fill="#fff" font-weight="700">!</text></g>`; return; }
+    free.push({p,ci,c});
+    const ox=Math.cos(c.a), oy=Math.sin(c.a);
+    const isAct = active && active.pid===p.id && active.ci===ci;
+    if(isAct) h+=`<circle cx="${c.x+ox*4}" cy="${c.y+oy*4}" r="22" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 4"/>`;
+    if(c.g==="M") h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x+ox*9}" cy="${c.y+oy*9}" r="18" fill="transparent"/><line x1="${c.x}" y1="${c.y}" x2="${c.x+ox*8}" y2="${c.y+oy*8}" stroke="#b06a1f" stroke-width="5"/><circle cx="${c.x+ox*11}" cy="${c.y+oy*11}" r="6.5" fill="${c.lv?"#5b8fd9":"#e08a2e"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="1"/></g>`;
+    else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*4}" cy="${c.y-oy*4}" r="18" fill="transparent"/><circle cx="${c.x-ox*10}" cy="${c.y-oy*10}" r="7" fill="${c.lv?"#dce8fb":"#fff"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="2"/></g>`;
+  }));
+  // near misses between free ends (gaps that almost close)
+  for(let i=0;i<free.length;i++) for(let j=i+1;j<free.length;j++){
+    const A=free[i],B=free[j]; if(A.p.id===B.p.id || A.c.lv!==B.c.lv) continue;
+    const d=Math.hypot(A.c.x-B.c.x,A.c.y-B.c.y); if(d>45) continue;
+    const da=Math.abs(normA(A.c.a-B.c.a-Math.PI))/D2R; if(da>25) continue;
+    const mx=(A.c.x+B.c.x)/2, my=(A.c.y+B.c.y)/2;
+    h+=`<line x1="${A.c.x}" y1="${A.c.y}" x2="${B.c.x}" y2="${B.c.y}" stroke="var(--warn)" stroke-width="2.5" stroke-dasharray="4 3"/>`+
+       `<g transform="translate(${mx} ${my-16})"><rect x="-40" y="-11" width="80" height="18" rx="5" fill="#fff6e3" stroke="var(--warn)"/><text text-anchor="middle" y="2" font-size="11" fill="#8a5a00">gap ${d.toFixed(0)} mm${da>=1?" · "+da.toFixed(0)+"°":""}</text></g>`;
+  }
+  computeClearance(); h+=renderClearance();
+  LM.innerHTML=h;
+  return free;
+}
+function bbox(){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  S.pieces.forEach(p=>types[p.type].pts.forEach(q=>{const w=worldPt(p,q.x,q.y); x0=Math.min(x0,w.x);y0=Math.min(y0,w.y);x1=Math.max(x1,w.x);y1=Math.max(y1,w.y);}));
+  return x0>x1?null:{x0,y0,x1,y1};
+}
+function renderStatus(free){
+  const st=document.getElementById("status"); const n=S.pieces.length;
+  if(!n){ st.innerHTML=`<span class="pill">Empty — click a piece in the list to start</span>`; return; }
+  const clashes=links.filter(l=>l.clash).length, b=bbox();
+  let h=`<span class="pill">${n} pieces</span>`;
+  h+= free.length? `<span class="pill warn">${free.length} open end${free.length>1?"s":""}</span>` : `<span class="pill ok">✓ closed layout, no open ends</span>`;
+  if(clashes) h+=`<span class="pill bad">${clashes} wrong-gender join${clashes>1?"s":""} (needs adapter)</span>`;
+  const over=typeList.filter(t=>used(t.id)>(S.inv[t.id]||0));
+  if(over.length) h+=`<span class="pill bad">More than you own: ${over.map(t=>t.id).join(", ")}</span>`;
+  const raised=S.pieces.filter(p=>(p.level||0)>0||types[p.type].ramp).length;
+  if(raised) h+=`<span class="pill">${raised} on bridges / ramps</span>`;
+  const bad=CLR.pairs.filter(c=>c.kind!=="ok");
+  if(bad.length) h+=`<span class="pill bad">⚠ ${bad.length} clearance problem${bad.length>1?"s":""} (train ${S.trainH} mm)</span>`;
+  else if(CLR.minOK!==null) h+=`<span class="pill ok">✓ clearance under bridges ≥ ${Math.round(CLR.minOK)} mm</span>`;
+  if(b) h+=`<span class="pill">Footprint ${((b.x1-b.x0)/10).toFixed(0)} × ${((b.y1-b.y0)/10).toFixed(0)} cm</span>`;
+  st.innerHTML=h;
+}
+const used = id => S.pieces.filter(p=>p.type===id).length;
+
+function iconSVG(t){
+  const xs=t.pts.map(p=>p.x), ys=t.pts.map(p=>p.y);
+  const x0=Math.min(...xs)-6,y0=Math.min(...ys)-6,w=Math.max(...xs)-x0+6,h=Math.max(...ys)-y0+6;
+  const sz=Math.max(w,h*46/34);
+  return `<svg viewBox="${x0-(sz-w)/2} ${y0-(sz*34/46-h)/2} ${sz} ${sz*34/46}"><path d="${t.band}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/60}"/><path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="${sz/30}" opacity=".5"/></svg>`;
+}
+function renderInv(){
+  const el=document.getElementById("inv"); let h="", g="";
+  typeList.forEach(t=>{
+    const grp=t.grp||"Custom";
+    if(grp!==g){ g=grp; const nOwn=typeList.filter(x=>(x.grp||"Custom")===grp).reduce((s,x)=>s+(S.inv[x.id]||0),0);
+      h+=`<div class="grp" data-grp="${esc(grp)}" style="cursor:pointer">${S.collapsed[grp]?"▸":"▾"} ${esc(grp)} <span style="text-transform:none;letter-spacing:0">· ${nOwn} owned</span></div>`; }
+    if(S.collapsed[grp]) return;
+    const own=S.inv[t.id]||0, u=used(t.id), left=own-u;
+    h+=`<div class="row" data-type="${t.id}" title="Click to add">${iconSVG(t)}
+      <div><div class="nm">${esc(t.name)}<code>${esc(t.id)}</code></div><div class="dim">${esc(t.dim||"")}</div></div>
+      <div class="cnt"><label>own <input type="number" min="0" value="${own}" data-own="${t.id}"></label>
+      <span class="left ${left<0?"neg":left===0?"zero":""}">${u} used · ${left} left</span></div></div>`;
+  });
+  h+=`<details><summary>Add a custom piece</summary>
+    <p>For IKEA or other brands' odd pieces — measure along the middle of the track.</p>
+    <label>Name<input id="cName" placeholder="e.g. IKEA long curve"></label>
+    <label>Kind<select id="cKind"><option value="s">Straight</option><option value="a">Curve</option><option value="r">Ramp (floor → bridge)</option><option value="b">Bridge deck</option></select></label>
+    <label>Length (mm, straight / ramp / deck)<input id="cLen" type="number" value="144"></label>
+    <label>Centre radius (mm, curve)<input id="cR" type="number" value="202"></label>
+    <label>Angle (°, curve)<input id="cDeg" type="number" value="45"></label>
+    <p><button id="cAdd" class="primary">Add piece type</button></p>
+    ${S.custom.length?`<p>Custom: ${S.custom.map(c=>`${esc(c.name)} <a href="#" data-delc="${c.id}">remove</a>`).join(" · ")}</p>`:""}
+  </details>
+  <details><summary>Settings &amp; dimensions</summary>
+    <label><input type="checkbox" id="sGender" ${S.gender?"checked":""} style="width:auto"> Respect male/female ends</label>
+    <label>Join tolerance — distance (mm)<input id="sTolP" type="number" min="0.5" step="0.5" value="${S.tolPos}"></label>
+    <label>Join tolerance — angle (°)<input id="sTolA" type="number" min="0.5" step="0.5" value="${S.tolAng}"></label>
+    <label>Height of one bridge level (mm)<input id="sRise" type="number" min="20" step="1" value="${S.rise}"></label>
+    <label>Track thickness (mm)<input id="sThick" type="number" min="5" step="1" value="${S.thick}"></label>
+    <label>Tallest train (mm, rail top to roof)<input id="sTrain" type="number" min="10" step="1" value="${S.trainH}"></label>
+    <p>BRIO ramps rise 64 mm and track is 12 mm thick, leaving ~52 mm under a bridge. IKEA ramps top out at ~65 mm. Measure your tallest train (motorised ones are taller) to check clearance.</p>
+    <p>Real wooden track has a few mm of play at each joint, so a layout showing a small gap (under ~5 mm) usually still fits on the floor.</p>
+    <p>Dimensions follow the BRIO track guide on woodenrailway.info: track is 40 mm wide; straights 54 / 72 / 108 / 144 / 216 mm; large curve E 45° with inner edge ≈182 mm; short curve E1 45° with inner edge ≈90 mm. IKEA LILLABO uses the same curve radius, but its straights are different lengths (50 / 100 / 145 / 205 / 240 mm), so a loop that mixes brands may not close — the planner shows the gap. IKEA's short curve is a half-length 22.5° piece rather than a tighter radius. IKEA figures come from a 2025 reproduction of real LILLABO track and are unverified; pieces marked "estimated" are guesses. Measure yours and correct them with a custom piece if needed. Some owners also report IKEA pegs fitting tightly into BRIO holes.</p>
+  </details>`;
+  el.innerHTML=h;
+}
+const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function refresh(full=true){
+  computeLinks(); renderPieces(); const free=renderMarks(); renderStatus(free);
+  if(full) renderInv();
+  document.getElementById("bUndo").disabled=!hist.length; document.getElementById("bRedo").disabled=!redo.length;
+  const hasSel=!!sel; ["bRot","bFlip","bDel","bUp","bDown"].forEach(b=>document.getElementById(b).disabled=!hasSel);
+  save();
+}
+let toastT; function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1800); }
+
+/* ---------- Actions ---------- */
+function firstFreeOther(p, exceptCi){
+  computeLinks();
+  const cs=W[p.id]; let best=null;
+  cs.forEach((c,ci)=>{ if(ci===exceptCi||!isFree(p.id,ci)) return; if(best===null || (c.g==="M" && cs[best].g!=="M")) best=ci; });
+  return best;
+}
+function addPiece(typeId){
+  const t=types[typeId]; if(!t) return;
+  snapshot();
+  const p={id:S.nextId++, type:typeId, x:0, y:0, rot:0, mirror:false};
+  let attached=null;
+  if(active && byId(active.pid)){
+    computeLinks();
+    const T=W[active.pid][active.ci];
+    if(T && isFree(active.pid,active.ci)){
+      const cands=localConns(p).map((c,ci)=>ci).filter(ci=>genderOK(localConns(p)[ci].g,T.g) && levelFor(p,ci,T)!==null);
+      // lowest resulting height first: from the floor a ramp goes up, from a bridge it comes down
+      // score each way of attaching: most ends that also line up with other track wins
+      // (matters for double-track pieces); then lowest height (from a bridge a ramp goes down)
+      const others=[]; S.pieces.forEach(o=>W[o.id].forEach((c,ci)=>{ if(isFree(o.id,ci)) others.push(c); }));
+      const score=ci=>{ const q={...p}; q.level=levelFor(q,ci,T); alignTo(q,ci,T);
+        return worldConns(q).filter(c=>others.some(o=>o.lv===c.lv && Math.hypot(o.x-c.x,o.y-c.y)<=S.tolPos && Math.abs(normA(o.a-c.a-Math.PI))<=S.tolAng*D2R)).length; };
+      const sc={}; cands.forEach(ci=>sc[ci]=score(ci));
+      cands.sort((a,b)=>(sc[b]-sc[a]) || (levelFor(p,a,T)-levelFor(p,b,T)));
+      if(cands.length){ p.level=levelFor(p,cands[0],T); alignTo(p,cands[0],T); attached=cands[0]; }
+      else { toast("No end of this piece fits that end — try an adapter"); hist.pop(); return; }
+    }
+  }
+  if(attached===null){
+    const c=t.center; p.x=view.x+view.w/2-c.x; p.y=view.y+view.h/2-c.y;
+    if(t.deck) p.level=1;
+  }
+  S.pieces.push(p); sel=p.id;
+  const nxt=firstFreeOther(p, attached);
+  active = nxt!==null ? {pid:p.id, ci:nxt} : null;
+  if(used(typeId)>(S.inv[typeId]||0)) toast(`Heads up: you've now used more ${t.name} (${t.id}) than you own`);
+  refresh();
+}
+function attachmentOf(p){
+  computeLinks(); const L=[];
+  W[p.id].forEach((c,ci)=>{ const l=linkOf[p.id+":"+ci]; if(l) L.push({ci,other:l}); });
+  return L;
+}
+function rotateSel(){
+  const p=byId(sel); if(!p) return;
+  const L=attachmentOf(p);
+  snapshot();
+  if(L.length===1){
+    const T=W[L[0].other.pid][L[0].other.ci];
+    const lc=localConns(p); const cands=lc.map((c,ci)=>ci).filter(ci=>genderOK(lc[ci].g,T.g) && levelFor(p,ci,T)!==null);
+    if(cands.length<2){ hist.pop(); toast(S.gender?"Only one end of this piece fits there (male/female)":"Nothing else to rotate to"); return; }
+    const k=cands[(cands.indexOf(L[0].ci)+1)%cands.length];
+    p.level=levelFor(p,k,T); alignTo(p,k,T);
+    if(active && active.pid===p.id){ const n=firstFreeOther(p,k); active=n!==null?{pid:p.id,ci:n}:null; }
+  } else {
+    const c=types[p.type].center, before=worldPt(p,c.x,c.y);
+    p.rot=normA(p.rot+45*D2R);
+    const after=worldPt(p,c.x,c.y); p.x+=before.x-after.x; p.y+=before.y-after.y;
+  }
+  refresh(false);
+}
+function flipSel(){
+  const p=byId(sel); if(!p) return;
+  const L=attachmentOf(p);
+  snapshot();
+  if(L.length===1){
+    const T=W[L[0].other.pid][L[0].other.ci];
+    p.mirror=!p.mirror; alignTo(p,L[0].ci,T);
+  } else {
+    const c=types[p.type].center, before=worldPt(p,c.x,c.y);
+    p.mirror=!p.mirror;
+    const after=worldPt(p,c.x,c.y); p.x+=before.x-after.x; p.y+=before.y-after.y;
+  }
+  refresh(false);
+}
+function levelSel(d){
+  const p=byId(sel); if(!p) return;
+  const nl=(p.level||0)+d; if(nl<0){ toast("Already on the floor"); return; }
+  if(nl>3){ toast("Max 3 levels up"); return; }
+  snapshot(); p.level=nl; refresh(false);
+  toast(nl? `Raised to level ${nl} — tracks underneath can pass below` : "Back on the floor");
+}
+function deleteSel(){
+  const p=byId(sel); if(!p) return;
+  snapshot();
+  // make the end it was attached to active, so you can keep building
+  const L=attachmentOf(p);
+  S.pieces=S.pieces.filter(q=>q.id!==p.id);
+  sel=null; active = L.length? {pid:L[0].other.pid, ci:L[0].other.ci} : null;
+  refresh();
+}
+function fit(){
+  const b=bbox(); if(!b){ view={x:-600,y:-400,w:1200,h:800}; setView(); refresh(false); return; }
+  const m=120, w=b.x1-b.x0+2*m, h=b.y1-b.y0+2*m;
+  const ar=(svg.clientWidth||1200)/(svg.clientHeight||800);
+  let vw=w, vh=h; if(vw/vh<ar) vw=vh*ar; else vh=vw/ar;
+  view={x:(b.x0+b.x1)/2-vw/2, y:(b.y0+b.y1)/2-vh/2, w:vw, h:vh}; setView(); refresh(false);
+}
+function zoom(f,cx,cy){
+  if(cx===undefined){ cx=view.x+view.w/2; cy=view.y+view.h/2; }
+  const nw=Math.min(20000,Math.max(150,view.w*f)), k=nw/view.w;
+  view={x:cx-(cx-view.x)*k, y:cy-(cy-view.y)*k, w:nw, h:view.h*k}; setView(); refresh(false);
+}
+function demo(){
+  snapshot(); S.pieces=[]; active=null; sel=null;
+  const seq=["E","E","E","E","D","D","E","E","E","E","D","D"];
+  const hs=hist.length;
+  seq.forEach(t=>addPiece(t));
+  hist.length=hs; // one undo step for the whole demo
+  sel=null; active=null; refresh(); fit();
+}
+
+/* ---------- Pointer interaction ---------- */
+function svgPt(e){ const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+let drag=null;
+svg.addEventListener("pointerdown",e=>{
+  const end=e.target.closest(".end"), pc=e.target.closest(".piece");
+  const m=svgPt(e);
+  if(end){
+    active={pid:+end.dataset.pid, ci:+end.dataset.ci}; sel=active.pid; refresh(false);
+    toast("Open end selected — click pieces in the list to extend from here");
+    return;
+  }
+  if(pc){
+    const p=byId(+pc.dataset.id); sel=p.id;
+    let group=[p.id];
+    if(e.shiftKey){ computeLinks(); const seen=new Set([p.id]), q=[p.id];
+      while(q.length){ const id=q.pop(); W[id].forEach((c,ci)=>{ const l=linkOf[id+":"+ci]; if(l && !seen.has(l.pid)){seen.add(l.pid);q.push(l.pid);} }); }
+      group=[...seen]; }
+    drag={kind:"piece", id:p.id, group, start:m, orig:group.map(id=>{const q=byId(id);return {id,x:q.x,y:q.y,rot:q.rot,level:q.level||0};}), moved:false, snap:null};
+    svg.setPointerCapture(e.pointerId); refresh(false); return;
+  }
+  drag={kind:"pan", sx:e.clientX, sy:e.clientY, v:{...view}, moved:false};
+  svg.classList.add("panning"); svg.setPointerCapture(e.pointerId);
+});
+svg.addEventListener("pointermove",e=>{
+  if(!drag) return;
+  if(drag.kind==="pan"){
+    const k=view.w/svg.clientWidth; const dx=(e.clientX-drag.sx)*k, dy=(e.clientY-drag.sy)*k;
+    if(Math.abs(dx)+Math.abs(dy)>2) drag.moved=true;
+    view.x=drag.v.x-dx; view.y=drag.v.y-dy; setView(); return;
+  }
+  const m=svgPt(e), dx=m.x-drag.start.x, dy=m.y-drag.start.y;
+  if(!drag.moved && Math.hypot(dx,dy)<2) return;
+  if(!drag.moved){ snapshot(); drag.moved=true; }
+  drag.orig.forEach(o=>{ const q=byId(o.id); q.x=o.x+dx; q.y=o.y+dy; q.rot=o.rot; q.level=o.level; });
+  if(drag.group.length===1){
+    const p=byId(drag.id);
+    // try to snap one of its ends onto a free end of another piece
+    computeLinks();
+    const mine=worldConns(p), lc=localConns(p);
+    const reach=Math.max(30, 22*view.w/svg.clientWidth);
+    let best=null;
+    S.pieces.forEach(o=>{ if(o.id===p.id) return; W[o.id].forEach((T,tci)=>{
+      if(!isFree(o.id,tci)) return;
+      mine.forEach((c,ci)=>{ if(!genderOK(lc[ci].g,T.g) || levelFor(p,ci,T)===null) return;
+        const d=Math.hypot(c.x-T.x,c.y-T.y); if(d>reach) return;
+        const da=Math.abs(normA(c.a-T.a-Math.PI)); if(da>100*D2R) return;
+        const score=d+da*30; if(!best||score<best.score) best={score,ci,T};
+      });
+    });});
+    if(best){ p.level=levelFor(p,best.ci,best.T); alignTo(p,best.ci,best.T); }
+  }
+  refresh(false);
+});
+function endDrag(){
+  if(!drag) return;
+  if(drag.kind==="pan"){ svg.classList.remove("panning"); if(!drag.moved){ sel=null; refresh(false);} }
+  else if(drag.moved) refresh();
+  drag=null;
+}
+svg.addEventListener("pointerup",endDrag); svg.addEventListener("pointercancel",endDrag);
+svg.addEventListener("wheel",e=>{ e.preventDefault(); const m=svgPt(e); zoom(Math.exp(e.deltaY*0.0015),m.x,m.y); },{passive:false});
+
+/* ---------- UI wiring ---------- */
+document.getElementById("inv").addEventListener("click",e=>{
+  if(e.target.closest("input,select,button,label,summary,details")){
+    if(e.target.id==="cAdd"){ addCustom(); }
+    const dc=e.target.dataset && e.target.dataset.delc;
+    return;
+  }
+  const dc=e.target.dataset && e.target.dataset.delc;
+  if(dc){ e.preventDefault(); return; }
+  const gh=e.target.closest(".grp");
+  if(gh){ const k=gh.dataset.grp; S.collapsed[k]=!S.collapsed[k]; renderInv(); save(); return; }
+  const r=e.target.closest(".row"); if(r) addPiece(r.dataset.type);
+});
+document.getElementById("inv").addEventListener("click",e=>{
+  const dc=e.target.dataset && e.target.dataset.delc; if(!dc) return;
+  e.preventDefault();
+  if(S.pieces.some(p=>p.type===dc)){ toast("Remove the placed pieces of that type first"); return; }
+  S.custom=S.custom.filter(c=>c.id!==dc); delete S.inv[dc]; rebuildTypes(); refresh();
+});
+document.getElementById("inv").addEventListener("change",e=>{
+  const t=e.target;
+  if(t.dataset.own){ S.inv[t.dataset.own]=Math.max(0,parseInt(t.value)||0); refresh(); }
+  if(t.id==="sGender"){ S.gender=t.checked; refresh(); }
+  if(t.id==="sTolP"){ S.tolPos=Math.max(0.5,+t.value||3); refresh(); }
+  if(t.id==="sTolA"){ S.tolAng=Math.max(0.5,+t.value||3); refresh(); }
+  if(t.id==="sRise"){ S.rise=Math.max(20,+t.value||64); refresh(); }
+  if(t.id==="sThick"){ S.thick=Math.max(5,+t.value||12); refresh(); }
+  if(t.id==="sTrain"){ S.trainH=Math.max(10,+t.value||45); refresh(); }
+});
+function addCustom(){
+  const name=(document.getElementById("cName").value||"").trim()||"Custom piece";
+  const kind=document.getElementById("cKind").value;
+  const id="C"+(Date.now()%100000);
+  let lanes, dim;
+  let deck=false;
+  if(kind==="s"||kind==="r"||kind==="b"){ const len=+document.getElementById("cLen").value; if(!(len>5)) return toast("Enter a length");
+    lanes=[{k:"s",len}]; dim=len+" mm";
+    if(kind==="r"){ lanes[0].lv=[0,1]; dim+=" · ramp"; } if(kind==="b"){ deck=true; dim+=" · bridge deck"; } }
+  else { const r=+document.getElementById("cR").value, deg=+document.getElementById("cDeg").value; if(!(r>20&&deg>0&&deg<=180)) return toast("Enter radius and angle"); lanes=[{k:"a",r,deg}]; dim=`${deg}° · R ${r} mm centre`; }
+  S.custom.push({grp:"Custom", id, name, dim, lanes, deck}); S.inv[id]=S.inv[id]||1;
+  rebuildTypes(); refresh(); toast("Added "+name);
+}
+document.getElementById("bUndo").onclick=undo;
+document.getElementById("bRedo").onclick=redoF;
+document.getElementById("bRot").onclick=rotateSel;
+document.getElementById("bFlip").onclick=flipSel;
+document.getElementById("bDel").onclick=deleteSel;
+document.getElementById("bUp").onclick=()=>levelSel(1);
+document.getElementById("bDown").onclick=()=>levelSel(-1);
+document.getElementById("bFit").onclick=fit;
+document.getElementById("bZin").onclick=()=>zoom(1/1.3);
+document.getElementById("bZout").onclick=()=>zoom(1.3);
+document.getElementById("bDemo").onclick=demo;
+const bClear=document.getElementById("bClear"); let clearArm=null;
+bClear.onclick=()=>{
+  if(!clearArm){ bClear.textContent="Sure? Click again"; clearArm=setTimeout(()=>{clearArm=null;bClear.textContent="Clear";},2500); return; }
+  clearTimeout(clearArm); clearArm=null; bClear.textContent="Clear";
+  snapshot(); S.pieces=[]; sel=null; active=null; refresh();
+};
+document.getElementById("hideHelp").onclick=()=>document.getElementById("help").style.display="none";
+const modal=document.getElementById("modal"), ioText=document.getElementById("ioText");
+document.getElementById("bIO").onclick=()=>{ ioText.value=JSON.stringify({app:"wooden-track-planner",v:1,pieces:S.pieces,inv:S.inv,custom:S.custom,nextId:S.nextId}); modal.classList.add("show"); };
+document.getElementById("ioClose").onclick=()=>modal.classList.remove("show");
+document.getElementById("ioCopy").onclick=async()=>{ try{ await navigator.clipboard.writeText(ioText.value); toast("Copied"); }catch(e){ ioText.select(); toast("Press Ctrl/Cmd+C to copy"); } };
+document.getElementById("ioFile").onchange=e=>{ const f=e.target.files[0]; if(!f) return; f.text().then(t=>ioText.value=t); };
+document.getElementById("ioLoad").onclick=()=>{
+  try{ const o=JSON.parse(ioText.value); if(!Array.isArray(o.pieces)) throw 0;
+    snapshot(); S.custom=o.custom||[]; rebuildTypes();
+    S.pieces=o.pieces.filter(p=>types[p.type]); if(o.inv) S.inv=o.inv; S.nextId=Math.max(o.nextId||1,...S.pieces.map(p=>p.id+1),1);
+    sel=null; active=null; modal.classList.remove("show"); refresh(); fit(); toast("Layout loaded");
+  }catch(e){ toast("That doesn't look like a saved layout"); }
+};
+window.addEventListener("keydown",e=>{
+  if(e.target.closest && e.target.closest("input,textarea,select")) return;
+  const k=e.key.toLowerCase();
+  if((e.ctrlKey||e.metaKey)&&k==="z"){ e.preventDefault(); e.shiftKey?redoF():undo(); return; }
+  if((e.ctrlKey||e.metaKey)&&k==="y"){ e.preventDefault(); redoF(); return; }
+  if(k==="r") rotateSel(); else if(k==="f") flipSel();
+  else if(k==="delete"||k==="backspace"){ e.preventDefault(); deleteSel(); }
+  else if(k==="pageup"){ e.preventDefault(); levelSel(1); }
+  else if(k==="pagedown"){ e.preventDefault(); levelSel(-1); }
+  else if(k==="escape"){ sel=null; active=null; refresh(false); }
+});
+window.addEventListener("resize",()=>refresh(false));
+
+/* ---------- 3D view (three.js, loaded on first use) ---------- */
+const V3={ready:false, loading:false};
+function loadScript(src){ return new Promise((ok,bad)=>{ const e=document.createElement("script"); e.src=src; e.onload=ok; e.onerror=()=>bad(src); document.head.appendChild(e); }); }
+async function open3D(){
+  document.getElementById("v3d").classList.add("show");
+  const msg=document.getElementById("v3dMsg");
+  if(!V3.ready){
+    msg.textContent="Loading 3D…";
+    try{
+      if(!window.THREE) await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js");
+      if(!THREE.OrbitControls) await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
+      init3D();
+    }catch(e){ console.error("3D load failed", e && e.stack || e); msg.textContent="Couldn't load the 3D library — check your internet connection."; return; }
+  }
+  msg.textContent = S.pieces.length? "" : "Nothing to show yet — build a layout first.";
+  build3D(); frame3D("iso");
+}
+function init3D(){
+  const host=document.getElementById("v3dCanvas");
+  const r=new THREE.WebGLRenderer({antialias:true}); r.setPixelRatio(Math.min(2,window.devicePixelRatio||1));
+  r.shadowMap.enabled=true; host.appendChild(r.domElement);
+  const scene=new THREE.Scene(); scene.background=new THREE.Color(0xeef2f6);
+  const cam=new THREE.PerspectiveCamera(40,1,5,50000);
+  const ctl=new THREE.OrbitControls(cam,r.domElement); ctl.enableDamping=true; ctl.maxPolarAngle=Math.PI*0.495;
+  scene.add(new THREE.HemisphereLight(0xffffff,0xb9a58a,0.75));
+  const sun=new THREE.DirectionalLight(0xffffff,0.75); sun.position.set(-600,1400,900); sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048); scene.add(sun); scene.add(sun.target);
+  const labels=document.createElement("div"); labels.style.cssText="position:absolute;inset:0;pointer-events:none;overflow:hidden"; host.appendChild(labels);
+  Object.assign(V3,{r,scene,cam,ctl,sun,host,labels,group:null,ready:true,lab:[]});
+  const resize=()=>{ const w=host.clientWidth||800,h=host.clientHeight||600; r.setSize(w,h,false); cam.aspect=w/h; cam.updateProjectionMatrix(); };
+  new ResizeObserver(resize).observe(host); resize();
+  const loop=()=>{ requestAnimationFrame(loop); if(!document.getElementById("v3d").classList.contains("show")) return;
+    ctl.update(); r.render(scene,cam); placeLabels(); };
+  loop();
+}
+const WOOD=0xdcb37c;
+function ribbon(p,l,mat,hFn,wHalf,thick){
+  // a solid strip following lane l of piece p: top, two sides, bottom, end caps
+  const len = l.k==="s" ? l.len : Math.abs(l.deg)*D2R*l.r, n=Math.max(1,Math.ceil(len/12)), lv=l.lv||[0,0];
+  const P=[], idx=[];
+  for(let i=0;i<=n;i++){ const u=i/n, h=hFn(lv,u);
+    const a=lanePose(l,u,wHalf), b=lanePose(l,u,-wHalf), A=worldPt(p,a.x,a.y), B=worldPt(p,b.x,b.y);
+    P.push([A.x,h+thick,A.y],[B.x,h+thick,B.y],[A.x,h,A.y],[B.x,h,B.y]); }
+  const quad=(a,b,c,d)=>idx.push(a,b,c, a,c,d);
+  for(let i=0;i<n;i++){ const o=i*4, q=o+4;
+    quad(o,q,q+1,o+1); quad(o+2,o+3,q+3,q+2); quad(o,o+2,q+2,q); quad(o+1,q+1,q+3,o+3); }
+  quad(0,1,3,2); const e=n*4; quad(e,e+2,e+3,e+1);
+  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(P.flat(),3));
+  g.setIndex(idx); g.computeVertexNormals();
+  const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; return m;
+}
+function build3D(){
+  const {scene}=V3; if(V3.group) scene.remove(V3.group);
+  const G=new THREE.Group(); V3.group=G; scene.add(G);
+  computeLinks(); computeClearance();
+  const mWood=new THREE.MeshStandardMaterial({color:WOOD,roughness:0.8,side:THREE.DoubleSide});
+  const mDeck=new THREE.MeshStandardMaterial({color:0xc2553f,roughness:0.7,side:THREE.DoubleSide});
+  const mPier=new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.9});
+  const mEnv=new THREE.MeshBasicMaterial({color:0x4a8ad8,transparent:true,opacity:0.13,depthWrite:false,side:THREE.DoubleSide});
+  const mGroove=new THREE.LineBasicMaterial({color:0x8c613a});
+  const env=document.getElementById("c3Env").checked;
+  const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*u)*S.rise;
+  S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
+    t.lanes.forEach(l=>{
+      G.add(ribbon(p,l,mWood,hf,HALF,S.thick));
+      if(t.deck) G.add(ribbon(p,l,mDeck,(lv,u)=>hf(lv,u)-6,HALF+4,6)); // red girder under the bridge deck
+      [GROOVE,-GROOVE].forEach(o=>{ const len=l.k==="s"?l.len:Math.abs(l.deg)*D2R*l.r, n=Math.max(1,Math.ceil(len/12)), lv=l.lv||[0,0], pts=[];
+        for(let i=0;i<=n;i++){ const u=i/n, q=lanePose(l,u,o), w=worldPt(p,q.x,q.y); pts.push(new THREE.Vector3(w.x,hf(lv,u)+S.thick+0.4,w.y)); }
+        G.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mGroove)); });
+      if(env){ const e=ribbon(p,l,mEnv,(lv,u)=>hf(lv,u)+S.thick,HALF-3,S.trainH); e.castShadow=false; e.receiveShadow=false; G.add(e); }
+    });
+    // supports under raised straight pieces (not ramps)
+    if((p.level||0)>0 && !t.ramp){ t.lanes.forEach(l=>{ const len=l.k==="s"?l.len:Math.abs(l.deg)*D2R*l.r;
+      const us = len>250?[0.2,0.8]:[0.5];
+      us.forEach(u=>{ const q=lanePose(l,u,0), w=worldPt(p,q.x,q.y), h=p.level*S.rise;
+        // skip a pier if floor track runs right underneath it
+        const blocked=S.pieces.some(o=>o.id!==p.id && (o.level||0)<p.level && pieceSamples(o,15).some(s=>Math.hypot(s.x-w.x,s.y-w.y)<34));
+        if(blocked) return;
+        const b=new THREE.Mesh(new THREE.BoxGeometry(34,h,30),mPier); b.position.set(w.x,h/2,w.y);
+        b.rotation.y=-(p.rot+(p.mirror?-q.a:q.a)); b.castShadow=true; G.add(b); }); }); }
+  });
+  // clearance markers
+  V3.lab.forEach(e=>e.el.remove()); V3.lab=[];
+  CLR.pairs.forEach(c=>{
+    const okc = c.kind==="ok", col = okc?0x2e8b57:0xd23c2f;
+    const h1=c.overlap?c.hLow:c.hLow, h2=c.overlap?c.hLow+S.thick+20:c.hHigh;
+    if(!c.overlap && c.gap>0){
+      const pts=[new THREE.Vector3(c.x,h1,c.y),new THREE.Vector3(c.x,h2,c.y)];
+      G.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col})));
+    }
+    const sp=new THREE.Mesh(new THREE.SphereGeometry(okc?4:7,16,12),new THREE.MeshBasicMaterial({color:col}));
+    sp.position.set(c.x,(h1+h2)/2,c.y); G.add(sp);
+    const el=document.createElement("div"); el.className="lbl3"; el.style.color=okc?"#2e8b57":"#d23c2f"; el.style.borderColor=el.style.color;
+    el.textContent = c.kind==="overlap"?"⚠ tracks overlap": c.kind==="hit"?"⚠ collides": (okc?"":"⚠ ")+Math.round(c.gap)+" mm free";
+    V3.labels.appendChild(el); V3.lab.push({el,pos:new THREE.Vector3(c.x,h2+10,c.y)});
+  });
+  // floor + grid sized to the layout
+  const b=bbox()||{x0:-300,y0:-300,x1:300,y1:300}, cx=(b.x0+b.x1)/2, cz=(b.y0+b.y1)/2, sz=Math.max(b.x1-b.x0,b.y1-b.y0)+600;
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz),new THREE.MeshStandardMaterial({color:0xf3efe7,roughness:1}));
+  floor.rotation.x=-Math.PI/2; floor.position.set(cx,-0.5,cz); floor.receiveShadow=true; G.add(floor);
+  const grid=new THREE.GridHelper(Math.ceil(sz/100)*100,Math.ceil(sz/100),0xd2c8b6,0xe4ddd0); grid.position.set(cx,0,cz); G.add(grid);
+  V3.center={x:cx,z:cz,size:sz};
+  const s2=V3.sun.shadow.camera; s2.left=s2.bottom=-sz/2; s2.right=s2.top=sz/2; s2.far=6000; s2.updateProjectionMatrix();
+  V3.sun.position.set(cx-600,1600,cz+900); V3.sun.target.position.set(cx,0,cz);
+}
+function frame3D(mode){
+  if(!V3.ready) return; const c=V3.center||{x:0,z:0,size:800}, d=c.size*0.9;
+  V3.ctl.target.set(c.x,20,c.z);
+  if(mode==="top") V3.cam.position.set(c.x,d*1.6,c.z+1);
+  else if(mode==="side") V3.cam.position.set(c.x,90,c.z+d*1.2);
+  else V3.cam.position.set(c.x-d*0.6,d*0.75,c.z+d*0.9);
+  V3.ctl.update();
+}
+function placeLabels(){
+  const show=document.getElementById("c3Lab").checked, w=V3.host.clientWidth, h=V3.host.clientHeight;
+  V3.lab.forEach(({el,pos})=>{ const v=pos.clone().project(V3.cam);
+    if(!show||v.z>1){ el.style.display="none"; return; }
+    el.style.display="block"; el.style.left=((v.x+1)/2*w)+"px"; el.style.top=((1-v.y)/2*h)+"px"; });
+}
+document.getElementById("b3d").onclick=open3D;
+document.getElementById("b3dClose").onclick=()=>document.getElementById("v3d").classList.remove("show");
+document.getElementById("c3Env").onchange=()=>build3D();
+document.getElementById("b3dTop").onclick=()=>frame3D("top");
+document.getElementById("b3dSide").onclick=()=>frame3D("side");
+document.getElementById("b3dIso").onclick=()=>frame3D("iso");
+
+/* ---------- Start ---------- */
+load(); rebuildTypes(); setView(); refresh();
+// offline support when hosted (GitHub Pages); skipped when opened as a local file
+if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
+if(!S.pieces.length){ demo(); hist=[]; refresh(); } else fit();
+})();
+</script>
+</body>
+</html>
