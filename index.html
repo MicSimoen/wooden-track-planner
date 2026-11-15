@@ -304,8 +304,6 @@ const BASE = [
   {grp:"BRIO adapters & ends", id:"C",  name:"Medium straight, two holes C", dim:"144 mm (retired)", lanes:[{k:"s",len:144,g:["F","F"]}]},
   {grp:"BRIO adapters & ends", id:"R",  name:"Buffer stop R", dim:"40 mm · hole end", lanes:[{k:"s",len:40,g:["F","M"],c:[true,false]}]},
   {grp:"BRIO adapters & ends", id:"S",  name:"Buffer stop S", dim:"40 mm · peg end", lanes:[{k:"s",len:40,g:["M","F"],c:[true,false]}]},
-  {grp:"Other / unconfirmed", id:"Y",  name:"Y switch, two large curves", dim:"not in the BRIO track guide", lanes:[{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45}]},
-  {grp:"Other / unconfirmed", id:"IYS", name:"Straight + curve switch (3rd-party)", dim:"145 mm straight + 45° curve", lanes:[{k:"s",len:145},{k:"a",r:202,deg:45}]},
   /* IKEA LILLABO — dimensions from trackdrawer.com/systemen/ikea-lillabo (12 pieces): track 40 mm wide, 12 mm high,
      grooves 25.7 mm apart, parallel tracks 40 mm apart. IKEA has no tight curve: its short curve is a 22.5° piece. */
   {grp:"IKEA LILLABO", id:"I240", name:"IKEA long straight",   dim:"240 mm · LB-240 (BRIO D is 216)", lanes:[{k:"s",len:240}]},
@@ -317,24 +315,20 @@ const BASE = [
   {grp:"IKEA LILLABO", id:"IFF",  name:"IKEA female–female",   dim:"50 mm, two holes · LB-50NN",      lanes:[{k:"s",len:50,g:["F","F"]}]},
   {grp:"IKEA LILLABO", id:"IC45", name:"IKEA curve",           dim:"45° · R 205 mm centre (185 inner) · LB-B45", lanes:[{k:"a",r:205,deg:45}]},
   {grp:"IKEA LILLABO", id:"IC22", name:"IKEA short curve",     dim:"22.5° · R 200 mm centre (180 inner) · LB-B22 — half a curve, not a tight one", lanes:[{k:"a",r:200,deg:22.5}]},
-  {grp:"IKEA LILLABO", id:"IYP",  name:"IKEA double Y (hole at single end)", dim:"1 → 2 tracks 40 mm apart · LB-Y2 · length ~146 mm estimated", lanes:[...sCurveSide(146,20,1,["F","M"]),...sCurveSide(146,20,-1,["F","M"])]},
-  {grp:"IKEA LILLABO", id:"IYP2", name:"IKEA double Y (peg at single end)",  dim:"1 → 2 tracks 40 mm apart · LB-Y1 · length ~146 mm estimated", lanes:[...sCurveSide(146,20,1,["M","F"]),...sCurveSide(146,20,-1,["M","F"])]},
-  /* Not in the LILLABO list above (older sets or third-party): kept so saved layouts still open */
-  {grp:"Other / unconfirmed", id:"IC90", name:"90° curve (IKEA-style)", dim:"90° · R 205 mm · not in IKEA's current list", lanes:[{k:"a",r:205,deg:90}]},
-  {grp:"Other / unconfirmed", id:"IY",   name:"Y fork, two curves", dim:"two 45° curves · not in IKEA's current list", lanes:[{k:"a",r:205,deg:45},{k:"a",r:205,deg:-45}]},
-  {grp:"Other / unconfirmed", id:"IDS",  name:"Double straight (2 tracks)", dim:"146 mm · two tracks 40 mm apart · not in IKEA's current list", lanes:[{k:"s",len:146,p0:{x:0,y:-20,a:0}},{k:"s",len:146,p0:{x:0,y:20,a:0}}]},
+  /* LILLABO Y (double track): a flat trapezoid. One track runs straight through; the other branches off in a straight
+     diagonal and ends parallel, 40 mm to the side. Length isn't published: ~150 mm, measured from a photo. */
+  {grp:"IKEA LILLABO", id:"IYP",  name:"IKEA Y, hole at single end", dim:"LB-Y2 · straight + straight branch to a parallel track 40 mm aside · ~150 mm", outline:[[0,20],[150,20],[150,-60],[0,-20]], lanes:[{k:"s",len:150,g:["F","M"]},{k:"l",dx:150,dy:-40,g:["F","M"]}]},
+  {grp:"IKEA LILLABO", id:"IYP2", name:"IKEA Y, peg at single end",  dim:"LB-Y1 · straight + straight branch to a parallel track 40 mm aside · ~150 mm", outline:[[0,20],[150,20],[150,-60],[0,-20]], lanes:[{k:"s",len:150,g:["M","F"]},{k:"l",dx:150,dy:-40,g:["M","F"]}]},
   /* Bridges: decks are raised straights (woodenrailway.info span table, deck length excludes ramps).
      BRIO ascending track N/N1: 216 mm, raises the track 64 mm; N1 has two pegs (goes with the reversible bridge). */
   {grp:"Bridges & ramps", id:"N",     name:"BRIO ascending track N",  dim:"216 mm, +64 mm · hole at the bottom, peg at the top", lanes:[{k:"s",len:216,g:["F","M"],lv:[0,1]}]},
   {grp:"Bridges & ramps", id:"N1",    name:"BRIO ascending track N1", dim:"216 mm, +64 mm · pegs at both ends", lanes:[{k:"s",len:216,g:["M","M"],lv:[0,1]}]},
-  {grp:"Bridges & ramps", id:"NX",    name:"Ascending track, peg at the bottom", dim:"216 mm, +64 mm · hole at the top (for coming down a bridge whose end is a peg)", lanes:[{k:"s",len:216,g:["M","F"],lv:[0,1]}]},
   {grp:"Bridges & ramps", id:"B144",  name:"Short bridge deck",  dim:"144 mm · tied arch, drawbridge", deck:true, lanes:[{k:"s",len:144}]},
   {grp:"Bridges & ramps", id:"B216",  name:"Medium bridge deck", dim:"216 mm · arch, girder, lifting, swing", deck:true, lanes:[{k:"s",len:216}]},
   {grp:"Bridges & ramps", id:"B324",  name:"Long bridge deck",   dim:"324 mm · double suspension", deck:true, lanes:[{k:"s",len:324}]},
   {grp:"Bridges & ramps", id:"B360",  name:"Extra-long bridge deck", dim:"360 mm · suspension, viaduct, Sydney", deck:true, lanes:[{k:"s",len:360}]},
   {grp:"Bridges & ramps", id:"B360R", name:"Reversible bridge deck", dim:"360 mm · holes at both ends (use with N1)", deck:true, lanes:[{k:"s",len:360,g:["F","F"]}]},
-  {grp:"Bridges & ramps", id:"IRAMP", name:"IKEA ramp (hole at bottom)", dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["F","M"],lv:[0,1]}]},
-  {grp:"Bridges & ramps", id:"IRAMP2",name:"IKEA ramp (peg at bottom)",  dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["M","F"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"IRAMP", name:"IKEA ramp", dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["F","M"],lv:[0,1]}]},
 ];
 const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,MM:1,FF:1};
 
@@ -357,9 +351,13 @@ function fixRefs(){ if(sel && !byId(sel)) sel=null; if(active && !byId(active.pi
 const compose = (p,q) => { const c=Math.cos(p.a), s=Math.sin(p.a); return {x:p.x+q.x*c-q.y*s, y:p.y+q.x*s+q.y*c, a:p.a+q.a}; };
 const normA = a => { a%=TAU; if(a>Math.PI) a-=TAU; if(a<-Math.PI) a+=TAU; return a; };
 
+/* ramp height profile: real ascending track curves up gently and levels off at the top (not a straight slope) */
+const rampProf=u=>(1-Math.cos(Math.PI*Math.min(1,Math.max(0,u))))/2;
+const laneLen=l=> l.k==="s" ? l.len : l.k==="l" ? Math.hypot(l.dx,l.dy) : Math.abs(l.deg)*D2R*l.r;
 function lanePose(l,t,off){
   let x,y,a;
   if(l.k==="s"){ x=t*l.len; y=0; a=0; }
+  else if(l.k==="l"){ x=t*l.dx; y=t*l.dy; a=Math.atan2(l.dy,l.dx); }    // straight diagonal (e.g. the LILLABO Y's branch)
   else { const s=Math.sign(l.deg), th=Math.abs(l.deg)*D2R, ph=t*th; x=l.r*Math.sin(ph); y=s*l.r*(1-Math.cos(ph)); a=s*ph; }
   x += -Math.sin(a)*off; y += Math.cos(a)*off;
   return compose(l.p0r,{x,y,a});
@@ -371,21 +369,26 @@ function buildType(t){
   const add = c => { if(!C.some(o=>Math.hypot(o.x-c.x,o.y-c.y)<0.5 && Math.abs(normA(o.a-c.a))<0.01)) C.push(c); };
   t.lanes.forEach(l => {
     const s=lanePose(l,0,0), e=lanePose(l,1,0), g=l.g||["F","M"], c=l.c||[true,true], lv=l.lv||[0,0];
-    if(c[0]) add({x:s.x,y:s.y,a:normA(s.a+Math.PI),g:g[0],lv:lv[0]});
-    if(c[1]) add({x:e.x,y:e.y,a:normA(e.a),g:g[1],lv:lv[1]});
+    // a diagonal branch still ends square to the piece, so its connectors point along the piece's axis
+    const sa = l.k==="l" ? l.p0r.a : s.a, ea = l.k==="l" ? l.p0r.a : e.a;
+    if(c[0]) add({x:s.x,y:s.y,a:normA(sa+Math.PI),g:g[0],lv:lv[0]});
+    if(c[1]) add({x:e.x,y:e.y,a:normA(ea),g:g[1],lv:lv[1]});
   });
   t.conns=C;
   t.ramp = C.some(c=>c.lv>0);
   // drawing
   let band="", grooves="", pts=[];
   t.lanes.forEach(l => {
-    const n = l.k==="s"?1:Math.max(6,Math.ceil(Math.abs(l.deg)/3));
+    const n = l.k!=="a"?1:Math.max(6,Math.ceil(Math.abs(l.deg)/3));
     const P=o=>{const a=[];for(let i=0;i<=n;i++){const p=lanePose(l,i/n,o);a.push(p);}return a;};
     const o1=P(HALF), o2=P(-HALF).reverse();
     pts.push(...o1,...o2);
     band += "M"+o1.concat(o2).map(p=>p.x.toFixed(2)+" "+p.y.toFixed(2)).join("L")+"Z";
     [GROOVE,-GROOVE].forEach(o=>{ grooves += "M"+P(o).map(p=>p.x.toFixed(2)+" "+p.y.toFixed(2)).join("L"); });
   });
+  if(t.outline){   // pieces whose body isn't simply "40 mm around each track" (e.g. the LILLABO Y trapezoid)
+    band="M"+t.outline.map(q=>q[0].toFixed(2)+" "+q[1].toFixed(2)).join("L")+"Z"; pts=t.outline.map(q=>({x:q[0],y:q[1]}));
+  }
   t.band=band; t.grooves=grooves; t.pts=pts;
   // real connector shapes (BRIO track guide): peg = 11.5 mm knob on a 7 mm neck; hole ≈ 16 mm with a 5 mm throat
   const circ=(x,y,r)=>`M${(x+r).toFixed(2)} ${y.toFixed(2)}A${r} ${r} 0 1 0 ${(x-r).toFixed(2)} ${y.toFixed(2)}A${r} ${r} 0 1 0 ${(x+r).toFixed(2)} ${y.toFixed(2)}Z`;
@@ -453,10 +456,10 @@ let selbarReady=false;
 function pieceSamples(p, step=10){
   const t=types[p.type], out=[];
   t.lanes.forEach(l=>{
-    const len = l.k==="s" ? l.len : Math.abs(l.deg)*D2R*l.r;
+    const len = laneLen(l);
     const n=Math.max(2,Math.ceil(len/step)), lv=l.lv||[0,0];
     for(let i=0;i<=n;i++){ const u=i/n, q=lanePose(l,u,0), w=worldPt(p,q.x,q.y);
-      out.push({x:w.x,y:w.y,h:((p.level||0)+lv[0]+(lv[1]-lv[0])*u)*S.rise}); }
+      out.push({x:w.x,y:w.y,h:((p.level||0)+lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise}); }
   });
   return out;
 }
@@ -989,7 +992,7 @@ function init3D(){
 const WOOD=0xdcb37c;
 function ribbon(p,l,mat,hFn,wHalf,thick,off=0){
   // a solid strip following lane l of piece p: top, two sides, bottom, end caps
-  const len = l.k==="s" ? l.len : Math.abs(l.deg)*D2R*l.r, n=Math.max(1,Math.ceil(len/12)), lv=l.lv||[0,0];
+  const len = laneLen(l), n=Math.max(1,Math.ceil(len/(l.lv&&l.lv[1]!==l.lv[0]?6:12))), lv=l.lv||[0,0];
   const P=[], idx=[];
   for(let i=0;i<=n;i++){ const u=i/n, h=hFn(lv,u);
     const a=lanePose(l,u,off+wHalf), b=lanePose(l,u,off-wHalf), A=worldPt(p,a.x,a.y), B=worldPt(p,b.x,b.y);
@@ -1000,6 +1003,15 @@ function ribbon(p,l,mat,hFn,wHalf,thick,off=0){
   quad(0,1,3,2); const e=n*4; quad(e,e+2,e+3,e+1);
   const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(P.flat(),3));
   g.setIndex(idx); g.computeVertexNormals();
+  const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; return m;
+}
+/* a flat solid with any outline (local coords), placed like the piece */
+function prism(p,outline,h0,thick,mat){
+  const tri=THREE.ShapeUtils.triangulateShape(outline.map(q=>new THREE.Vector2(q[0],q[1])),[]), W=outline.map(q=>worldPt(p,q[0],q[1])), P=[], idx=[];
+  W.forEach(w=>P.push(w.x,h0+thick,w.y)); W.forEach(w=>P.push(w.x,h0,w.y)); const n=W.length;
+  tri.forEach(([a,b,c])=>{ idx.push(a,c,b, n+a,n+b,n+c); });
+  for(let i=0;i<n;i++){ const j=(i+1)%n; idx.push(i,j,n+j, i,n+j,n+i); }
+  const g=new THREE.BufferGeometry(); g.setAttribute("position",new THREE.Float32BufferAttribute(P,3)); g.setIndex(idx); g.computeVertexNormals();
   const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; return m;
 }
 function build3D(){
@@ -1013,10 +1025,11 @@ function build3D(){
   const mGrooveM=new THREE.MeshStandardMaterial({color:0x9a6d40,roughness:0.9});
   const mHole=new THREE.MeshBasicMaterial({color:0x3a2a1a});
   const env=document.getElementById("c3Env").checked;
-  const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*u)*S.rise;
+  const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise;
   S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
+    if(t.outline) G.add(prism(p,t.outline,(p.level||0)*S.rise,S.thick,mWood));
     t.lanes.forEach(l=>{
-      G.add(ribbon(p,l,mWood,hf,HALF,S.thick));
+      if(!t.outline) G.add(ribbon(p,l,mWood,hf,HALF,S.thick));
       if(t.deck) G.add(ribbon(p,l,mDeck,(lv,u)=>hf(lv,u)-6,HALF+4,6)); // red girder under the bridge deck
       // grooves: 6 mm wide, 3 mm deep (drawn as darker channels just below the top surface)
       [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick-3+0.05,3,3.2,o); gr.castShadow=false; G.add(gr); });
@@ -1032,7 +1045,7 @@ function build3D(){
         const throat=new THREE.Mesh(new THREE.BoxGeometry(6,0.6,5),mHole); throat.position.set(c.x-ox*3,h+S.thick+0.1,c.y-oy*3); throat.rotation.y=-c.a; G.add(throat);
       } });
     // supports under raised straight pieces (not ramps)
-    if((p.level||0)>0 && !t.ramp){ t.lanes.forEach(l=>{ const len=l.k==="s"?l.len:Math.abs(l.deg)*D2R*l.r;
+    if((p.level||0)>0 && !t.ramp){ t.lanes.forEach(l=>{ const len=laneLen(l);
       const us = len>250?[0.2,0.8]:[0.5];
       us.forEach(u=>{ const q=lanePose(l,u,0), w=worldPt(p,q.x,q.y), h=p.level*S.rise;
         // skip a pier if floor track runs right underneath it
@@ -1092,10 +1105,10 @@ document.getElementById("b3dIso").onclick=()=>frame3D("iso");
    and matched against the catalogue → 5 review/correct → add to inventory. Everything runs on the device. */
 const MMPX=2;                                   // rectified top-down image: 2 mm per pixel
 const PAPER={a4:[297,210], letter:[279.4,215.9]};
-const SC={step:0, img:null, corners:[], paper:"a4", taps:{wood:[],bg:[]}, tapMode:"wood", rect:null, bodies:[], brands:{BRIO:true,IKEA:true,Custom:true,Other:false}, stream:null,
+const SC={step:0, img:null, corners:[], paper:"a4", taps:{wood:[],bg:[]}, tapMode:"wood", rect:null, bodies:[], brands:{BRIO:true,IKEA:true,Custom:true}, stream:null,
           mode:"colour", sens:5};   // mode: "colour" (contrasting floor) or "grooves" (wooden table)
 const scEl=id=>document.getElementById(id);
-function brandOf(t){ if(t.grp==="IKEA LILLABO"||t.id==="IRAMP"||t.id==="IRAMP2") return "IKEA"; if(t.grp==="Custom") return "Custom"; if(t.grp==="Other / unconfirmed") return "Other"; return "BRIO"; }
+function brandOf(t){ if(t.grp==="IKEA LILLABO"||t.id==="IRAMP") return "IKEA"; if(t.grp==="Custom") return "Custom"; return "BRIO"; }
 
 /* -- small linear algebra -- */
 function solveLin(A,b){ const n=b.length, M=A.map((r,i)=>[...r,b[i]]);
@@ -1564,7 +1577,7 @@ function scReviewStep(){
       (bad&&both?` Some BRIO and IKEA pieces are the same shape: untick a brand you don't have and they'll sort themselves out.`:"")+grooveTip;
   };
   scEl("scFoot").innerHTML=`<span class="hint" id="scHint4"></span>
-    <span class="chip-row">Brands: ${["BRIO","IKEA","Custom","Other"].map(b=>`<button class="chip ${SC.brands[b]?"on":""}" data-brand="${b}">${b}</button>`).join(" ")}</span>
+    <span class="chip-row">Brands: ${["BRIO","IKEA","Custom"].map(b=>`<button class="chip ${SC.brands[b]?"on":""}" data-brand="${b}">${b}</button>`).join(" ")}</span>
     <span style="display:flex;gap:6px;align-items:center">Detect by: <button class="chip ${SC.mode==="colour"?"on":""}" data-mode="colour" ${SC.taps.wood.length&&SC.taps.bg.length?"":"disabled"}>Colour</button><button class="chip ${SC.mode==="grooves"?"on":""}" data-mode="grooves">Grooves</button></span>
     ${SC.mode==="grooves"?`<label style="display:flex;gap:6px;align-items:center">Sensitivity <input type="range" id="scSens" min="1" max="10" value="${SC.sens}" style="width:140px"></label>`:""}
     <div class="sumlist" id="scSum" style="flex:1 1 100%"></div>
@@ -1616,6 +1629,8 @@ window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homogr
 
 /* ---------- Start ---------- */
 load(); rebuildTypes(); setView();
+{ const before=S.pieces.length; S.pieces=S.pieces.filter(p=>types[p.type]); const gone=before-S.pieces.length;
+  if(gone) setTimeout(()=>toast(`${gone} piece${gone>1?"s":""} of a type that's no longer in the catalogue ${gone>1?"were":"was"} left out of your layout`),600); }
 if(S.helpHidden) helpEl.style.display="none";
 if(S.sideHidden) document.getElementById("app").classList.add("noside");
 refresh();
