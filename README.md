@@ -7,6 +7,8 @@ Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own
 - Gap measurement, so you can see whether a loop will close
 - Bridges and ramps with height levels, plus a **3D view** and a **clearance check** for track passing under bridges
 - Custom pieces for anything that isn't in the list
+- **Scan your inventory with the camera**: photograph your pieces next to a sheet of A4 paper, tap its corners, and the app measures and recognises each piece (you check and correct before adding)
+- Made for iPad: pinch to zoom, big buttons, a floating toolbar next to the selected piece, +/− steppers
 - Works offline and can be added to the iPad/iPhone home screen as an app
 
 ## Put it online with GitHub Pages
@@ -25,6 +27,15 @@ Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own
 3. Open it from the home screen once while online. After that it also works offline, 3D view included.
 
 Your layouts and inventory are stored on the device, inside the app. Use **Save / load** to copy a backup now and then.
+
+## Scanning tips
+
+- Lay pieces flat and apart (a hand's width), with an A4 or US Letter sheet flat next to them.
+- A plain floor or rug that contrasts with the wood works best; avoid strong shadows.
+- 10–20 pieces per photo; several photos add up.
+- Look-alikes (e.g. BRIO 144 mm vs IKEA 145 mm straights, or ramps vs straights seen from above) are marked orange so you can choose.
+  Untick a brand you don't own to reduce them.
+- Everything runs on the device; photos are not uploaded anywhere.
 
 ## Updating
 

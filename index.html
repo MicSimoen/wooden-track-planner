@@ -57,7 +57,7 @@
   .pill.ok{color:var(--ok);border-color:#bfe3cf}
   .pill.warn{color:var(--warn);border-color:#f0d9a8}
   .pill.bad{color:var(--bad);border-color:#f2c1bc}
-  .help{position:absolute;right:10px;bottom:48px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);max-width:330px}
+  .help{position:absolute;right:10px;bottom:56px;z-index:2;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);max-width:330px}
   .help b{color:var(--ink)}
   .help kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;font-size:11px;background:#fff;color:var(--ink)}
   #toast{position:absolute;top:56px;left:50%;transform:translateX(-50%);background:#2b2620;color:#fff;padding:6px 12px;border-radius:7px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
@@ -69,6 +69,69 @@
   .modal textarea{height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
   .modal .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
   .piece{cursor:move}
+  /* ---- scanner ---- */
+  .scan{ position:fixed; inset:0; z-index:20; background:#1f1c18; color:#fff; display:none; flex-direction:column;
+         padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) }
+  .scan.show{ display:flex }
+  .scanbar{ display:flex; align-items:center; gap:10px; padding:10px 14px; background:#2b2620 }
+  .scanbar .sp{ flex:1 }
+  .scsteps{ font-size:13px; color:#cbbfae }
+  .scbody{ flex:1; position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center }
+  .scbody canvas, .scbody video{ max-width:100%; max-height:100%; touch-action:none; display:block }
+  .scfoot{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:10px 14px; background:#2b2620; font-size:14px; color:#e9e1d4 }
+  .scfoot .sp{ flex:1 }
+  .scfoot .hint{ flex:1 1 300px; line-height:1.35 }
+  .scan button{ color:var(--ink) }
+  .scan .big{ font-size:17px; padding:12px 18px; min-height:48px }
+  .scan .chip{ border-radius:999px }
+  .scan .chip.on{ background:var(--accent); color:#fff; border-color:var(--accent) }
+  .sctips{ max-width:560px; padding:24px; line-height:1.5; font-size:15px; color:#e9e1d4 }
+  .sctips h2{ margin:0 0 8px; color:#fff; font-size:20px }
+  .sctips ol{ padding-left:20px } .sctips li{ margin:6px 0 }
+  .sctips .row2{ display:flex; gap:12px; flex-wrap:wrap; margin-top:18px }
+  .shutter{ position:absolute; bottom:18px; left:50%; transform:translateX(-50%); width:76px; height:76px; border-radius:50%;
+            background:#fff; border:6px solid rgba(255,255,255,.4); background-clip:padding-box; min-height:0 }
+  .sheet{ position:absolute; left:0; right:0; bottom:0; max-height:70%; overflow:auto; background:var(--panel); color:var(--ink);
+          border-radius:16px 16px 0 0; padding:14px; box-shadow:0 -8px 30px rgba(0,0,0,.35) }
+  .sheet h3{ margin:0 0 8px; font-size:16px }
+  .sheet .opts{ display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px }
+  .sheet .opt{ text-align:left; display:flex; gap:8px; align-items:center; min-height:52px }
+  .sheet .opt svg{ width:44px; height:32px; flex:none }
+  .sheet .opt small{ display:block; color:var(--muted); font-size:12px }
+  .sumlist{ display:flex; gap:6px; flex-wrap:wrap }
+  .sumlist span{ background:#3a342c; border-radius:999px; padding:4px 10px; font-size:13px }
+  /* ---- touch friendliness ---- */
+  #app, .toolbar, aside, #selbar, .scan{ -webkit-user-select:none; user-select:none; -webkit-touch-callout:none }
+  input, textarea{ -webkit-user-select:text; user-select:text }
+  button{ touch-action:manipulation; min-height:36px }
+  html,body{ overscroll-behavior:none }
+  #app.noside{ grid-template-columns:0 1fr }
+  #app.noside aside{ display:none }
+  .scanbtn{ width:100%; margin-top:8px; background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600 }
+  .stepper{ display:flex; align-items:center; gap:2px }
+  .stepper .stp{ min-height:0; width:26px; height:26px; padding:0; font-size:16px; line-height:1; box-shadow:none }
+  .stepper input{ width:38px !important; text-align:center !important }
+  #selbar{ position:absolute; z-index:3; transform:translateX(-50%); display:none; gap:4px; padding:5px; background:var(--panel);
+           border:1px solid var(--line); border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.15) }
+  #selbar.show{ display:flex }
+  #selbar button{ min-width:44px; min-height:44px; font-size:18px; padding:0 }
+  #selbar button.on{ background:var(--accent); color:#fff; border-color:var(--accent) }
+  .touchonly{ display:none } .mouseonly{ display:block }
+  @media (pointer:coarse){
+    .touchonly{ display:block } .mouseonly{ display:none }
+    button{ min-height:44px; padding:8px 12px; font-size:15px }
+    .toolbar{ gap:8px }
+    .row{ padding:10px 8px; grid-template-columns:56px 1fr auto }
+    .row svg{ width:56px; height:40px }
+    .row .nm{ font-size:15px } .row .dim{ font-size:12.5px }
+    .stepper .stp{ width:38px; height:38px; font-size:20px }
+    .stepper input{ width:44px !important; font-size:15px !important; padding:6px 2px !important }
+    .grp{ padding:8px 0; font-size:12px }
+    .pill{ font-size:13px; padding:6px 12px }
+    details summary{ padding:8px 0; font-size:15px }
+    details input, details select{ font-size:16px; padding:8px }
+    .help{ font-size:13px; max-width:360px }
+  }
   #v3d{position:absolute;inset:0;background:#eef2f6;display:none;z-index:4}
   #v3d.show{display:block}
   #v3dCanvas{position:absolute;inset:0}
@@ -92,7 +155,8 @@
   <aside>
     <header>
       <h1>Wooden Track Planner</h1>
-      <p>BRIO &amp; IKEA LILLABO compatible · set how many you own, click a piece to add it</p>
+      <p>BRIO &amp; IKEA LILLABO compatible · set how many you own, tap a piece to add it</p>
+      <button id="bScanTop" class="scanbtn">📷 Scan pieces with the camera</button>
     </header>
     <div id="inv"></div>
   </aside>
@@ -108,6 +172,7 @@
       <g id="layerMarks"></g>
     </svg>
     <div class="toolbar">
+      <button id="bSide" title="Show or hide the piece list">☰ Pieces</button>
       <button id="bUndo" title="Undo (Ctrl+Z)">↶ Undo</button>
       <button id="bRedo" title="Redo (Ctrl+Y)">↷</button>
       <button id="bRot" title="Rotate 45° / cycle which end connects (R)">⟳ Rotate</button>
@@ -122,12 +187,25 @@
       <button id="bDemo">Demo oval</button>
       <button id="bIO">Save / load</button>
       <button id="bClear" class="danger">Clear</button>
+      <button id="bHelp" title="Help">?</button>
     </div>
     <div class="status" id="status"></div>
     <div class="help" id="help">
+      <div class="touchonly"><b>Build:</b> tap an open end (●/○), then tap pieces in the list — they snap on and the chain continues.<br>
+      <b>Edit:</b> tap a piece for its buttons (⟳ rotate, ⇋ flip, ▲▼ bridge level, ⛓ move whole section, 🗑 delete) · drag a piece to move it, it snaps to ends · one finger on empty space pans · pinch to zoom.<br>
+      Grid: small = 5 cm, big = 50 cm. <span class="hideHelp" style="color:var(--accent);cursor:pointer">hide</span></div>
+      <div class="mouseonly">
       <b>Build:</b> click an open end (●/○), then click pieces in the list — they snap on and the chain continues.<br>
       <b>Edit:</b> drag pieces (snap to ends) · <kbd>Shift</kbd>+drag moves a whole connected section · <kbd>R</kbd> rotate / pick other end · <kbd>F</kbd> flip curve · <kbd>PgUp</kbd>/<kbd>PgDn</kbd> raise/lower (bridges) · <kbd>Del</kbd> remove · wheel to zoom, drag background to pan.<br>
-      Bridges: ramps join floor (orange ends) to bridge level (blue ends); raised track casts a shadow and can cross over floor track. Grid: small = 5 cm, big = 50 cm. <span id="hideHelp" style="color:var(--accent);cursor:pointer">hide</span>
+      Bridges: ramps join floor (orange ends) to bridge level (blue ends); raised track casts a shadow and can cross over floor track. Grid: small = 5 cm, big = 50 cm. <span class="hideHelp" style="color:var(--accent);cursor:pointer">hide</span></div>
+    </div>
+    <div id="selbar" role="toolbar" aria-label="Selected piece">
+      <button id="sbRot" title="Rotate / use the other end">⟳</button>
+      <button id="sbFlip" title="Flip left/right">⇋</button>
+      <button id="sbUp" title="Raise one level">▲</button>
+      <button id="sbDown" title="Lower one level">▼</button>
+      <button id="sbGroup" title="Drag the whole connected section">⛓</button>
+      <button id="sbDel" class="danger" title="Delete">🗑</button>
     </div>
     <div id="toast"></div>
     <div id="v3d">
@@ -157,6 +235,18 @@
     </div>
   </main>
 </div>
+
+<div id="scan" class="scan" role="dialog" aria-label="Scan pieces">
+  <div class="scanbar">
+    <b id="scTitle">Scan pieces</b>
+    <span id="scSteps" class="scsteps"></span>
+    <span class="sp"></span>
+    <button id="scClose">Close</button>
+  </div>
+  <div id="scBody" class="scbody"></div>
+  <div id="scFoot" class="scfoot"></div>
+</div>
+<input type="file" id="scFile" accept="image/*" style="display:none">
 
 <script>
 (() => {
@@ -325,7 +415,8 @@ const isFree = (pid,ci) => !linkOf[pid+":"+ci];
 /* ---------- Rendering ---------- */
 const svg=document.getElementById("svg"), LP=document.getElementById("layerPieces"), LM=document.getElementById("layerMarks");
 let view={x:-600,y:-400,w:1200,h:800};
-function setView(){ svg.setAttribute("viewBox",`${view.x} ${view.y} ${view.w} ${view.h}`); }
+function setView(){ svg.setAttribute("viewBox",`${view.x} ${view.y} ${view.w} ${view.h}`); if(typeof placeSelbar==="function" && selbarReady) placeSelbar(); }
+let selbarReady=false;
 /* ---------- Heights & clearance ----------
    Track planks are S.thick (12 mm) thick; each level is S.rise (BRIO ramps rise 64 mm) higher.
    For every place where one piece passes over another, free height = bottom of upper − top of lower. */
@@ -397,7 +488,7 @@ function renderPieces(){
   LP.innerHTML=h;
 }
 function renderMarks(){
-  let h=""; const z=view.w/ (svg.clientWidth||1000);
+  let h=""; const z=view.w/ (svg.clientWidth||1000), hitR=Math.max(18,(isTouch()?26:14)*z);
   // free ends
   const free=[];
   S.pieces.forEach(p=>W[p.id].forEach((c,ci)=>{
@@ -407,8 +498,8 @@ function renderMarks(){
     const ox=Math.cos(c.a), oy=Math.sin(c.a);
     const isAct = active && active.pid===p.id && active.ci===ci;
     if(isAct) h+=`<circle cx="${c.x+ox*4}" cy="${c.y+oy*4}" r="22" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 4"/>`;
-    if(c.g==="M") h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x+ox*9}" cy="${c.y+oy*9}" r="18" fill="transparent"/><line x1="${c.x}" y1="${c.y}" x2="${c.x+ox*8}" y2="${c.y+oy*8}" stroke="#b06a1f" stroke-width="5"/><circle cx="${c.x+ox*11}" cy="${c.y+oy*11}" r="6.5" fill="${c.lv?"#5b8fd9":"#e08a2e"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="1"/></g>`;
-    else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*4}" cy="${c.y-oy*4}" r="18" fill="transparent"/><circle cx="${c.x-ox*10}" cy="${c.y-oy*10}" r="7" fill="${c.lv?"#dce8fb":"#fff"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="2"/></g>`;
+    if(c.g==="M") h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x+ox*9}" cy="${c.y+oy*9}" r="${hitR}" fill="transparent"/><line x1="${c.x}" y1="${c.y}" x2="${c.x+ox*8}" y2="${c.y+oy*8}" stroke="#b06a1f" stroke-width="5"/><circle cx="${c.x+ox*11}" cy="${c.y+oy*11}" r="6.5" fill="${c.lv?"#5b8fd9":"#e08a2e"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="1"/></g>`;
+    else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*4}" cy="${c.y-oy*4}" r="${hitR}" fill="transparent"/><circle cx="${c.x-ox*10}" cy="${c.y-oy*10}" r="7" fill="${c.lv?"#dce8fb":"#fff"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="2"/></g>`;
   }));
   // near misses between free ends (gaps that almost close)
   for(let i=0;i<free.length;i++) for(let j=i+1;j<free.length;j++){
@@ -463,7 +554,7 @@ function renderInv(){
     const own=S.inv[t.id]||0, u=used(t.id), left=own-u;
     h+=`<div class="row" data-type="${t.id}" title="Click to add">${iconSVG(t)}
       <div><div class="nm">${esc(t.name)}<code>${esc(t.id)}</code></div><div class="dim">${esc(t.dim||"")}</div></div>
-      <div class="cnt"><label>own <input type="number" min="0" value="${own}" data-own="${t.id}"></label>
+      <div class="cnt"><div class="stepper"><button class="stp" data-dec="${t.id}" aria-label="One less">−</button><input type="number" inputmode="numeric" min="0" value="${own}" data-own="${t.id}" aria-label="How many you own"><button class="stp" data-inc="${t.id}" aria-label="One more">+</button></div>
       <span class="left ${left<0?"neg":left===0?"zero":""}">${u} used · ${left} left</span></div></div>`;
   });
   h+=`<details><summary>Add a custom piece</summary>
@@ -496,6 +587,7 @@ function refresh(full=true){
   if(full) renderInv();
   document.getElementById("bUndo").disabled=!hist.length; document.getElementById("bRedo").disabled=!redo.length;
   const hasSel=!!sel; ["bRot","bFlip","bDel","bUp","bDown"].forEach(b=>document.getElementById(b).disabled=!hasSel);
+  if(selbarReady) placeSelbar();
   save();
 }
 let toastT; function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1800); }
@@ -613,30 +705,51 @@ function demo(){
   sel=null; active=null; refresh(); fit();
 }
 
-/* ---------- Pointer interaction ---------- */
+/* ---------- Pointer interaction (mouse, pen and touch; two fingers pinch-zoom and pan) ---------- */
 function svgPt(e){ const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
-let drag=null;
+let drag=null, pinch=null; const fingers=new Map();
+const isTouch = () => window.matchMedia && matchMedia("(pointer:coarse)").matches;
+function startPinch(){
+  // a second finger arrived: cancel any piece drag and zoom/pan instead
+  if(drag && drag.kind==="piece" && drag.moved){ drag.orig.forEach(o=>{ const q=byId(o.id); Object.assign(q,{x:o.x,y:o.y,rot:o.rot,level:o.level}); }); hist.pop(); }
+  drag=null; svg.classList.remove("panning");
+  const [a,b]=[...fingers.values()], mid={clientX:(a.x+b.x)/2, clientY:(a.y+b.y)/2};
+  pinch={d0:Math.hypot(a.x-b.x,a.y-b.y)||1, v0:{...view}, anchor:svgPt(mid)};
+  hideSelbar();
+}
 svg.addEventListener("pointerdown",e=>{
+  fingers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  try{ svg.setPointerCapture(e.pointerId); }catch(_){}
+  if(fingers.size>=2){ startPinch(); return; }
   const end=e.target.closest(".end"), pc=e.target.closest(".piece");
   const m=svgPt(e);
   if(end){
     active={pid:+end.dataset.pid, ci:+end.dataset.ci}; sel=active.pid; refresh(false);
-    toast("Open end selected — click pieces in the list to extend from here");
+    toast(isTouch()?"Open end selected — tap pieces in the list to extend from here":"Open end selected — click pieces in the list to extend from here");
     return;
   }
   if(pc){
     const p=byId(+pc.dataset.id); sel=p.id;
     let group=[p.id];
-    if(e.shiftKey){ computeLinks(); const seen=new Set([p.id]), q=[p.id];
+    if(e.shiftKey || groupMode){ computeLinks(); const seen=new Set([p.id]), q=[p.id];
       while(q.length){ const id=q.pop(); W[id].forEach((c,ci)=>{ const l=linkOf[id+":"+ci]; if(l && !seen.has(l.pid)){seen.add(l.pid);q.push(l.pid);} }); }
       group=[...seen]; }
     drag={kind:"piece", id:p.id, group, start:m, orig:group.map(id=>{const q=byId(id);return {id,x:q.x,y:q.y,rot:q.rot,level:q.level||0};}), moved:false, snap:null};
-    svg.setPointerCapture(e.pointerId); refresh(false); return;
+    refresh(false); return;
   }
   drag={kind:"pan", sx:e.clientX, sy:e.clientY, v:{...view}, moved:false};
-  svg.classList.add("panning"); svg.setPointerCapture(e.pointerId);
+  svg.classList.add("panning");
 });
 svg.addEventListener("pointermove",e=>{
+  if(fingers.has(e.pointerId)) fingers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pinch && fingers.size>=2){
+    const [a,b]=[...fingers.values()], d=Math.hypot(a.x-b.x,a.y-b.y)||1;
+    const k=pinch.d0/d, nw=Math.min(20000,Math.max(150,pinch.v0.w*k)), f=nw/pinch.v0.w;
+    view={x:view.x, y:view.y, w:nw, h:pinch.v0.h*f}; setView();
+    const now=svgPt({clientX:(a.x+b.x)/2, clientY:(a.y+b.y)/2});
+    view.x+=pinch.anchor.x-now.x; view.y+=pinch.anchor.y-now.y; setView();
+    return;
+  }
   if(!drag) return;
   if(drag.kind==="pan"){
     const k=view.w/svg.clientWidth; const dx=(e.clientX-drag.sx)*k, dy=(e.clientY-drag.sy)*k;
@@ -644,15 +757,16 @@ svg.addEventListener("pointermove",e=>{
     view.x=drag.v.x-dx; view.y=drag.v.y-dy; setView(); return;
   }
   const m=svgPt(e), dx=m.x-drag.start.x, dy=m.y-drag.start.y;
-  if(!drag.moved && Math.hypot(dx,dy)<2) return;
-  if(!drag.moved){ snapshot(); drag.moved=true; }
+  const slop = (e.pointerType==="touch"?8:2)*view.w/svg.clientWidth;   // finger jitter allowance
+  if(!drag.moved && Math.hypot(dx,dy)<slop) return;
+  if(!drag.moved){ snapshot(); drag.moved=true; hideSelbar(); }
   drag.orig.forEach(o=>{ const q=byId(o.id); q.x=o.x+dx; q.y=o.y+dy; q.rot=o.rot; q.level=o.level; });
   if(drag.group.length===1){
     const p=byId(drag.id);
     // try to snap one of its ends onto a free end of another piece
     computeLinks();
     const mine=worldConns(p), lc=localConns(p);
-    const reach=Math.max(30, 22*view.w/svg.clientWidth);
+    const reach=Math.max(30, (e.pointerType==="touch"?34:22)*view.w/svg.clientWidth);
     let best=null;
     S.pieces.forEach(o=>{ if(o.id===p.id) return; W[o.id].forEach((T,tci)=>{
       if(!isFree(o.id,tci)) return;
@@ -666,17 +780,40 @@ svg.addEventListener("pointermove",e=>{
   }
   refresh(false);
 });
-function endDrag(){
+function endDrag(e){
+  if(e) fingers.delete(e.pointerId);
+  if(pinch){ if(fingers.size<2){ pinch=null; refresh(false); } return; }
   if(!drag) return;
   if(drag.kind==="pan"){ svg.classList.remove("panning"); if(!drag.moved){ sel=null; refresh(false);} }
-  else if(drag.moved) refresh();
+  else if(drag.moved) refresh(); else refresh(false);
   drag=null;
 }
 svg.addEventListener("pointerup",endDrag); svg.addEventListener("pointercancel",endDrag);
 svg.addEventListener("wheel",e=>{ e.preventDefault(); const m=svgPt(e); zoom(Math.exp(e.deltaY*0.0015),m.x,m.y); },{passive:false});
+// Safari's own pinch gestures would zoom the whole page
+["gesturestart","gesturechange"].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+
+/* ---------- Floating action bar next to the selected piece (for fingers) ---------- */
+let groupMode=false;
+const selbar=document.getElementById("selbar");
+function hideSelbar(){ selbar.classList.remove("show"); }
+function placeSelbar(){
+  const p=sel&&byId(sel);
+  if(!p || drag&&drag.moved || pinch){ hideSelbar(); return; }
+  const c=types[p.type].center, w=worldPt(p,c.x,c.y), pt=svg.createSVGPoint(); pt.x=w.x; pt.y=w.y;
+  const sp=pt.matrixTransform(svg.getScreenCTM()), host=svg.getBoundingClientRect();
+  let x=sp.x-host.left, y=sp.y-host.top-90;
+  if(y<64) y=sp.y-host.top+70;                               // not under the toolbar
+  x=Math.max(selbar.offsetWidth/2+8, Math.min(host.width-selbar.offsetWidth/2-8, x));
+  selbar.style.left=x+"px"; selbar.style.top=y+"px"; selbar.classList.add("show");
+  document.getElementById("sbUp").disabled=false; document.getElementById("sbDown").disabled=!(p.level>0);
+}
 
 /* ---------- UI wiring ---------- */
 document.getElementById("inv").addEventListener("click",e=>{
+  const stp=e.target.closest(".stp");
+  if(stp){ const id=stp.dataset.inc||stp.dataset.dec; S.inv[id]=Math.max(0,(S.inv[id]||0)+(stp.dataset.inc?1:-1)); refresh(); return; }
+  if(e.target.id==="bScan"){ openScan(); return; }
   if(e.target.closest("input,select,button,label,summary,details")){
     if(e.target.id==="cAdd"){ addCustom(); }
     const dc=e.target.dataset && e.target.dataset.delc;
@@ -734,7 +871,21 @@ bClear.onclick=()=>{
   clearTimeout(clearArm); clearArm=null; bClear.textContent="Clear";
   snapshot(); S.pieces=[]; sel=null; active=null; refresh();
 };
-document.getElementById("hideHelp").onclick=()=>document.getElementById("help").style.display="none";
+const helpEl=document.getElementById("help");
+function setHelp(show){ S.helpHidden=!show; helpEl.style.display=show?"block":"none"; save(); }
+document.querySelectorAll(".hideHelp").forEach(x=>x.onclick=()=>setHelp(false));
+document.getElementById("bHelp").onclick=()=>setHelp(helpEl.style.display==="none");
+document.getElementById("bSide").onclick=()=>{ S.sideHidden=!S.sideHidden; document.getElementById("app").classList.toggle("noside",S.sideHidden); save(); setTimeout(()=>refresh(false),50); };
+document.getElementById("bScanTop").onclick=()=>openScan();
+// floating bar actions
+document.getElementById("sbRot").onclick=rotateSel;
+document.getElementById("sbFlip").onclick=flipSel;
+document.getElementById("sbUp").onclick=()=>levelSel(1);
+document.getElementById("sbDown").onclick=()=>levelSel(-1);
+document.getElementById("sbDel").onclick=deleteSel;
+document.getElementById("sbGroup").onclick=()=>{ groupMode=!groupMode; document.getElementById("sbGroup").classList.toggle("on",groupMode);
+  toast(groupMode?"Section mode: dragging a piece moves everything connected to it":"Section mode off"); };
+selbarReady=true;
 const modal=document.getElementById("modal"), ioText=document.getElementById("ioText");
 document.getElementById("bIO").onclick=()=>{ ioText.value=JSON.stringify({app:"wooden-track-planner",v:1,pieces:S.pieces,inv:S.inv,custom:S.custom,nextId:S.nextId}); modal.classList.add("show"); };
 document.getElementById("ioClose").onclick=()=>modal.classList.remove("show");
@@ -886,8 +1037,299 @@ document.getElementById("b3dTop").onclick=()=>frame3D("top");
 document.getElementById("b3dSide").onclick=()=>frame3D("side");
 document.getElementById("b3dIso").onclick=()=>frame3D("iso");
 
+/* ---------- Camera inventory scanner ----------
+   1 photo (camera or library) → 2 tap the 4 corners of an A4/Letter sheet lying on the floor (gives scale and
+   removes perspective) → 3 tap one piece and the floor (colour samples) → 4 pieces are found, measured in mm
+   and matched against the catalogue → 5 review/correct → add to inventory. Everything runs on the device. */
+const MMPX=2;                                   // rectified top-down image: 2 mm per pixel
+const PAPER={a4:[297,210], letter:[279.4,215.9]};
+const SC={step:0, img:null, corners:[], paper:"a4", taps:{wood:[],bg:[]}, tapMode:"wood", rect:null, bodies:[], brands:{BRIO:true,IKEA:true,Custom:true}, stream:null};
+const scEl=id=>document.getElementById(id);
+function brandOf(t){ if(t.grp==="IKEA LILLABO"||t.id==="IRAMP"||t.id==="IRAMP2") return "IKEA"; if(t.grp==="Custom") return "Custom"; return "BRIO"; }
+
+/* -- small linear algebra -- */
+function solveLin(A,b){ const n=b.length, M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){ let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r; [M[c],M[p]]=[M[p],M[c]];
+    const d=M[c][c]||1e-12; for(let r=0;r<n;r++){ if(r===c) continue; const f=M[r][c]/d; for(let k=c;k<=n;k++) M[r][k]-=f*M[c][k]; } }
+  return M.map((r,i)=>r[n]/(r[i]||1e-12)); }
+function homography(src,dst){ const A=[],b=[];
+  for(let i=0;i<4;i++){ const [x,y]=src[i],[u,v]=dst[i];
+    A.push([x,y,1,0,0,0,-u*x,-u*y]); b.push(u); A.push([0,0,0,x,y,1,-v*x,-v*y]); b.push(v); }
+  return [...solveLin(A,b),1]; }
+const applyH=(H,x,y)=>{ const w=H[6]*x+H[7]*y+H[8]; return [(H[0]*x+H[1]*y+H[2])/w,(H[3]*x+H[4]*y+H[5])/w,w]; };
+
+/* -- binary image helpers (Uint8Array masks, w×h) -- */
+function boxPass(m,w,h,r,erode,horiz){ const o=new Uint8Array(w*h), n=horiz?w:h, L=horiz?h:w, win=2*r+1;
+  for(let l=0;l<L;l++){ let cnt=0; const at=i=>horiz?m[l*w+i]:m[i*w+l];
+    for(let i=0;i<Math.min(r,n);i++) cnt+=at(i);
+    for(let i=0;i<n;i++){ if(i+r<n) cnt+=at(i+r); if(i-r-1>=0) cnt-=at(i-r-1);
+      const v = erode ? (cnt===win ? 1:0) : (cnt>0?1:0);   // outside the image counts as empty
+      if(horiz) o[l*w+i]=v; else o[i*w+l]=v; } }
+  return o; }
+const dilate=(m,w,h,r)=>boxPass(boxPass(m,w,h,r,false,true),w,h,r,false,false);
+const erode =(m,w,h,r)=>boxPass(boxPass(m,w,h,r,true,true),w,h,r,true,false);
+const closeM=(m,w,h,r)=>erode(dilate(m,w,h,r),w,h,r);
+const openM =(m,w,h,r)=>dilate(erode(m,w,h,r),w,h,r);
+function components(m,w,h,minPx){ const lab=new Int32Array(w*h), comps=[]; let id=0; const st=[];
+  for(let i=0;i<w*h;i++){ if(!m[i]||lab[i]) continue; id++; let n=0, sx=0, sy=0; const bnd=[]; st.push(i); lab[i]=id;
+    while(st.length){ const k=st.pop(), x=k%w, y=(k/w)|0; n++; sx+=x; sy+=y;
+      let edge=false;
+      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const xx=x+dx, yy=y+dy;
+        if(xx<0||yy<0||xx>=w||yy>=h){ edge=true; continue; } const kk=yy*w+xx;
+        if(!m[kk]){ edge=true; continue; } if(!lab[kk]){ lab[kk]=id; st.push(kk); } }
+      if(edge) bnd.push([x,y]); }
+    comps.push({id,n,cx:sx/n,cy:sy/n,bnd}); }
+  return {lab, comps:comps.filter(c=>c.n>=minPx)}; }
+function hull(pts){ const P=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]); if(P.length<3) return P;
+  const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]); const lo=[],up=[];
+  for(const p of P){ while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
+  for(let i=P.length-1;i>=0;i--){ const p=P[i]; while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+  up.pop(); lo.pop(); return lo.concat(up); }
+const polyArea=H=>{ let a=0; for(let i=0;i<H.length;i++){ const p=H[i],q=H[(i+1)%H.length]; a+=p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; };
+function minRect(H){ let best=null;
+  for(let i=0;i<H.length;i++){ const p=H[i],q=H[(i+1)%H.length], a=Math.atan2(q[1]-p[1],q[0]-p[0]), c=Math.cos(a), s=Math.sin(a);
+    let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; for(const v of H){ const u=v[0]*c+v[1]*s, w=-v[0]*s+v[1]*c; x0=Math.min(x0,u);x1=Math.max(x1,u);y0=Math.min(y0,w);y1=Math.max(y1,w); }
+    const A=(x1-x0)*(y1-y0); if(!best||A<best.A) best={A,long:Math.max(x1-x0,y1-y0),short:Math.min(x1-x0,y1-y0)}; }
+  return best||{long:0,short:0}; }
+/* measure one blob (pixel units → mm) */
+function features(c){ const H=hull(c.bnd), r=minRect(H), area=c.n*MMPX*MMPX, ha=Math.max(1,polyArea(H))*MMPX*MMPX;
+  return {area, long:(r.long+1)*MMPX, short:(r.short+1)*MMPX, sol:Math.min(1,area/ha), hull:H}; }
+/* find pieces in a top-down mask: grooves are filled, pegs cut off and counted */
+function segment(mask,w,h){
+  const m=closeM(mask,w,h,3);                    // fill grooves and small gaps (6 mm)
+  const filled=closeM(m,w,h,5);                  // also fill the peg holes (~18 mm) so thin end walls survive
+  const body=openM(filled,w,h,5);                // remove anything narrower than ~22 mm: the pegs
+  const big=components(body,w,h,Math.round(1000/(MMPX*MMPX)));
+  // pegs: what's left after removing bodies, a knob-sized blob next to a body
+  const rest=new Uint8Array(w*h), grown=dilate(body,w,h,2); for(let i=0;i<w*h;i++) rest[i]=m[i]&&!grown[i]?1:0;
+  const small=components(openM(rest,w,h,2),w,h,Math.round(120/(MMPX*MMPX)));
+  big.comps.forEach(c=>{ c.pegs=0; Object.assign(c,features(c)); });
+  small.comps.forEach(k=>{ const a=k.n*MMPX*MMPX; if(a>900) return;
+    let hit=null; for(let dy=-8;dy<=8&&!hit;dy++) for(let dx=-8;dx<=8&&!hit;dx++){ const x=Math.round(k.cx)+dx,y=Math.round(k.cy)+dy;
+      if(x>=0&&y>=0&&x<w&&y<h&&big.lab[y*w+x]) hit=big.lab[y*w+x]; }
+    if(hit){ const b=big.comps.find(c=>c.id===hit); if(b) b.pegs++; } });
+  return big.comps; }
+/* reference measurements of every catalogue piece, made with exactly the same pipeline */
+const REF={};
+function refFeatures(t){
+  if(REF[t.id]) return REF[t.id];
+  const xs=t.pts.map(p=>p.x), ys=t.pts.map(p=>p.y), pad=40, x0=Math.min(...xs)-pad, y0=Math.min(...ys)-pad;
+  const w=Math.ceil((Math.max(...xs)+pad-x0)/MMPX), h=Math.ceil((Math.max(...ys)+pad-y0)/MMPX);
+  const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const g=cv.getContext("2d");
+  g.scale(1/MMPX,1/MMPX); g.translate(-x0,-y0); g.fillStyle="#000";
+  t.band.split("M").filter(Boolean).forEach(d=>g.fill(new Path2D("M"+d)));
+  t.conns.forEach(c=>{ const ox=Math.cos(c.a), oy=Math.sin(c.a);           // BRIO-style peg / hole
+    const knob=(dir)=>{ g.beginPath(); g.arc(c.x+ox*14*dir,c.y+oy*14*dir,9,0,7); g.fill();
+      g.save(); g.translate(c.x,c.y); g.rotate(c.a); g.fillRect(dir>0?0:-12,-4.5,12,9); g.restore(); };
+    if(c.g==="M") knob(1); else { g.globalCompositeOperation="destination-out"; knob(-1); g.globalCompositeOperation="source-over"; } });
+  const d=g.getImageData(0,0,w,h).data, m=new Uint8Array(w*h); for(let i=0;i<w*h;i++) m[i]=d[i*4+3]>127?1:0;
+  const comps=segment(m,w,h).sort((a,b)=>b.n-a.n);
+  const f=comps[0]||{area:1,long:1,short:1,sol:1,pegs:0};
+  return REF[t.id]={area:f.area,long:f.long,short:f.short,sol:f.sol,pegs:t.conns.filter(c=>c.g==="M").length};
+}
+function scanCandidates(){ return typeList.filter(t=>!t.deck && SC.brands[brandOf(t)]); }
+function classify(b){
+  const res=scanCandidates().map(t=>{ const r=refFeatures(t);
+    let d=Math.abs(b.area-r.area)/r.area + 1.5*Math.abs(b.long-r.long)/r.long + Math.abs(b.short-r.short)/r.short + 2*Math.abs(b.sol-r.sol);
+    d+=0.12*Math.abs(b.pegs-r.pegs);                         // pegs help tell adapters and switch versions apart
+    if(t.ramp) d+=0.04;                                        // a ramp looks like a straight from above; prefer the straight
+    return {t,d}; }).sort((a,b)=>a.d-b.d);
+  const maxArea=Math.max(...scanCandidates().map(t=>refFeatures(t).area));
+  b.cands=res.slice(0,6); b.pick=res[0]?res[0].t.id:null;
+  b.conf = b.area>maxArea*1.25 ? "merged" : !res.length ? "none" : res[0].d<0.16 ? "sure" : res[0].d<0.32 ? "check" : "unsure";
+  // two candidates that look the same (e.g. BRIO 144 vs IKEA 145): ask instead of guessing
+  if(b.conf==="sure" && res[1] && res[1].d-res[0].d<0.03 && !res[1].t.ramp) b.conf="check";
+  if(b.conf==="merged"||b.conf==="unsure") b.pick=b.conf==="merged"?null:b.pick;
+}
+
+/* -- steps & UI -- */
+function scSetSteps(n){ SC.step=n; scEl("scSteps").textContent=["","1 Photo","2 Paper corners","3 Colours","4 Check"][n]?`Step ${n} of 4 · ${["","Photo","Paper corners","Colours","Check results"][n]}`:""; }
+function openScan(){ scEl("scan").classList.add("show"); scPhotoStep(); }
+function closeScan(){ stopCam(); scEl("scan").classList.remove("show"); }
+function stopCam(){ if(SC.stream){ SC.stream.getTracks().forEach(t=>t.stop()); SC.stream=null; } }
+scEl("scClose").onclick=closeScan;
+scEl("scFile").onchange=e=>{ const f=e.target.files[0]; if(!f) return; const im=new Image();
+  im.onload=()=>{ scUseImage(im); URL.revokeObjectURL(im.src); }; im.src=URL.createObjectURL(f); e.target.value=""; };
+
+function scPhotoStep(){
+  scSetSteps(1); stopCam();
+  const canCam=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia)&&window.isSecureContext;
+  scEl("scBody").innerHTML=`<div class="sctips"><h2>Scan your track</h2><ol>
+    <li>Lay pieces <b>flat</b> on the floor, <b>not touching</b> each other — a hand's width apart is plenty.</li>
+    <li>Put a sheet of <b>A4 paper</b> (or US Letter) flat <b>next to</b> them. It tells the app the scale.</li>
+    <li>A plain floor or rug that's clearly lighter or darker than the wood works best.</li>
+    <li>Take the photo from standing height, roughly from above, with everything in view. Avoid strong shadows.</li></ol>
+    <p>You'll tap the paper's corners next, so the photo can be taken at an angle.</p>
+    <div class="row2">${canCam?`<button class="big primary" id="scCam">📷 Use camera</button>`:""}
+      <button class="big" id="scPick">🖼 Choose or take a photo</button></div></div>`;
+  scEl("scFoot").innerHTML=`<span class="hint">Tip: around 10–20 pieces per photo works well. Do several photos and the counts add up.</span>`;
+  if(canCam) scEl("scCam").onclick=startCam;
+  scEl("scPick").onclick=()=>scEl("scFile").click();
+}
+async function startCam(){
+  try{
+    SC.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"},width:{ideal:3840},height:{ideal:2160}},audio:false});
+  }catch(e){ toast("Couldn't open the camera — choose a photo instead"); scEl("scFile").click(); return; }
+  scEl("scBody").innerHTML=`<video id="scVid" playsinline autoplay muted></video><button class="shutter" id="scShot" aria-label="Take photo"></button>`;
+  const v=scEl("scVid"); v.srcObject=SC.stream;
+  scEl("scFoot").innerHTML=`<span class="hint">Get all pieces and the paper in view, then tap the white button.</span><button id="scBack1">Back</button>`;
+  scEl("scBack1").onclick=scPhotoStep;
+  scEl("scShot").onclick=()=>{ if(!v.videoWidth) return; const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight;
+    c.getContext("2d").drawImage(v,0,0); stopCam(); scUseImage(c); };
+}
+function scUseImage(src){
+  const max=2200, k=Math.min(1,max/Math.max(src.width,src.height)), c=document.createElement("canvas");
+  c.width=Math.round(src.width*k); c.height=Math.round(src.height*k); c.getContext("2d").drawImage(src,0,0,c.width,c.height);
+  SC.img=c; SC.corners=[]; scCornerStep();
+}
+/* a canvas that fits the body and maps taps to image pixels */
+function scCanvas(w,h){ const body=scEl("scBody"); body.innerHTML=`<canvas id="scCv"></canvas>`;
+  const cv=scEl("scCv"), bw=body.clientWidth-16, bh=body.clientHeight-16, k=Math.min(bw/w,bh/h);
+  cv.width=Math.round(w*k*(window.devicePixelRatio||1)); cv.height=Math.round(h*k*(window.devicePixelRatio||1));
+  cv.style.width=Math.round(w*k)+"px"; cv.style.height=Math.round(h*k)+"px";
+  return {cv, g:cv.getContext("2d"), k:cv.width/w, toImg:e=>{ const r=cv.getBoundingClientRect(); return [(e.clientX-r.left)*w/r.width,(e.clientY-r.top)*h/r.height]; }}; }
+function orderCorners(P){ const cx=P.reduce((s,p)=>s+p[0],0)/4, cy=P.reduce((s,p)=>s+p[1],0)/4;
+  return P.slice().sort((a,b)=>Math.atan2(a[1]-cy,a[0]-cx)-Math.atan2(b[1]-cy,b[0]-cx)); }
+
+function scCornerStep(){
+  scSetSteps(2); const im=SC.img; const V=scCanvas(im.width,im.height); let dragI=-1;
+  const draw=()=>{ const g=V.g; g.setTransform(V.k,0,0,V.k,0,0); g.drawImage(im,0,0);
+    const C=SC.corners.length===4?orderCorners(SC.corners):SC.corners, r=14/V.k*(window.devicePixelRatio||1);
+    if(C.length>1){ g.beginPath(); C.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); if(C.length===4) g.closePath();
+      g.lineWidth=3/V.k*(window.devicePixelRatio||1); g.strokeStyle="#2f6fde"; g.stroke(); if(C.length===4){ g.fillStyle="rgba(47,111,222,.18)"; g.fill(); } }
+    C.forEach(p=>{ g.beginPath(); g.arc(p[0],p[1],r,0,7); g.fillStyle="rgba(255,255,255,.85)"; g.fill(); g.lineWidth=3/V.k*(window.devicePixelRatio||1); g.strokeStyle="#2f6fde"; g.stroke(); });
+    scEl("scNext2").disabled=SC.corners.length!==4;
+    scEl("scHint2").textContent = SC.corners.length<4 ? `Tap the ${["first","second","third","fourth"][SC.corners.length]} corner of the paper (${4-SC.corners.length} to go).` : "Drag a corner to fine-tune, then Next.";
+  };
+  scEl("scFoot").innerHTML=`<span class="hint" id="scHint2"></span>
+    <select id="scPaper"><option value="a4">A4 paper</option><option value="letter">US Letter</option></select>
+    <button id="scReset2">Reset corners</button><button id="scBack2">New photo</button><button id="scNext2" class="primary big">Next</button>`;
+  scEl("scPaper").value=SC.paper; scEl("scPaper").onchange=e=>SC.paper=e.target.value;
+  scEl("scReset2").onclick=()=>{ SC.corners=[]; draw(); };
+  scEl("scBack2").onclick=scPhotoStep;
+  scEl("scNext2").onclick=()=>{ scEl("scHint2").textContent="Straightening the photo…"; setTimeout(()=>{ try{ scRectify(); scColourStep(); }catch(err){ console.error(err); toast("That didn't work — check the corners"); } },30); };
+  V.cv.onpointerdown=e=>{ const p=V.toImg(e), near=SC.corners.findIndex(c=>Math.hypot(c[0]-p[0],c[1]-p[1])<40*im.width/V.cv.getBoundingClientRect().width);
+    if(near>=0) dragI=near; else if(SC.corners.length<4){ SC.corners.push(p); dragI=SC.corners.length-1; }
+    V.cv.setPointerCapture(e.pointerId); draw(); };
+  V.cv.onpointermove=e=>{ if(dragI<0) return; SC.corners[dragI]=V.toImg(e); draw(); };
+  V.cv.onpointerup=V.cv.onpointercancel=()=>{ dragI=-1; };
+  draw();
+}
+/* warp the floor to a top-down view in millimetres */
+function scRectify(){
+  const im=SC.img, C=orderCorners(SC.corners), side=(a,b)=>Math.hypot(C[a][0]-C[b][0],C[a][1]-C[b][1]);
+  const [L,Sh]=PAPER[SC.paper], longFirst=side(0,1)+side(2,3) >= side(1,2)+side(3,0);
+  const dst = longFirst ? [[0,0],[L,0],[L,Sh],[0,Sh]] : [[0,0],[Sh,0],[Sh,L],[0,L]];
+  const Himg2mm=homography(C,dst), Hmm2img=homography(dst,C);
+  // area of floor visible in the photo, limited to 1.8 m around the paper
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  for(let i=0;i<=20;i++) for(let j=0;j<=20;j++){ const [u,v,w]=applyH(Himg2mm,im.width*i/20,im.height*j/20); if(w<=0) continue;
+    x0=Math.min(x0,u);y0=Math.min(y0,v);x1=Math.max(x1,u);y1=Math.max(y1,v); }
+  const cx=dst[2][0]/2, cy=dst[2][1]/2, lim=1800;
+  x0=Math.max(x0,cx-lim); y0=Math.max(y0,cy-lim); x1=Math.min(x1,cx+lim); y1=Math.min(y1,cy+lim);
+  const w=Math.max(10,Math.round((x1-x0)/MMPX)), h=Math.max(10,Math.round((y1-y0)/MMPX));
+  const src=im.getContext("2d").getImageData(0,0,im.width,im.height).data, out=new ImageData(w,h), o=out.data, valid=new Uint8Array(w*h);
+  for(let j=0;j<h;j++) for(let i=0;i<w;i++){ const [u,v,ww]=applyH(Hmm2img,x0+i*MMPX,y0+j*MMPX); const k=(j*w+i)*4;
+    if(ww<=0||u<0||v<0||u>=im.width-1||v>=im.height-1){ o[k+3]=0; continue; }
+    const s=((v|0)*im.width+(u|0))*4; o[k]=src[s]; o[k+1]=src[s+1]; o[k+2]=src[s+2]; o[k+3]=255; valid[j*w+i]=1; }
+  // hide the paper itself
+  const pw=dst[2][0], ph=dst[2][1];
+  SC.rect={w,h,x0,y0,img:out,valid,paper:[(0-x0)/MMPX-4,(0-y0)/MMPX-4,(pw-x0)/MMPX+4,(ph-y0)/MMPX+4]};
+  SC.taps={wood:[],bg:[]}; SC.tapMode="wood";
+}
+function rectCanvas(){ const R=SC.rect, V=scCanvas(R.w,R.h), base=document.createElement("canvas"); base.width=R.w; base.height=R.h;
+  base.getContext("2d").putImageData(R.img,0,0); V.base=base; return V; }
+function scColourStep(){
+  scSetSteps(3); const R=SC.rect, V=rectCanvas();
+  const draw=()=>{ const g=V.g; g.setTransform(V.k,0,0,V.k,0,0); g.fillStyle="#1f1c18"; g.fillRect(0,0,R.w,R.h); g.drawImage(V.base,0,0);
+    const [a,b,c,d]=R.paper; g.fillStyle="rgba(47,111,222,.35)"; g.fillRect(a,b,c-a,d-b);
+    [["wood","#e08a2e"],["bg","#2f6fde"]].forEach(([k,col])=>SC.taps[k].forEach(p=>{ g.beginPath(); g.arc(p[0],p[1],7,0,7); g.lineWidth=3; g.strokeStyle="#fff"; g.stroke(); g.fillStyle=col; g.fill(); }));
+    scEl("scWood").classList.toggle("on",SC.tapMode==="wood"); scEl("scBg").classList.toggle("on",SC.tapMode==="bg");
+    scEl("scNext3").disabled=!(SC.taps.wood.length&&SC.taps.bg.length); };
+  scEl("scFoot").innerHTML=`<span class="hint">This is the floor seen from straight above. Tap <b>on a track piece</b> (orange), then <b>on the floor</b> between pieces (blue). Add more taps if the colours vary.</span>
+    <button class="chip" id="scWood">● Track</button><button class="chip" id="scBg">● Floor</button>
+    <button id="scUndo3">Undo tap</button><button id="scBack3">Back</button><button id="scNext3" class="primary big">Find pieces</button>`;
+  scEl("scWood").onclick=()=>{ SC.tapMode="wood"; draw(); }; scEl("scBg").onclick=()=>{ SC.tapMode="bg"; draw(); };
+  scEl("scUndo3").onclick=()=>{ const k=SC.taps.bg.length&&SC.tapMode==="bg"||!SC.taps.wood.length?"bg":"wood"; SC.taps[k].pop(); draw(); };
+  scEl("scBack3").onclick=scCornerStep;
+  scEl("scNext3").onclick=()=>{ scEl("scNext3").textContent="Looking…"; setTimeout(()=>{ scDetect(); scReviewStep(); },30); };
+  V.cv.onpointerdown=e=>{ const p=V.toImg(e); SC.taps[SC.tapMode].push(p); if(SC.tapMode==="wood"&&SC.taps.bg.length===0) SC.tapMode="bg"; draw(); };
+  draw();
+}
+function scDetect(){
+  const R=SC.rect, d=R.img.data, w=R.w, h=R.h;
+  const col=(x,y)=>{ let r=0,g=0,b=0,n=0; for(let j=-3;j<=3;j++) for(let i=-3;i<=3;i++){ const xx=Math.round(x)+i, yy=Math.round(y)+j;
+      if(xx<0||yy<0||xx>=w||yy>=h||!R.valid[yy*w+xx]) continue; const k=(yy*w+xx)*4; r+=d[k];g+=d[k+1];b+=d[k+2];n++; } return n?[r/n,g/n,b/n]:[0,0,0]; };
+  // colour feature: two chroma axes plus a weaker brightness axis, so shadows matter less
+  const feat=([r,g,b])=>{ const s=r+g+b+1; return [ (r-b)/s*400, (g-b)/s*400, (r+g+b)/3*0.35 ]; };
+  const W=SC.taps.wood.map(p=>feat(col(...p))), B=SC.taps.bg.map(p=>feat(col(...p)));
+  const dist=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+  const mask=new Uint8Array(w*h), [pa,pb,pc,pd]=R.paper;
+  for(let i=0;i<w*h;i++){ if(!R.valid[i]) continue; const x=i%w, y=(i/w)|0; if(x>=pa&&x<=pc&&y>=pb&&y<=pd) continue;
+    const f=feat([d[i*4],d[i*4+1],d[i*4+2]]); let dw=1e9,db=1e9; W.forEach(q=>dw=Math.min(dw,dist(f,q))); B.forEach(q=>db=Math.min(db,dist(f,q)));
+    mask[i]=dw<db?1:0; }
+  SC.bodies=segment(mask,w,h); SC.bodies.forEach(classify);
+}
+function scSummary(){ const n={}; SC.bodies.forEach(b=>{ if(b.pick) n[b.pick]=(n[b.pick]||0)+(b.mult||1); }); return n; }
+function scReviewStep(){
+  scSetSteps(4); const R=SC.rect, V=rectCanvas();
+  const colOf=b=>!b.pick?"#d23c2f": b.conf==="sure"?"#2e8b57":"#d98a00";
+  const draw=()=>{ const g=V.g; g.setTransform(V.k,0,0,V.k,0,0); g.fillStyle="#1f1c18"; g.fillRect(0,0,R.w,R.h); g.globalAlpha=.75; g.drawImage(V.base,0,0); g.globalAlpha=1;
+    SC.bodies.forEach(b=>{ const H=b.hull; g.beginPath(); H.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); g.closePath();
+      g.lineWidth=4; g.strokeStyle=colOf(b); g.stroke();
+      const label=b.pick?b.pick:(b.conf==="merged"?"touching?":"?"); g.font="bold 15px system-ui"; const tw=g.measureText(label).width;
+      g.fillStyle=colOf(b); g.fillRect(b.cx-tw/2-6,b.cy-11,tw+12,22); g.fillStyle="#fff"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(label,b.cx,b.cy+1); });
+    const n=scSummary(), tot=Object.values(n).reduce((a,b)=>a+b,0), bad=SC.bodies.filter(b=>!b.pick||b.conf!=="sure").length;
+    scEl("scSum").innerHTML = tot ? Object.entries(n).map(([k,v])=>`<span>${v} × ${esc(types[k].name)} <b>${k}</b></span>`).join("") : "<span>No pieces recognised yet</span>";
+    const both=SC.brands.BRIO&&SC.brands.IKEA;
+    scEl("scHint4").innerHTML = `Found <b>${SC.bodies.length}</b> shape${SC.bodies.length===1?"":"s"}. ${bad?`<b>${bad}</b> to check (orange/red) — tap a shape to fix it.`:"Tap any shape to change it."}`+
+      (bad&&both?` Some BRIO and IKEA pieces are the same shape: untick a brand you don't have and they'll sort themselves out.`:"");
+  };
+  scEl("scFoot").innerHTML=`<span class="hint" id="scHint4"></span>
+    <span class="chip-row">Brands: ${["BRIO","IKEA","Custom"].map(b=>`<button class="chip ${SC.brands[b]?"on":""}" data-brand="${b}">${b}</button>`).join(" ")}</span>
+    <div class="sumlist" id="scSum" style="flex:1 1 100%"></div>
+    <button id="scBack4">Back</button><button id="scAnother">Scan another photo</button><button id="scAdd" class="primary big">Add to inventory</button>`;
+  scEl("scFoot").querySelectorAll("[data-brand]").forEach(bn=>bn.onclick=()=>{ SC.brands[bn.dataset.brand]=!SC.brands[bn.dataset.brand];
+    bn.classList.toggle("on",SC.brands[bn.dataset.brand]); SC.bodies.forEach(classify); draw(); });
+  scEl("scBack4").onclick=scColourStep;
+  scEl("scAnother").onclick=()=>{ scAddToInv(); scPhotoStep(); };
+  scEl("scAdd").onclick=()=>{ scAddToInv(); closeScan(); };
+  V.cv.onpointerdown=e=>{ const [x,y]=V.toImg(e);
+    let hit=SC.bodies.find(b=>{ const H=b.hull; let inside=false; for(let i=0,j=H.length-1;i<H.length;j=i++){ const a=H[i],c=H[j];
+        if(((a[1]>y)!==(c[1]>y)) && x<(c[0]-a[0])*(y-a[1])/(c[1]-a[1]+1e-9)+a[0]) inside=!inside; } return inside; });
+    if(!hit){ let bd=40; SC.bodies.forEach(b=>{ const dd=Math.hypot(b.cx-x,b.cy-y); if(dd<bd){bd=dd;hit=b;} }); }
+    if(hit) scPicker(hit,draw); };
+  draw();
+}
+function scPicker(b,redraw){
+  const old=document.querySelector(".sheet"); if(old) old.remove();
+  const sh=document.createElement("div"); sh.className="sheet";
+  const opt=(t,extra)=>`<button class="opt" data-pick="${t.id}">${iconSVG(t)}<span>${esc(t.name)} <b>${t.id}</b><small>${esc(t.dim||"")}${extra||""}</small></span></button>`;
+  const top=b.cands.map((c,i)=>opt(c.t, i===0?" · best match":"")).join("");
+  const others=scanCandidates().filter(t=>!b.cands.some(c=>c.t.id===t.id)).map(t=>`<option value="${t.id}">${esc(t.name)} (${t.id})</option>`).join("");
+  sh.innerHTML=`<h3>What is this piece? <small style="font-weight:400;color:var(--muted)">measured ≈ ${Math.round(b.long)} × ${Math.round(b.short)} mm${b.pegs?` · ${b.pegs} peg${b.pegs>1?"s":""}`:""}</small></h3>
+    <div class="opts">${top}</div>
+    <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 0">
+      <select id="scOther" style="flex:1;min-width:200px;padding:10px;font-size:15px"><option value="">Something else…</option>${others}</select>
+      <label style="display:flex;gap:6px;align-items:center">count <input id="scMult" type="number" min="1" value="${b.mult||1}" style="width:60px;padding:8px;font-size:15px"></label>
+      <button data-pick="">Not a track piece</button><button id="scShClose">Cancel</button></p>`;
+  scEl("scBody").appendChild(sh);
+  const done=id=>{ b.pick=id||null; b.conf=id?"sure":"ignored"; b.mult=Math.max(1,parseInt(scEl("scMult").value)||1); sh.remove(); redraw(); };
+  sh.querySelectorAll("[data-pick]").forEach(x=>x.onclick=()=>done(x.dataset.pick));
+  scEl("scOther").onchange=e=>{ if(e.target.value) done(e.target.value); };
+  scEl("scShClose").onclick=()=>sh.remove();
+}
+function scAddToInv(){
+  let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
+  SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
+}
+window.__trackScan={homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX};
+
 /* ---------- Start ---------- */
-load(); rebuildTypes(); setView(); refresh();
+load(); rebuildTypes(); setView();
+if(S.helpHidden) helpEl.style.display="none";
+if(S.sideHidden) document.getElementById("app").classList.add("noside");
+refresh();
 // offline support when hosted (GitHub Pages); skipped when opened as a local file
 if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
 if(!S.pieces.length){ demo(); hist=[]; refresh(); } else fit();
