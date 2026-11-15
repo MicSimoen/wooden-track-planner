@@ -439,8 +439,9 @@ function buildType(t){
     const xi=P_C-Math.sqrt(R*R-N*N), at=(a,b)=>[(c.x+ox*a+nx*b).toFixed(2),(c.y+oy*a+ny*b).toFixed(2)].join(" ");
     const sweep = dir>0 ? 1 : 0;
     return `M${at(-0.8,-N)}L${at(xi,-N)}A${R} ${R} 0 1 ${sweep} ${at(xi,N)}L${at(-0.8,N)}`; };   // open at the end edge: no line across the mouth
-  let pegs="", holes="";
-  C.forEach(c=>{ if(c.g==="M") pegs+=keyhole(c,1,P_R,P_N); else holes+=keyhole(c,-1,H_R,H_N); });
+  let pegs="", holes=""; const pegList=[];
+  C.forEach((c,ci)=>{ if(c.g==="M"){ const d=keyhole(c,1,P_R,P_N); pegs+=d; pegList.push({ci,d}); } else holes+=keyhole(c,-1,H_R,H_N); });
+  t.pegList=pegList;
   t.pegs=pegs; t.holes=holes;
   if(t.stop){ // striped barrier across the closed end (last 10 mm), red and white stripes
     const L=t.lanes[0].len; let st=`M${L-10} ${-HALF}L${L} ${-HALF}L${L} ${HALF}L${L-10} ${HALF}Z`, wh="";
@@ -632,11 +633,14 @@ function renderClearance(){
   return h;
 }
 function renderPieces(){
-  let h="", pegLayer="", lastKey=null;
+  let h="";
   const key=p=>(p.level||0)+(types[p.type]&&types[p.type].ramp?0.5:0);
+  // a peg is drawn right after the later of the two pieces it joins, so it always shows inside the other's hole
+  const pegsAt=new Map(), addPeg=(k,svg)=>{ if(!pegsAt.has(k)) pegsAt.set(k,[]); pegsAt.get(k).push(svg); };
+  const flushPegs=upTo=>{ [...pegsAt.keys()].filter(k=>k<=upTo).sort((a,b)=>a-b).forEach(k=>{ h+=pegsAt.get(k).join(""); pegsAt.delete(k); }); };
+  let lastKey=null;
   S.pieces.filter(p=>types[p.type]).slice().sort((a,b)=>key(a)-key(b)).forEach(p=>{
-    // pegs are drawn after all pieces of the same height, so a peg shows inside its neighbour's hole
-    if(lastKey!==null && key(p)!==lastKey){ h+=pegLayer; pegLayer=""; } lastKey=key(p);
+    if(lastKey!==null && key(p)!==lastKey) flushPegs(lastKey); lastKey=key(p);
     const t=types[p.type], s=p.id===sel, lv=key(p);
     const tf=(dx,dy)=>`translate(${(p.x+dx).toFixed(2)} ${(p.y+dy).toFixed(2)}) rotate(${(p.rot/D2R).toFixed(3)}) scale(1 ${p.mirror?-1:1})`;
     if(lv>0){ // shadow on the floor below a raised piece or ramp
@@ -650,12 +654,14 @@ function renderPieces(){
        `<path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="5" stroke-linecap="butt" opacity=".45"/>`+
        (t.holes?`<path d="${t.holes}" fill="#f8f6f1" stroke="var(--wood-edge)" stroke-width="0.9" stroke-linejoin="round"/>`:"")+
        (t.barrier?`<path d="${t.barrier.red}" fill="#d23c2f" stroke="#7a1f17" stroke-width="0.8"/><path d="${t.barrier.white}" fill="#fff"/>`:"");
-    if(t.pegs) pegLayer+=`<path class="piece" data-id="${p.id}" transform="${tf(0,0)}" d="${t.pegs}" fill="${s?"#ecc794":t.ramp?"#dcb37c":(p.level>0?"#e6c08b":"var(--wood)")}" stroke="${s?"var(--accent)":"var(--wood-edge)"}" stroke-width="0.9" stroke-linejoin="round"/>`;
+    (t.pegList||[]).forEach(pg=>{ const mate=linkOf[p.id+":"+pg.ci], mk=mate&&byId(mate.pid)?Math.max(key(p),key(byId(mate.pid))):key(p);
+      addPeg(mk,`<path class="piece" data-id="${p.id}" transform="${tf(0,0)}" d="${pg.d}" fill="${s?"#ecc794":t.ramp?"#dcb37c":(p.level>0?"#e6c08b":"var(--wood)")}" stroke="${s?"var(--accent)":"var(--wood-edge)"}" stroke-width="0.9" stroke-linejoin="round"/>`); });
     if(t.ramp){ const L=t.lanes[0].len; for(let x=L*0.3;x<L*0.85;x+=L*0.22) h+=`<path d="M${x-8} -9 L${x+4} 0 L${x-8} 9" fill="none" stroke="#7a5530" stroke-width="2.5" opacity=".7"/>`; }
     if(p.level>0 && !t.ramp){ const c=t.center; h+=`<text x="${c.x}" y="${(p.mirror?-1:1)*(c.y)+4}" transform="scale(1 ${p.mirror?-1:1})" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5a72">▲${p.level}</text>`; }
     h+=`</g>`;
   });
-  LP.innerHTML=h+pegLayer;
+  flushPegs(Infinity);
+  LP.innerHTML=h;
 }
 function renderMarks(){
   let h=""; const z=view.w/ (svg.clientWidth||1000), hitR=Math.max(18,(isTouch()?26:14)*z);
@@ -1229,6 +1235,7 @@ function pieceOutline(t){
   return SOLID[t.id]=solid;
 }
 function solidMesh(p,t,h0,mat){
+  if(t.ramp) return rampSolid(p,t,h0,mat);
   const shapes=pieceOutline(t).map(poly=>{ const sh=new THREE.Shape(poly[0].slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1])));
     poly.slice(1).forEach(hl=>sh.holes.push(new THREE.Path(hl.slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1]))))); return sh; });
   const g=new THREE.ExtrudeGeometry(shapes,{depth:S.thick,bevelEnabled:false,curveSegments:1});
@@ -1236,6 +1243,23 @@ function solidMesh(p,t,h0,mat){
   for(let i=0;i<pos.count;i++){ const w=worldPt(p,pos.getX(i),pos.getY(i)); pos.setXYZ(i,w.x,h0+pos.getZ(i),w.y); }
   g.computeVertexNormals();
   const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; return m;
+}
+/* A ramp: the same true outline (slot cut through, pegs on), sliced every 6 mm along its length; each slice is raised
+   to the ramp's height at that point, so the wood follows the curve and the holes stay round. */
+function rampSolid(p,t,h0,mat){
+  const l=t.lanes[0], L=laneLen(l), lv=l.lv||[0,1], outline=pieceOutline(t), G=new THREE.Group();
+  const lift=x=>(lv[0]+(lv[1]-lv[0])*rampProf(x/L))*S.rise;
+  const cuts=[-40]; for(let x=0;x<=L;x+=6) cuts.push(x); cuts.push(L+40);
+  for(let i=0;i<cuts.length-1;i++){
+    const x0=cuts[i], x1=cuts[i+1], slab=polygonClipping.intersection(outline,[[[x0,-80],[x1,-80],[x1,80],[x0,80],[x0,-80]]]);
+    if(!slab.length) continue;
+    const shapes=slab.map(poly=>{ const sh=new THREE.Shape(poly[0].slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1])));
+      poly.slice(1).forEach(hl=>sh.holes.push(new THREE.Path(hl.slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1]))))); return sh; });
+    const g=new THREE.ExtrudeGeometry(shapes,{depth:S.thick,bevelEnabled:false,curveSegments:1}), pos=g.attributes.position;
+    for(let k=0;k<pos.count;k++){ const x=pos.getX(k), w=worldPt(p,x,pos.getY(k)); pos.setXYZ(k,w.x,h0+lift(x)+pos.getZ(k),w.y); }
+    g.computeVertexNormals(); const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; G.add(m);
+  }
+  return G;
 }
 /* a flat solid with any outline (local coords), placed like the piece */
 function prism(p,outline,h0,thick,mat){
@@ -1255,15 +1279,11 @@ function build3D(){
   const mPier=new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.9});
   const mEnv=new THREE.MeshBasicMaterial({color:0x4a8ad8,transparent:true,opacity:0.13,depthWrite:false,side:THREE.DoubleSide});
   const mGrooveM=new THREE.MeshStandardMaterial({color:0x9a6d40,roughness:0.9});
-  const mHole=new THREE.MeshStandardMaterial({color:0xcfc7b8,roughness:1});   // you see the (shaded) floor through a hole
-  const mPeg=new THREE.MeshStandardMaterial({color:0xd8ae76,roughness:0.8});    // same beech as the track, a touch darker so it reads
   const env=document.getElementById("c3Env").checked;
   const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise;
   S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
-    const flat=!t.ramp;                              // flat pieces: one real solid (holes through, pegs attached)
-    if(flat) G.add(solidMesh(p,t,(p.level||0)*S.rise,mWood));
+    G.add(solidMesh(p,t,(p.level||0)*S.rise,mWood));      // every piece is one real solid: holes through, pegs attached
     t.lanes.forEach(l=>{
-      if(!flat) G.add(ribbon(p,l,mWood,hf,HALF,S.thick));
       if(t.deck) G.add(ribbon(p,l,mDeck,(lv,u)=>hf(lv,u)-6,HALF+4,6)); // red girder under the bridge deck
       // grooves: 6 mm wide, 3 mm deep (drawn as darker channels just below the top surface)
       [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick+0.08,3,0.1,o); gr.castShadow=false; gr.receiveShadow=true; G.add(gr); });
@@ -1278,14 +1298,6 @@ function build3D(){
     // pegs (11.5 mm knob on a 7 mm neck) and holes, at the height of their end of the piece
     // pegs (11.5 mm knob on a 7 mm neck) — their top is a hair above the wood so a peg shows inside the next piece;
     // holes are drawn only where no peg sits in them
-    if(t.ramp) localConns(p).forEach((lc,ci)=>{ const c=toWorld(p,lc), h=c.lv*S.rise, ox=Math.cos(c.a), oy=Math.sin(c.a), H=S.thick+0.3;
-      if(lc.g==="M"){
-        const knob=new THREE.Mesh(new THREE.CylinderGeometry(5.75,5.75,H,24),mPeg); knob.position.set(c.x+ox*11.75,h+H/2,c.y+oy*11.75); knob.castShadow=true; G.add(knob);
-        const neck=new THREE.Mesh(new THREE.BoxGeometry(8,H,7),mPeg); neck.position.set(c.x+ox*4,h+H/2,c.y+oy*4); neck.rotation.y=-c.a; G.add(neck);
-      } else if(isFree(p.id,ci)){
-        const hole=new THREE.Mesh(new THREE.CylinderGeometry(6.75,6.75,S.thick+0.4,24),mHole); hole.position.set(c.x-ox*11.75,h+S.thick/2+0.05,c.y-oy*11.75); G.add(hole);
-        const throat=new THREE.Mesh(new THREE.BoxGeometry(6.2,S.thick+0.4,8.5),mHole); throat.position.set(c.x-ox*3,h+S.thick/2+0.05,c.y-oy*3); throat.rotation.y=-c.a; G.add(throat);
-      } });
     // supports under raised straight pieces (not ramps)
     if((p.level||0)>0 && !t.ramp){ t.lanes.forEach(l=>{ const len=laneLen(l);
       const us = len>250?[0.2,0.8]:[0.5];
