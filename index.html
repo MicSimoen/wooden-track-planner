@@ -251,7 +251,7 @@
 <script>
 (() => {
 "use strict";
-const D2R = Math.PI/180, HALF = 20, GROOVE = 12.85; // track is 40 mm wide; grooves 25.7 mm apart (centre to centre)
+const D2R = Math.PI/180, HALF = 20, GROOVE = 12.9; // track 40 mm wide; grooves ~26 mm apart centre to centre (BRIO 26, IKEA 25.7)
 const TAU = Math.PI*2;
 
 /* ---------- Piece catalogue (dimensions in mm, curve radius = centre line) ----------
@@ -270,21 +270,42 @@ function sCurveSide(L,d,side,g){
     if(g) o.g=g; return o; });
 }
 const BASE = [
-  {grp:"Straights", id:"D",  name:"Long straight",  dim:"216 mm", lanes:[{k:"s",len:216}]},
-  {grp:"Straights", id:"A",  name:"Medium straight",dim:"144 mm", lanes:[{k:"s",len:144}]},
-  {grp:"Straights", id:"A1", name:"Short straight", dim:"108 mm", lanes:[{k:"s",len:108}]},
-  {grp:"Straights", id:"A3", name:"Short straight", dim:"72 mm",  lanes:[{k:"s",len:72}]},
-  {grp:"Straights", id:"A2", name:"Mini straight",  dim:"54 mm",  lanes:[{k:"s",len:54}]},
-  {grp:"Curves",    id:"E",  name:"Large curve",    dim:"45° · R 202 mm centre (182 inner)", lanes:[{k:"a",r:202,deg:45}]},
-  {grp:"Curves",    id:"E1", name:"Short curve",    dim:"45° · R 110 mm centre (90 inner)",  lanes:[{k:"a",r:110,deg:45}]},
-  {grp:"Switches & crossings", id:"LM", name:"Curved switch", dim:"144 straight + large curve", lanes:[{k:"s",len:144},{k:"a",r:202,deg:45}]},
-  {grp:"Switches & crossings", id:"O1", name:"Short curved switch", dim:"108 straight + short curve", lanes:[{k:"s",len:108},{k:"a",r:110,deg:45}]},
-  {grp:"Switches & crossings", id:"Y",  name:"Y switch", dim:"two large curves", lanes:[{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45}]},
-  {grp:"Switches & crossings", id:"IYS", name:"Straight + curve switch", dim:"145 mm straight + 45° curve (common 3rd-party Y)", lanes:[{k:"s",len:145},{k:"a",r:202,deg:45}]},
-  {grp:"Switches & crossings", id:"F1", name:"Parallel switch", dim:"144 mm · branch shifts ~46 mm sideways (estimated)", lanes:[{k:"s",len:144},...sCurve(144,46)]},
-  {grp:"Switches & crossings", id:"H",  name:"Crossing 90°", dim:"108 × 108 mm", lanes:[{k:"s",len:108},{k:"s",len:108,p0:{x:54,y:-54,a:90}}]},
-  {grp:"Adapters", id:"MM", name:"Male–male", dim:"54 mm", lanes:[{k:"s",len:54,g:["M","M"]}]},
-  {grp:"Adapters", id:"FF", name:"Female–female", dim:"54 mm", lanes:[{k:"s",len:54,g:["F","F"]}]},
+  /* BRIO — geometry from the woodenrailway.info BRIO track guide. Track 40 mm wide, 12 mm high, grooves 6 mm wide,
+     3 mm deep, 26 mm apart; peg 11.5 mm on a 7 mm neck; hole 15–17 mm with a 5 mm throat; double track 46 mm apart.
+     Curve radii here are centre lines: E = 182 inner → 202, E1 = 90 inner → 110. Pieces marked (retired) are no longer sold. */
+  {grp:"BRIO straights", id:"D",  name:"Long straight",  dim:"216 mm", lanes:[{k:"s",len:216}]},
+  {grp:"BRIO straights", id:"A",  name:"Medium straight",dim:"144 mm", lanes:[{k:"s",len:144}]},
+  {grp:"BRIO straights", id:"A1", name:"Short straight", dim:"108 mm", lanes:[{k:"s",len:108}]},
+  {grp:"BRIO straights", id:"A3", name:"Middle straight",dim:"72 mm (retired)",  lanes:[{k:"s",len:72}]},
+  {grp:"BRIO straights", id:"A2", name:"Mini straight",  dim:"54 mm",  lanes:[{k:"s",len:54}]},
+  {grp:"BRIO curves",    id:"E",  name:"Large curve",    dim:"45° · R 202 mm centre (182 inner)", lanes:[{k:"a",r:202,deg:45}]},
+  {grp:"BRIO curves",    id:"E1", name:"Short curve",    dim:"45° · R 110 mm centre (90 inner)",  lanes:[{k:"a",r:110,deg:45}]},
+  {grp:"BRIO curves",    id:"EE", name:"Large double curve",  dim:"two tracks 46 mm apart · R 202 + 248 (retired)", lanes:[{k:"a",r:202,deg:45},{k:"a",r:248,deg:45,p0:{x:0,y:-46,a:0}}]},
+  {grp:"BRIO curves",    id:"EE1",name:"Short double curve",  dim:"two tracks 46 mm apart · R 110 + 156 (retired)", lanes:[{k:"a",r:110,deg:45},{k:"a",r:156,deg:45,p0:{x:0,y:-46,a:0}}]},
+  {grp:"BRIO switches", id:"LM", name:"Curved switch L/M", dim:"144 straight + large curve (also L1/M1)", lanes:[{k:"s",len:144},{k:"a",r:202,deg:45}]},
+  {grp:"BRIO switches", id:"O1", name:"Short curved switch O1/P1", dim:"108 straight + short curve", lanes:[{k:"s",len:108},{k:"a",r:110,deg:45}]},
+  {grp:"BRIO switches", id:"OP", name:"Short Y switch O/P", dim:"two short curves, left and right", lanes:[{k:"a",r:110,deg:45},{k:"a",r:110,deg:-45}]},
+  {grp:"BRIO switches", id:"IJ", name:"Three-way curved switch I/J", dim:"144 straight + large curve left and right (retired)", lanes:[{k:"s",len:144},{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45}]},
+  {grp:"BRIO switches", id:"Q",  name:"Five-point switch Q", dim:"straight + 22.5° and 45° large curves both ways", lanes:[{k:"s",len:144},{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45},{k:"a",r:202,deg:22.5},{k:"a",r:202,deg:-22.5}]},
+  {grp:"BRIO switches", id:"FG", name:"Straight switch F/G", dim:"150 mm · one track to two, 46 mm apart, both shifted", lanes:[...sCurveSide(150,23,1),...sCurveSide(150,23,-1)]},
+  {grp:"BRIO switches", id:"F1", name:"Parallel switch F1/G1", dim:"144 mm · straight + branch 46 mm to the side", lanes:[{k:"s",len:144},...sCurve(144,46)]},
+  {grp:"BRIO switches", id:"F2", name:"Triple parallel switch F2/G2", dim:"144 mm · one track to three, 46 mm apart (retired)", lanes:[{k:"s",len:144},...sCurveSide(144,46,1),...sCurveSide(144,46,-1)]},
+  {grp:"BRIO switches", id:"T",  name:"T-switch", dim:"216 straight + 90° curves left and right (R 108 centre)", lanes:[{k:"s",len:216},{k:"a",r:108,deg:90},{k:"a",r:108,deg:-90}]},
+  {grp:"BRIO crossings", id:"H",  name:"Cross H", dim:"108 × 108 mm, 90° (two parts, retired)", lanes:[{k:"s",len:108},{k:"s",len:108,p0:{x:54,y:-54,a:90}}]},
+  {grp:"BRIO crossings", id:"H1", name:"Cross H1", dim:"116 × 116 mm, 90° · one way two pegs, other way two holes", lanes:[{k:"s",len:116,g:["M","M"]},{k:"s",len:116,g:["F","F"],p0:{x:58,y:-58,a:90}}]},
+  {grp:"BRIO crossings", id:"H2", name:"Criss-cross H2", dim:"two 144 mm tracks crossing at 45° (retired)", lanes:[{k:"s",len:144},{k:"s",len:144,p0:{x:72-72*Math.cos(Math.PI/4),y:-72*Math.sin(Math.PI/4),a:45}}]},
+  {grp:"BRIO crossings", id:"H3", name:"Curved crossing H3", dim:"two large curves crossing in the middle", lanes:[{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45,p0:{x:0,y:202*(1-Math.cos(Math.PI/4)),a:0}}]},
+  {grp:"BRIO double track", id:"K1", name:"Double straight K1", dim:"216 mm · two tracks 46 mm apart (retired)", lanes:[{k:"s",len:216,p0:{x:0,y:-23,a:0}},{k:"s",len:216,p0:{x:0,y:23,a:0}}]},
+  {grp:"BRIO adapters & ends", id:"MM", name:"Mini straight, two pegs B2", dim:"54 mm", lanes:[{k:"s",len:54,g:["M","M"]}]},
+  {grp:"BRIO adapters & ends", id:"FF", name:"Mini straight, two holes C2", dim:"54 mm", lanes:[{k:"s",len:54,g:["F","F"]}]},
+  {grp:"BRIO adapters & ends", id:"B1", name:"Short straight, two pegs B1", dim:"108 mm (retired)", lanes:[{k:"s",len:108,g:["M","M"]}]},
+  {grp:"BRIO adapters & ends", id:"C1", name:"Short straight, two holes C1", dim:"108 mm (retired)", lanes:[{k:"s",len:108,g:["F","F"]}]},
+  {grp:"BRIO adapters & ends", id:"B",  name:"Medium straight, two pegs B", dim:"144 mm (retired)", lanes:[{k:"s",len:144,g:["M","M"]}]},
+  {grp:"BRIO adapters & ends", id:"C",  name:"Medium straight, two holes C", dim:"144 mm (retired)", lanes:[{k:"s",len:144,g:["F","F"]}]},
+  {grp:"BRIO adapters & ends", id:"R",  name:"Buffer stop R", dim:"40 mm · hole end", lanes:[{k:"s",len:40,g:["F","M"],c:[true,false]}]},
+  {grp:"BRIO adapters & ends", id:"S",  name:"Buffer stop S", dim:"40 mm · peg end", lanes:[{k:"s",len:40,g:["M","F"],c:[true,false]}]},
+  {grp:"Other / unconfirmed", id:"Y",  name:"Y switch, two large curves", dim:"not in the BRIO track guide", lanes:[{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45}]},
+  {grp:"Other / unconfirmed", id:"IYS", name:"Straight + curve switch (3rd-party)", dim:"145 mm straight + 45° curve", lanes:[{k:"s",len:145},{k:"a",r:202,deg:45}]},
   /* IKEA LILLABO — dimensions from trackdrawer.com/systemen/ikea-lillabo (12 pieces): track 40 mm wide, 12 mm high,
      grooves 25.7 mm apart, parallel tracks 40 mm apart. IKEA has no tight curve: its short curve is a 22.5° piece. */
   {grp:"IKEA LILLABO", id:"I240", name:"IKEA long straight",   dim:"240 mm · LB-240 (BRIO D is 216)", lanes:[{k:"s",len:240}]},
@@ -303,17 +324,19 @@ const BASE = [
   {grp:"Other / unconfirmed", id:"IY",   name:"Y fork, two curves", dim:"two 45° curves · not in IKEA's current list", lanes:[{k:"a",r:205,deg:45},{k:"a",r:205,deg:-45}]},
   {grp:"Other / unconfirmed", id:"IDS",  name:"Double straight (2 tracks)", dim:"146 mm · two tracks 40 mm apart · not in IKEA's current list", lanes:[{k:"s",len:146,p0:{x:0,y:-20,a:0}},{k:"s",len:146,p0:{x:0,y:20,a:0}}]},
   /* Bridges: decks are raised straights (woodenrailway.info span table, deck length excludes ramps).
-     BRIO ascending track #33332 is 216 mm. IKEA ramp peaks at ~65 mm; its length is an estimate. */
-  {grp:"Bridges & ramps", id:"N",     name:"BRIO ascending track N",  dim:"216 mm · hole at the bottom, peg at the top", lanes:[{k:"s",len:216,g:["F","M"],lv:[0,1]}]},
-  {grp:"Bridges & ramps", id:"N1",    name:"BRIO ascending track N1", dim:"216 mm · peg at the bottom, hole at the top", lanes:[{k:"s",len:216,g:["M","F"],lv:[0,1]}]},
+     BRIO ascending track N/N1: 216 mm, raises the track 64 mm; N1 has two pegs (goes with the reversible bridge). */
+  {grp:"Bridges & ramps", id:"N",     name:"BRIO ascending track N",  dim:"216 mm, +64 mm · hole at the bottom, peg at the top", lanes:[{k:"s",len:216,g:["F","M"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"N1",    name:"BRIO ascending track N1", dim:"216 mm, +64 mm · pegs at both ends", lanes:[{k:"s",len:216,g:["M","M"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"NX",    name:"Ascending track, peg at the bottom", dim:"216 mm, +64 mm · hole at the top (for coming down a bridge whose end is a peg)", lanes:[{k:"s",len:216,g:["M","F"],lv:[0,1]}]},
   {grp:"Bridges & ramps", id:"B144",  name:"Short bridge deck",  dim:"144 mm · tied arch, drawbridge", deck:true, lanes:[{k:"s",len:144}]},
   {grp:"Bridges & ramps", id:"B216",  name:"Medium bridge deck", dim:"216 mm · arch, girder, lifting, swing", deck:true, lanes:[{k:"s",len:216}]},
   {grp:"Bridges & ramps", id:"B324",  name:"Long bridge deck",   dim:"324 mm · double suspension", deck:true, lanes:[{k:"s",len:324}]},
   {grp:"Bridges & ramps", id:"B360",  name:"Extra-long bridge deck", dim:"360 mm · suspension, viaduct, Sydney", deck:true, lanes:[{k:"s",len:360}]},
+  {grp:"Bridges & ramps", id:"B360R", name:"Reversible bridge deck", dim:"360 mm · holes at both ends (use with N1)", deck:true, lanes:[{k:"s",len:360,g:["F","F"]}]},
   {grp:"Bridges & ramps", id:"IRAMP", name:"IKEA ramp (hole at bottom)", dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["F","M"],lv:[0,1]}]},
   {grp:"Bridges & ramps", id:"IRAMP2",name:"IKEA ramp (peg at bottom)",  dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["M","F"],lv:[0,1]}]},
 ];
-const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,O1:0,Y:0,H:0,MM:1,FF:1};
+const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,MM:1,FF:1};
 
 /* ---------- State ---------- */
 let S = {pieces:[], inv:{...DEFAULT_INV}, custom:[], tolPos:3, tolAng:3, gender:true, nextId:1, collapsed:{}, rise:64, trainH:45, thick:12, learned:{}};
@@ -364,6 +387,15 @@ function buildType(t){
     [GROOVE,-GROOVE].forEach(o=>{ grooves += "M"+P(o).map(p=>p.x.toFixed(2)+" "+p.y.toFixed(2)).join("L"); });
   });
   t.band=band; t.grooves=grooves; t.pts=pts;
+  // real connector shapes (BRIO track guide): peg = 11.5 mm knob on a 7 mm neck; hole ≈ 16 mm with a 5 mm throat
+  const circ=(x,y,r)=>`M${(x+r).toFixed(2)} ${y.toFixed(2)}A${r} ${r} 0 1 0 ${(x-r).toFixed(2)} ${y.toFixed(2)}A${r} ${r} 0 1 0 ${(x+r).toFixed(2)} ${y.toFixed(2)}Z`;
+  const rect=(c,a0,a1,hw)=>{ const ox=Math.cos(c.a), oy=Math.sin(c.a), nx=-oy, ny=ox, P=[[a0,-hw],[a1,-hw],[a1,hw],[a0,hw]].map(([a,b])=>[c.x+ox*a+nx*b,c.y+oy*a+ny*b]);
+    return "M"+P.map(q=>q[0].toFixed(2)+" "+q[1].toFixed(2)).join("L")+"Z"; };
+  let pegs="", holes="";
+  C.forEach(c=>{ const ox=Math.cos(c.a), oy=Math.sin(c.a);
+    if(c.g==="M"){ pegs+=rect(c,-1,7,3.5)+circ(c.x+ox*11.75,c.y+oy*11.75,5.75); }
+    else { holes+=rect(c,-6,0.5,2.5)+circ(c.x-ox*10,c.y-oy*10,8); } });
+  t.pegs=pegs; t.holes=holes;
   const cx=C.reduce((s,c)=>s+c.x,0)/C.length, cy=C.reduce((s,c)=>s+c.y,0)/C.length;
   t.center={x:cx,y:cy};
   return t;
@@ -479,7 +511,9 @@ function renderPieces(){
     const sw = s?2.2: (t.deck?4:(p.level>0||t.ramp?1.8:1));
     h+=`<g class="piece" data-id="${p.id}" transform="${tf(0,0)}">`+
        `<path d="${t.band}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`+
-       `<path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="3.2" stroke-linecap="round" opacity=".55"/>`;
+       `<path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="5" stroke-linecap="butt" opacity=".45"/>`+
+       (t.pegs?`<path d="${t.pegs}" fill="${fill}" stroke="${stroke}" stroke-width="${Math.min(sw,1.2)}"/>`:"")+
+       (t.holes?`<path d="${t.holes}" fill="#f8f6f1" stroke="var(--wood-edge)" stroke-width="0.8"/>`:"");
     if(t.ramp){ const L=t.lanes[0].len; for(let x=L*0.3;x<L*0.85;x+=L*0.22) h+=`<path d="M${x-8} -9 L${x+4} 0 L${x-8} 9" fill="none" stroke="#7a5530" stroke-width="2.5" opacity=".7"/>`; }
     if(p.level>0 && !t.ramp){ const c=t.center; h+=`<text x="${c.x}" y="${(p.mirror?-1:1)*(c.y)+4}" transform="scale(1 ${p.mirror?-1:1})" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5a72">▲${p.level}</text>`; }
     h+=`</g>`;
@@ -497,8 +531,8 @@ function renderMarks(){
     const ox=Math.cos(c.a), oy=Math.sin(c.a);
     const isAct = active && active.pid===p.id && active.ci===ci;
     if(isAct) h+=`<circle cx="${c.x+ox*4}" cy="${c.y+oy*4}" r="22" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 4"/>`;
-    if(c.g==="M") h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x+ox*9}" cy="${c.y+oy*9}" r="${hitR}" fill="transparent"/><line x1="${c.x}" y1="${c.y}" x2="${c.x+ox*8}" y2="${c.y+oy*8}" stroke="#b06a1f" stroke-width="5"/><circle cx="${c.x+ox*11}" cy="${c.y+oy*11}" r="6.5" fill="${c.lv?"#5b8fd9":"#e08a2e"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="1"/></g>`;
-    else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*4}" cy="${c.y-oy*4}" r="${hitR}" fill="transparent"/><circle cx="${c.x-ox*10}" cy="${c.y-oy*10}" r="7" fill="${c.lv?"#dce8fb":"#fff"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="2"/></g>`;
+    if(c.g==="M") h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x+ox*9}" cy="${c.y+oy*9}" r="${hitR}" fill="transparent"/><circle cx="${c.x+ox*11.75}" cy="${c.y+oy*11.75}" r="4.5" fill="${c.lv?"#5b8fd9":"#e08a2e"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="1"/></g>`;
+    else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*4}" cy="${c.y-oy*4}" r="${hitR}" fill="transparent"/><circle cx="${c.x-ox*10}" cy="${c.y-oy*10}" r="5" fill="${c.lv?"#dce8fb":"#fff"}" stroke="${c.lv?"#2d5597":"#e08a2e"}" stroke-width="2.2"/></g>`;
   }));
   // near misses between free ends (gaps that almost close)
   for(let i=0;i<free.length;i++) for(let j=i+1;j<free.length;j++){
@@ -541,7 +575,7 @@ function iconSVG(t){
   const xs=t.pts.map(p=>p.x), ys=t.pts.map(p=>p.y);
   const x0=Math.min(...xs)-6,y0=Math.min(...ys)-6,w=Math.max(...xs)-x0+6,h=Math.max(...ys)-y0+6;
   const sz=Math.max(w,h*46/34);
-  return `<svg viewBox="${x0-(sz-w)/2} ${y0-(sz*34/46-h)/2} ${sz} ${sz*34/46}"><path d="${t.band}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/60}"/><path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="${sz/30}" opacity=".5"/></svg>`;
+  return `<svg viewBox="${x0-(sz-w)/2} ${y0-(sz*34/46-h)/2} ${sz} ${sz*34/46}"><path d="${t.band}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/60}"/><path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="${sz/30}" opacity=".5"/>${t.pegs?`<path d="${t.pegs}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/80}"/>`:""}${t.holes?`<path d="${t.holes}" fill="#fffdf8"/>`:""}</svg>`;
 }
 function renderInv(){
   const el=document.getElementById("inv"); let h="", g="";
@@ -951,12 +985,12 @@ function init3D(){
   loop();
 }
 const WOOD=0xdcb37c;
-function ribbon(p,l,mat,hFn,wHalf,thick){
+function ribbon(p,l,mat,hFn,wHalf,thick,off=0){
   // a solid strip following lane l of piece p: top, two sides, bottom, end caps
   const len = l.k==="s" ? l.len : Math.abs(l.deg)*D2R*l.r, n=Math.max(1,Math.ceil(len/12)), lv=l.lv||[0,0];
   const P=[], idx=[];
   for(let i=0;i<=n;i++){ const u=i/n, h=hFn(lv,u);
-    const a=lanePose(l,u,wHalf), b=lanePose(l,u,-wHalf), A=worldPt(p,a.x,a.y), B=worldPt(p,b.x,b.y);
+    const a=lanePose(l,u,off+wHalf), b=lanePose(l,u,off-wHalf), A=worldPt(p,a.x,a.y), B=worldPt(p,b.x,b.y);
     P.push([A.x,h+thick,A.y],[B.x,h+thick,B.y],[A.x,h,A.y],[B.x,h,B.y]); }
   const quad=(a,b,c,d)=>idx.push(a,b,c, a,c,d);
   for(let i=0;i<n;i++){ const o=i*4, q=o+4;
@@ -974,18 +1008,27 @@ function build3D(){
   const mDeck=new THREE.MeshStandardMaterial({color:0xc2553f,roughness:0.7,side:THREE.DoubleSide});
   const mPier=new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.9});
   const mEnv=new THREE.MeshBasicMaterial({color:0x4a8ad8,transparent:true,opacity:0.13,depthWrite:false,side:THREE.DoubleSide});
-  const mGroove=new THREE.LineBasicMaterial({color:0x8c613a});
+  const mGrooveM=new THREE.MeshStandardMaterial({color:0x9a6d40,roughness:0.9});
+  const mHole=new THREE.MeshBasicMaterial({color:0x3a2a1a});
   const env=document.getElementById("c3Env").checked;
   const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*u)*S.rise;
   S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
     t.lanes.forEach(l=>{
       G.add(ribbon(p,l,mWood,hf,HALF,S.thick));
       if(t.deck) G.add(ribbon(p,l,mDeck,(lv,u)=>hf(lv,u)-6,HALF+4,6)); // red girder under the bridge deck
-      [GROOVE,-GROOVE].forEach(o=>{ const len=l.k==="s"?l.len:Math.abs(l.deg)*D2R*l.r, n=Math.max(1,Math.ceil(len/12)), lv=l.lv||[0,0], pts=[];
-        for(let i=0;i<=n;i++){ const u=i/n, q=lanePose(l,u,o), w=worldPt(p,q.x,q.y); pts.push(new THREE.Vector3(w.x,hf(lv,u)+S.thick+0.4,w.y)); }
-        G.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mGroove)); });
+      // grooves: 6 mm wide, 3 mm deep (drawn as darker channels just below the top surface)
+      [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick-3+0.05,3,3.2,o); gr.castShadow=false; G.add(gr); });
       if(env){ const e=ribbon(p,l,mEnv,(lv,u)=>hf(lv,u)+S.thick,HALF-3,S.trainH); e.castShadow=false; e.receiveShadow=false; G.add(e); }
     });
+    // pegs (11.5 mm knob on a 7 mm neck) and holes, at the height of their end of the piece
+    localConns(p).forEach((lc,ci)=>{ const c=toWorld(p,lc), h=c.lv*S.rise, ox=Math.cos(c.a), oy=Math.sin(c.a);
+      if(lc.g==="M"){
+        const knob=new THREE.Mesh(new THREE.CylinderGeometry(5.75,5.75,S.thick-1,20),mWood); knob.position.set(c.x+ox*11.75,h+(S.thick-1)/2,c.y+oy*11.75); knob.castShadow=true; G.add(knob);
+        const neck=new THREE.Mesh(new THREE.BoxGeometry(8,S.thick-1,7),mWood); neck.position.set(c.x+ox*3,h+(S.thick-1)/2,c.y+oy*3); neck.rotation.y=-c.a; G.add(neck);
+      } else {
+        const hole=new THREE.Mesh(new THREE.CylinderGeometry(8,8,0.6,20),mHole); hole.position.set(c.x-ox*10,h+S.thick+0.1,c.y-oy*10); G.add(hole);
+        const throat=new THREE.Mesh(new THREE.BoxGeometry(6,0.6,5),mHole); throat.position.set(c.x-ox*3,h+S.thick+0.1,c.y-oy*3); throat.rotation.y=-c.a; G.add(throat);
+      } });
     // supports under raised straight pieces (not ramps)
     if((p.level||0)>0 && !t.ramp){ t.lanes.forEach(l=>{ const len=l.k==="s"?l.len:Math.abs(l.deg)*D2R*l.r;
       const us = len>250?[0.2,0.8]:[0.5];
@@ -1047,10 +1090,10 @@ document.getElementById("b3dIso").onclick=()=>frame3D("iso");
    and matched against the catalogue → 5 review/correct → add to inventory. Everything runs on the device. */
 const MMPX=2;                                   // rectified top-down image: 2 mm per pixel
 const PAPER={a4:[297,210], letter:[279.4,215.9]};
-const SC={step:0, img:null, corners:[], paper:"a4", taps:{wood:[],bg:[]}, tapMode:"wood", rect:null, bodies:[], brands:{BRIO:true,IKEA:true,Custom:true}, stream:null,
+const SC={step:0, img:null, corners:[], paper:"a4", taps:{wood:[],bg:[]}, tapMode:"wood", rect:null, bodies:[], brands:{BRIO:true,IKEA:true,Custom:true,Other:false}, stream:null,
           mode:"colour", sens:5};   // mode: "colour" (contrasting floor) or "grooves" (wooden table)
 const scEl=id=>document.getElementById(id);
-function brandOf(t){ if(t.grp==="IKEA LILLABO"||t.id==="IRAMP"||t.id==="IRAMP2") return "IKEA"; if(t.grp==="Custom") return "Custom"; return "BRIO"; }
+function brandOf(t){ if(t.grp==="IKEA LILLABO"||t.id==="IRAMP"||t.id==="IRAMP2") return "IKEA"; if(t.grp==="Custom") return "Custom"; if(t.grp==="Other / unconfirmed") return "Other"; return "BRIO"; }
 
 /* -- small linear algebra -- */
 function solveLin(A,b){ const n=b.length, M=A.map((r,i)=>[...r,b[i]]);
@@ -1229,9 +1272,9 @@ function refFeatures(t){
   g.scale(1/MMPX,1/MMPX); g.translate(-x0,-y0); g.fillStyle="#000";
   t.band.split("M").filter(Boolean).forEach(d=>g.fill(new Path2D("M"+d)));
   t.conns.forEach(c=>{ const ox=Math.cos(c.a), oy=Math.sin(c.a);           // BRIO-style peg / hole
-    const knob=(dir)=>{ g.beginPath(); g.arc(c.x+ox*14*dir,c.y+oy*14*dir,9,0,7); g.fill();
-      g.save(); g.translate(c.x,c.y); g.rotate(c.a); g.fillRect(dir>0?0:-12,-4.5,12,9); g.restore(); };
-    if(c.g==="M") knob(1); else { g.globalCompositeOperation="destination-out"; knob(-1); g.globalCompositeOperation="source-over"; } });
+    if(c.g==="M"){ g.beginPath(); g.arc(c.x+ox*11.75,c.y+oy*11.75,5.75,0,7); g.fill(); g.save(); g.translate(c.x,c.y); g.rotate(c.a); g.fillRect(-1,-3.5,8,7); g.restore(); }
+    else { g.globalCompositeOperation="destination-out"; g.beginPath(); g.arc(c.x-ox*10,c.y-oy*10,8,0,7); g.fill();
+      g.save(); g.translate(c.x,c.y); g.rotate(c.a); g.fillRect(-6,-2.5,7,5); g.restore(); g.globalCompositeOperation="source-over"; } });
   let m;
   if(SC.mode==="grooves"){ // draw it like a photo of a piece on a table and run the groove detector on it
     const body=g.getImageData(0,0,w,h).data;                       // piece silhouette (alpha)
@@ -1519,7 +1562,7 @@ function scReviewStep(){
       (bad&&both?` Some BRIO and IKEA pieces are the same shape: untick a brand you don't have and they'll sort themselves out.`:"")+grooveTip;
   };
   scEl("scFoot").innerHTML=`<span class="hint" id="scHint4"></span>
-    <span class="chip-row">Brands: ${["BRIO","IKEA","Custom"].map(b=>`<button class="chip ${SC.brands[b]?"on":""}" data-brand="${b}">${b}</button>`).join(" ")}</span>
+    <span class="chip-row">Brands: ${["BRIO","IKEA","Custom","Other"].map(b=>`<button class="chip ${SC.brands[b]?"on":""}" data-brand="${b}">${b}</button>`).join(" ")}</span>
     <span style="display:flex;gap:6px;align-items:center">Detect by: <button class="chip ${SC.mode==="colour"?"on":""}" data-mode="colour" ${SC.taps.wood.length&&SC.taps.bg.length?"":"disabled"}>Colour</button><button class="chip ${SC.mode==="grooves"?"on":""}" data-mode="grooves">Grooves</button></span>
     ${SC.mode==="grooves"?`<label style="display:flex;gap:6px;align-items:center">Sensitivity <input type="range" id="scSens" min="1" max="10" value="${SC.sens}" style="width:140px"></label>`:""}
     <div class="sumlist" id="scSum" style="flex:1 1 100%"></div>
