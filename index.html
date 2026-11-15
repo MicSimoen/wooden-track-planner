@@ -433,10 +433,14 @@ function buildType(t){
   const circ=(x,y,r)=>`M${(x+r).toFixed(2)} ${y.toFixed(2)}A${r} ${r} 0 1 0 ${(x-r).toFixed(2)} ${y.toFixed(2)}A${r} ${r} 0 1 0 ${(x+r).toFixed(2)} ${y.toFixed(2)}Z`;
   const rect=(c,a0,a1,hw)=>{ const ox=Math.cos(c.a), oy=Math.sin(c.a), nx=-oy, ny=ox, P=[[a0,-hw],[a1,-hw],[a1,hw],[a0,hw]].map(([a,b])=>[c.x+ox*a+nx*b,c.y+oy*a+ny*b]);
     return "M"+P.map(q=>q[0].toFixed(2)+" "+q[1].toFixed(2)).join("L")+"Z"; };
+  // one outline each: neck + round knob. The hole has the same centre as the peg it takes, 1 mm bigger all round.
+  const P_C=11.75, P_R=5.75, P_N=3.5, H_R=6.75, H_N=4.25;
+  const keyhole=(c,dir,R,N)=>{ const ox=Math.cos(c.a)*dir, oy=Math.sin(c.a)*dir, nx=-Math.sin(c.a), ny=Math.cos(c.a);
+    const xi=P_C-Math.sqrt(R*R-N*N), at=(a,b)=>[(c.x+ox*a+nx*b).toFixed(2),(c.y+oy*a+ny*b).toFixed(2)].join(" ");
+    const sweep = dir>0 ? 1 : 0;
+    return `M${at(0,-N)}L${at(xi,-N)}A${R} ${R} 0 1 ${sweep} ${at(xi,N)}L${at(0,N)}Z`; };
   let pegs="", holes="";
-  C.forEach(c=>{ const ox=Math.cos(c.a), oy=Math.sin(c.a);
-    if(c.g==="M"){ pegs+=rect(c,-1,7,3.5)+circ(c.x+ox*11.75,c.y+oy*11.75,5.75); }
-    else { holes+=rect(c,-6,0.5,2.5)+circ(c.x-ox*10,c.y-oy*10,8); } });
+  C.forEach(c=>{ if(c.g==="M") pegs+=keyhole(c,1,P_R,P_N); else holes+=keyhole(c,-1,H_R,H_N); });
   t.pegs=pegs; t.holes=holes;
   if(t.stop){ // striped barrier across the closed end (last 10 mm), red and white stripes
     const L=t.lanes[0].len; let st=`M${L-10} ${-HALF}L${L} ${-HALF}L${L} ${HALF}L${L-10} ${HALF}Z`, wh="";
@@ -644,9 +648,9 @@ function renderPieces(){
     h+=`<g class="piece" data-id="${p.id}" transform="${tf(0,0)}">`+
        `<path d="${t.band}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`+
        `<path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="5" stroke-linecap="butt" opacity=".45"/>`+
-       (t.holes?`<path d="${t.holes}" fill="#f8f6f1" stroke="var(--wood-edge)" stroke-width="0.8"/>`:"")+
+       (t.holes?`<path d="${t.holes}" fill="#f8f6f1" stroke="var(--wood-edge)" stroke-width="0.9" stroke-linejoin="round"/>`:"")+
        (t.barrier?`<path d="${t.barrier.red}" fill="#d23c2f" stroke="#7a1f17" stroke-width="0.8"/><path d="${t.barrier.white}" fill="#fff"/>`:"");
-    if(t.pegs) pegLayer+=`<path class="piece" data-id="${p.id}" transform="${tf(0,0)}" d="${t.pegs}" fill="${s?"#ecc794":t.ramp?"#dcb37c":(p.level>0?"#e6c08b":"var(--wood)")}" stroke="${stroke}" stroke-width="${Math.min(sw,1.2)}"/>`;
+    if(t.pegs) pegLayer+=`<path class="piece" data-id="${p.id}" transform="${tf(0,0)}" d="${t.pegs}" fill="${s?"#ecc794":t.ramp?"#dcb37c":(p.level>0?"#e6c08b":"var(--wood)")}" stroke="${s?"var(--accent)":"var(--wood-edge)"}" stroke-width="0.9" stroke-linejoin="round"/>`;
     if(t.ramp){ const L=t.lanes[0].len; for(let x=L*0.3;x<L*0.85;x+=L*0.22) h+=`<path d="M${x-8} -9 L${x+4} 0 L${x-8} 9" fill="none" stroke="#7a5530" stroke-width="2.5" opacity=".7"/>`; }
     if(p.level>0 && !t.ramp){ const c=t.center; h+=`<text x="${c.x}" y="${(p.mirror?-1:1)*(c.y)+4}" transform="scale(1 ${p.mirror?-1:1})" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5a72">▲${p.level}</text>`; }
     h+=`</g>`;
@@ -664,8 +668,8 @@ function renderMarks(){
     const ox=Math.cos(c.a), oy=Math.sin(c.a);
     const isAct = active && active.pid===p.id && active.ci===ci;
     if(isAct) h+=`<circle cx="${c.x+ox*4}" cy="${c.y+oy*4}" r="22" fill="none" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 4"/>`;
-    if(c.g==="M") h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x+ox*9}" cy="${c.y+oy*9}" r="${hitR}" fill="transparent"/><circle cx="${c.x+ox*11.75}" cy="${c.y+oy*11.75}" r="4.5" fill="${c.lv?"#5b8fd9":"#e08a2e"}" stroke="${c.lv?"#2d5597":"#8a4f13"}" stroke-width="1"/></g>`;
-    else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*4}" cy="${c.y-oy*4}" r="${hitR}" fill="transparent"/><circle cx="${c.x-ox*10}" cy="${c.y-oy*10}" r="5" fill="${c.lv?"#dce8fb":"#fff"}" stroke="${c.lv?"#2d5597":"#e08a2e"}" stroke-width="2.2"/></g>`;
+    if(c.g==="M") h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x+ox*11.75}" cy="${c.y+oy*11.75}" r="${hitR}" fill="transparent"/><circle cx="${c.x+ox*11.75}" cy="${c.y+oy*11.75}" r="8.5" fill="none" stroke="${c.lv?"#5b8fd9":"#e08a2e"}" stroke-width="2.2"/></g>`;
+    else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*11.75}" cy="${c.y-oy*11.75}" r="${hitR}" fill="transparent"/><circle cx="${c.x-ox*11.75}" cy="${c.y-oy*11.75}" r="9.5" fill="none" stroke="${c.lv?"#5b8fd9":"#e08a2e"}" stroke-width="2.2" stroke-dasharray="3 2"/></g>`;
   }));
   // near misses between free ends (gaps that almost close)
   GAPS=[];
@@ -1218,7 +1222,8 @@ function build3D(){
   const mPier=new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.9});
   const mEnv=new THREE.MeshBasicMaterial({color:0x4a8ad8,transparent:true,opacity:0.13,depthWrite:false,side:THREE.DoubleSide});
   const mGrooveM=new THREE.MeshStandardMaterial({color:0x9a6d40,roughness:0.9});
-  const mHole=new THREE.MeshBasicMaterial({color:0x3a2a1a});
+  const mHole=new THREE.MeshStandardMaterial({color:0x4a3826,roughness:1});
+  const mPeg=new THREE.MeshStandardMaterial({color:0xe2bd88,roughness:0.75});
   const env=document.getElementById("c3Env").checked;
   const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise;
   S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
@@ -1237,13 +1242,15 @@ function build3D(){
         m.position.set(w.x+nx,h+11,w.y+ny); m.rotation.y=a; m.castShadow=true; G.add(m); }
     }
     // pegs (11.5 mm knob on a 7 mm neck) and holes, at the height of their end of the piece
-    localConns(p).forEach((lc,ci)=>{ const c=toWorld(p,lc), h=c.lv*S.rise, ox=Math.cos(c.a), oy=Math.sin(c.a);
+    // pegs (11.5 mm knob on a 7 mm neck) — their top is a hair above the wood so a peg shows inside the next piece;
+    // holes are drawn only where no peg sits in them
+    localConns(p).forEach((lc,ci)=>{ const c=toWorld(p,lc), h=c.lv*S.rise, ox=Math.cos(c.a), oy=Math.sin(c.a), H=S.thick+0.3;
       if(lc.g==="M"){
-        const knob=new THREE.Mesh(new THREE.CylinderGeometry(5.75,5.75,S.thick-1,20),mWood); knob.position.set(c.x+ox*11.75,h+(S.thick-1)/2,c.y+oy*11.75); knob.castShadow=true; G.add(knob);
-        const neck=new THREE.Mesh(new THREE.BoxGeometry(8,S.thick-1,7),mWood); neck.position.set(c.x+ox*3,h+(S.thick-1)/2,c.y+oy*3); neck.rotation.y=-c.a; G.add(neck);
-      } else {
-        const hole=new THREE.Mesh(new THREE.CylinderGeometry(8,8,0.6,20),mHole); hole.position.set(c.x-ox*10,h+S.thick+0.1,c.y-oy*10); G.add(hole);
-        const throat=new THREE.Mesh(new THREE.BoxGeometry(6,0.6,5),mHole); throat.position.set(c.x-ox*3,h+S.thick+0.1,c.y-oy*3); throat.rotation.y=-c.a; G.add(throat);
+        const knob=new THREE.Mesh(new THREE.CylinderGeometry(5.75,5.75,H,24),mPeg); knob.position.set(c.x+ox*11.75,h+H/2,c.y+oy*11.75); knob.castShadow=true; G.add(knob);
+        const neck=new THREE.Mesh(new THREE.BoxGeometry(8,H,7),mPeg); neck.position.set(c.x+ox*4,h+H/2,c.y+oy*4); neck.rotation.y=-c.a; G.add(neck);
+      } else if(isFree(p.id,ci)){
+        const hole=new THREE.Mesh(new THREE.CylinderGeometry(6.75,6.75,S.thick+0.4,24),mHole); hole.position.set(c.x-ox*11.75,h+S.thick/2+0.05,c.y-oy*11.75); G.add(hole);
+        const throat=new THREE.Mesh(new THREE.BoxGeometry(6.2,S.thick+0.4,8.5),mHole); throat.position.set(c.x-ox*3,h+S.thick/2+0.05,c.y-oy*3); throat.rotation.y=-c.a; G.add(throat);
       } });
     // supports under raised straight pieces (not ramps)
     if((p.level||0)>0 && !t.ramp){ t.lanes.forEach(l=>{ const len=laneLen(l);
