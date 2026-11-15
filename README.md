@@ -31,7 +31,10 @@ Your layouts and inventory are stored on the device, inside the app. Use **Save 
 ## Scanning tips
 
 - Lay pieces flat and apart (a hand's width), with an A4 or US Letter sheet flat next to them.
-- A plain floor or rug that contrasts with the wood works best; avoid strong shadows.
+- A plain floor, rug or cloth that contrasts with the wood works best; avoid strong shadows.
+  **On a wooden table** (oak, walnut…) the colours are too similar. Either lay a dark cloth or coloured paper under the pieces
+  (most reliable), or pick **Wooden table** in step 3: pieces are then found by their two grooves instead of their colour
+  (grooved side up, even light). Use the Sensitivity slider if pieces are missed (raise) or table grain shows up as track (lower).
 - 10–20 pieces per photo; several photos add up.
 - Look-alikes (e.g. BRIO 144 mm vs IKEA 145 mm straights, or ramps vs straights seen from above) are marked orange so you can choose.
   Untick a brand you don't own to reduce them.

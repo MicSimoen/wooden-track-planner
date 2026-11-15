@@ -1043,7 +1043,8 @@ document.getElementById("b3dIso").onclick=()=>frame3D("iso");
    and matched against the catalogue → 5 review/correct → add to inventory. Everything runs on the device. */
 const MMPX=2;                                   // rectified top-down image: 2 mm per pixel
 const PAPER={a4:[297,210], letter:[279.4,215.9]};
-const SC={step:0, img:null, corners:[], paper:"a4", taps:{wood:[],bg:[]}, tapMode:"wood", rect:null, bodies:[], brands:{BRIO:true,IKEA:true,Custom:true}, stream:null};
+const SC={step:0, img:null, corners:[], paper:"a4", taps:{wood:[],bg:[]}, tapMode:"wood", rect:null, bodies:[], brands:{BRIO:true,IKEA:true,Custom:true}, stream:null,
+          mode:"colour", sens:5};   // mode: "colour" (contrasting floor) or "grooves" (wooden table)
 const scEl=id=>document.getElementById(id);
 function brandOf(t){ if(t.grp==="IKEA LILLABO"||t.id==="IRAMP"||t.id==="IRAMP2") return "IKEA"; if(t.grp==="Custom") return "Custom"; return "BRIO"; }
 
@@ -1070,11 +1071,12 @@ const dilate=(m,w,h,r)=>boxPass(boxPass(m,w,h,r,false,true),w,h,r,false,false);
 const erode =(m,w,h,r)=>boxPass(boxPass(m,w,h,r,true,true),w,h,r,true,false);
 const closeM=(m,w,h,r)=>erode(dilate(m,w,h,r),w,h,r);
 const openM =(m,w,h,r)=>dilate(erode(m,w,h,r),w,h,r);
-function components(m,w,h,minPx){ const lab=new Int32Array(w*h), comps=[]; let id=0; const st=[];
+const N4=[[1,0],[-1,0],[0,1],[0,-1]], N8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+function components(m,w,h,minPx,conn8){ const lab=new Int32Array(w*h), comps=[]; let id=0; const st=[], NB=conn8?N8:N4;
   for(let i=0;i<w*h;i++){ if(!m[i]||lab[i]) continue; id++; let n=0, sx=0, sy=0; const bnd=[]; st.push(i); lab[i]=id;
     while(st.length){ const k=st.pop(), x=k%w, y=(k/w)|0; n++; sx+=x; sy+=y;
       let edge=false;
-      for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const xx=x+dx, yy=y+dy;
+      for(const [dx,dy] of NB){ const xx=x+dx, yy=y+dy;
         if(xx<0||yy<0||xx>=w||yy>=h){ edge=true; continue; } const kk=yy*w+xx;
         if(!m[kk]){ edge=true; continue; } if(!lab[kk]){ lab[kk]=id; st.push(kk); } }
       if(edge) bnd.push([x,y]); }
@@ -1095,6 +1097,90 @@ function minRect(H){ let best=null;
 function features(c){ const H=hull(c.bnd), r=minRect(H), area=c.n*MMPX*MMPX, ha=Math.max(1,polyArea(H))*MMPX*MMPX;
   return {area, long:(r.long+1)*MMPX, short:(r.short+1)*MMPX, sol:Math.min(1,area/ha), hull:H}; }
 /* find pieces in a top-down mask: grooves are filled, pegs cut off and counted */
+/* ---- wooden-table mode: find track by its two grooves instead of its colour ----
+   Across a piece the brightness goes: wood | groove | wood | groove | wood, with the grooves ~11 mm either side
+   of the centre line. An oriented filter (12 directions, averaged a little along the track) answers
+   "is this pixel the middle of a track?". */
+function grooveResponse(G,w,h){
+  const Rr=new Float32Array(w*h), Oi=new Uint8Array(w*h), OR=12, S=[-3,0,3], pad=12;
+  for(let k=0;k<OR;k++){
+    const th=k*Math.PI/OR, tx=Math.cos(th), ty=Math.sin(th), nx=-ty, ny=tx;
+    const off=(a,s)=>Math.round(a*ny+s*ty)*w+Math.round(a*nx+s*tx);
+    const set=as=>{ const o=[]; as.forEach(a=>S.forEach(s=>o.push(off(a,s)))); return o; };
+    const oC=set([0]), oGm=set([-5,-6]), oGp=set([5,6]), oOm=set([-8,-9]), oOp=set([8,9]);
+    const mean=(i,o)=>{ let t=0; for(let j=0;j<o.length;j++) t+=G[i+o[j]]; return t/o.length; };
+    for(let y=pad;y<h-pad;y++) for(let x=pad;x<w-pad;x++){ const i=y*w+x;
+      const C=mean(i,oC), Gm=mean(i,oGm), Gp=mean(i,oGp), Om=mean(i,oOm), Op=mean(i,oOp);
+      // grooves are recesses, so in a photo they read darker than the wood around them
+      const r=Math.min(C-Gm, C-Gp, Om-Gm, Op-Gp); if(r>Rr[i]){ Rr[i]=r; Oi[i]=k; } }
+  }
+  // keep only the crest across the track (non-maximum suppression along the normal) → 1–2 px centre lines
+  const crest=new Float32Array(w*h);
+  for(let y=2;y<h-2;y++) for(let x=2;x<w-2;x++){ const i=y*w+x, v=Rr[i]; if(v<=0) continue;
+    const th=Oi[i]*Math.PI/OR, nx=-Math.sin(th), ny=Math.cos(th);
+    let top=true;                                    // strongest within ±4 px (±8 mm) across the track
+    for(let d=1; d<=4 && top; d++){ const ya=Math.round(y+d*ny), xa=Math.round(x+d*nx), yb=Math.round(y-d*ny), xb=Math.round(x-d*nx);
+      if(ya<0||yb<0||ya>=h||yb>=h||xa<0||xb<0||xa>=w||xb>=w) continue;
+      if(Rr[ya*w+xa]>v || Rr[yb*w+xb]>=v) top=false; }
+    if(top) crest[i]=v; }
+  crest.full=Rr; return crest;
+}
+/* chamfer distance (≈ Euclidean, in px) to the nearest set pixel — for growing round, not square */
+function distTo(m,w,h){ const INF=1e9, D=new Float32Array(w*h); for(let i=0;i<w*h;i++) D[i]=m[i]?0:INF;
+  const a=1, b=1.4142;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x; let v=D[i]; if(!v) continue;
+    if(x>0) v=Math.min(v,D[i-1]+a); if(y>0){ v=Math.min(v,D[i-w]+a); if(x>0) v=Math.min(v,D[i-w-1]+b); if(x<w-1) v=Math.min(v,D[i-w+1]+b); } D[i]=v; }
+  for(let y=h-1;y>=0;y--) for(let x=w-1;x>=0;x--){ const i=y*w+x; let v=D[i]; if(!v) continue;
+    if(x<w-1) v=Math.min(v,D[i+1]+a); if(y<h-1){ v=Math.min(v,D[i+w]+a); if(x<w-1) v=Math.min(v,D[i+w+1]+b); if(x>0) v=Math.min(v,D[i+w-1]+b); } D[i]=v; }
+  return D; }
+/* Zhang–Suen thinning: reduce the detected centre band to a 1-pixel line, so fuzzy and crisp photos match */
+function thin(m,w,h){ const a=m.slice(); let changed=true, it=0;
+  const P=(x,y)=>a[y*w+x];
+  while(changed && it++<40){ changed=false;
+    for(const pass of [0,1]){ const del=[];
+      for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ if(!a[y*w+x]) continue;
+        const p2=P(x,y-1),p3=P(x+1,y-1),p4=P(x+1,y),p5=P(x+1,y+1),p6=P(x,y+1),p7=P(x-1,y+1),p8=P(x-1,y),p9=P(x-1,y-1);
+        const B=p2+p3+p4+p5+p6+p7+p8+p9; if(B<2||B>6) continue;
+        const seq=[p2,p3,p4,p5,p6,p7,p8,p9,p2]; let A=0; for(let k=0;k<8;k++) if(!seq[k]&&seq[k+1]) A++; if(A!==1) continue;
+        if(pass===0 ? (p2*p4*p6===0 && p4*p6*p8===0) : (p2*p4*p8===0 && p2*p6*p8===0)) del.push(y*w+x); }
+      if(del.length){ changed=true; del.forEach(i=>a[i]=0); } } }
+  return a; }
+/* remove skeleton spurs shorter than n px (end-point peeling, then grow back along the original) */
+function prune(sk,w,h,n){ const a=sk.slice(), nb=(x,y)=>{ let c=0; for(const [dx,dy] of N8){ const xx=x+dx,yy=y+dy; if(xx>=0&&yy>=0&&xx<w&&yy<h&&a[yy*w+xx]) c++; } return c; };
+  const removed=[];
+  for(let k=0;k<n;k++){ const ends=[]; for(let y=0;y<h;y++) for(let x=0;x<w;x++) if(a[y*w+x]&&nb(x,y)<=1) ends.push(y*w+x);
+    ends.forEach(i=>a[i]=0); removed.push(ends); }
+  // grow back the main lines' own ends (only pixels that touch what's left, for n steps)
+  for(let k=n-1;k>=0;k--){ const add=[]; removed[k].forEach(i=>{ const x=i%w,y=(i/w)|0; if(nb(x,y)>=1) add.push(i); }); add.forEach(i=>a[i]=1); }
+  return a; }
+/* gray image → mask of track bodies (centre lines grown to the 40 mm width) */
+function grooveMask(G,valid,w,h,sens){
+  const Rr=grooveResponse(G,w,h);   // crest values only
+  // threshold from the picture's own noise level: sensitivity 1 (strict) … 10 (eager)
+  const full=Rr.full, vals=[]; for(let i=0;i<w*h;i+=7) if(valid[i]) vals.push(full[i]); vals.sort((a,b)=>a-b);
+  const med=vals[vals.length>>1]||0, mad=(vals.map(v=>Math.abs(v-med)).sort((a,b)=>a-b)[vals.length>>1]||1)*1.4826;
+  const K=(11-sens)*0.8, T=Math.max(3, med+K*mad);
+  // two-level threshold on the crests: strong evidence starts a line, weaker evidence may continue it
+  const weak=new Uint8Array(w*h); for(let i=0;i<w*h;i++) weak[i]=valid[i]&&Rr[i]>T*0.55?1:0;
+  const bridged=dilate(weak,w,h,1);                                  // join crest pixels across 1-px breaks
+  const wc=components(bridged,w,h,8,true), strongIds=new Set();
+  for(let i=0;i<w*h;i++) if(wc.lab[i] && Rr[i]>T) strongIds.add(wc.lab[i]);
+  const band=new Uint8Array(w*h); for(let i=0;i<w*h;i++) if(weak[i] && strongIds.has(wc.lab[i])) band[i]=1;
+  const sk=prune(thin(dilate(band,w,h,1),w,h),w,h,5), sc=components(sk,w,h,10,true), lines=new Uint8Array(w*h);   // centre lines ≥ 2 cm
+  const ok2=new Set(sc.comps.map(k=>k.id)); for(let i=0;i<w*h;i++) if(ok2.has(sc.lab[i])) lines[i]=1;
+  const D=distTo(lines,w,h), m=new Uint8Array(w*h); for(let i=0;i<w*h;i++) m[i]=D[i]<=9.5&&valid[i]?1:0;
+  // how bright are wood, grooves and background in THIS photo? (references are drawn to match)
+  const wv=[],gv=[],bv=[]; for(let i=0;i<w*h;i+=2){ if(!valid[i]) continue; const d=D[i];
+    if(d===0) wv.push(G[i]); else if(d>=4&&d<=7) gv.push(G[i]); else if(d>=15&&d<=20) bv.push(G[i]); }
+  const q=(a,f)=>{ if(!a.length) return null; a.sort((x,y)=>x-y); return a[Math.floor(a.length*f)]; };
+  m.levels={wood:q(wv,0.5), groove:q(gv,0.15), bg:q(bv,0.5)};
+  if(window.__grooveDebug && w>400) window.__grooveDebug={Rr:full,T,band,lines,m,w,h,med,mad};
+  return m;
+}
+const grayOf=(d,n)=>{ const G=new Float32Array(n); for(let i=0;i<n;i++) G[i]=0.3*d[i*4]+0.59*d[i*4+1]+0.11*d[i*4+2]; return G; };
+const boxBlur=(G,w,h)=>{ const o=new Float32Array(w*h); for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){ const i=y*w+x;
+  o[i]=(G[i-w-1]+G[i-w]+G[i-w+1]+G[i-1]+G[i]+G[i+1]+G[i+w-1]+G[i+w]+G[i+w+1])/9; } return o; };
+
 function segment(mask,w,h){
   const m=closeM(mask,w,h,3);                    // fill grooves and small gaps (6 mm)
   const filled=closeM(m,w,h,5);                  // also fill the peg holes (~18 mm) so thin end walls survive
@@ -1111,8 +1197,9 @@ function segment(mask,w,h){
   return big.comps; }
 /* reference measurements of every catalogue piece, made with exactly the same pipeline */
 const REF={};
+function refKey(){ if(SC.mode!=="grooves") return "colour"; const L=SC.levels||{}; const r=v=>v==null?"x":Math.round(v/8)*8; return `g:${r(L.wood)}:${r(L.groove)}:${r(L.bg)}`; }
 function refFeatures(t){
-  if(REF[t.id]) return REF[t.id];
+  const key=refKey(), cache=REF[key]||(REF[key]={}); if(cache[t.id]) return cache[t.id];
   const xs=t.pts.map(p=>p.x), ys=t.pts.map(p=>p.y), pad=40, x0=Math.min(...xs)-pad, y0=Math.min(...ys)-pad;
   const w=Math.ceil((Math.max(...xs)+pad-x0)/MMPX), h=Math.ceil((Math.max(...ys)+pad-y0)/MMPX);
   const cv=document.createElement("canvas"); cv.width=w; cv.height=h; const g=cv.getContext("2d");
@@ -1122,16 +1209,28 @@ function refFeatures(t){
     const knob=(dir)=>{ g.beginPath(); g.arc(c.x+ox*14*dir,c.y+oy*14*dir,9,0,7); g.fill();
       g.save(); g.translate(c.x,c.y); g.rotate(c.a); g.fillRect(dir>0?0:-12,-4.5,12,9); g.restore(); };
     if(c.g==="M") knob(1); else { g.globalCompositeOperation="destination-out"; knob(-1); g.globalCompositeOperation="source-over"; } });
-  const d=g.getImageData(0,0,w,h).data, m=new Uint8Array(w*h); for(let i=0;i<w*h;i++) m[i]=d[i*4+3]>127?1:0;
+  let m;
+  if(SC.mode==="grooves"){ // draw it like a photo of a piece on a table and run the groove detector on it
+    const body=g.getImageData(0,0,w,h).data;                       // piece silhouette (alpha)
+    const cg=document.createElement("canvas"); cg.width=w; cg.height=h; const gg=cg.getContext("2d");
+    gg.scale(1/MMPX,1/MMPX); gg.translate(-x0,-y0); gg.strokeStyle="#000"; gg.lineWidth=5; gg.stroke(new Path2D(t.grooves));
+    const gr=gg.getImageData(0,0,w,h).data, G=new Float32Array(w*h), valid=new Uint8Array(w*h).fill(1);
+    const L=SC.levels||{}, Wd=L.wood??205, Gr=Math.min(L.groove??140, Wd-12), Bg=L.bg??170;
+    for(let i=0;i<w*h;i++){ const inBody=body[i*4+3]/255, inGroove=gr[i*4+3]/255;
+      G[i]=Bg*(1-inBody)+inBody*(Wd*(1-inGroove)+Gr*inGroove); }      // same wood / groove / background as the photo
+    m=grooveMask(boxBlur(G,w,h),valid,w,h,5);
+  } else {
+    const d=g.getImageData(0,0,w,h).data; m=new Uint8Array(w*h); for(let i=0;i<w*h;i++) m[i]=d[i*4+3]>127?1:0;
+  }
   const comps=segment(m,w,h).sort((a,b)=>b.n-a.n);
   const f=comps[0]||{area:1,long:1,short:1,sol:1,pegs:0};
-  return REF[t.id]={area:f.area,long:f.long,short:f.short,sol:f.sol,pegs:t.conns.filter(c=>c.g==="M").length};
+  return cache[t.id]={area:f.area,long:f.long,short:f.short,sol:f.sol,pegs:t.conns.filter(c=>c.g==="M").length};
 }
 function scanCandidates(){ return typeList.filter(t=>!t.deck && SC.brands[brandOf(t)]); }
 function classify(b){
   const res=scanCandidates().map(t=>{ const r=refFeatures(t);
     let d=Math.abs(b.area-r.area)/r.area + 1.5*Math.abs(b.long-r.long)/r.long + Math.abs(b.short-r.short)/r.short + 2*Math.abs(b.sol-r.sol);
-    d+=0.12*Math.abs(b.pegs-r.pegs);                         // pegs help tell adapters and switch versions apart
+    if(SC.mode==="colour") d+=0.12*Math.abs(b.pegs-r.pegs);  // pegs help tell adapters and switch versions apart
     if(t.ramp) d+=0.04;                                        // a ramp looks like a straight from above; prefer the straight
     return {t,d}; }).sort((a,b)=>a.d-b.d);
   const maxArea=Math.max(...scanCandidates().map(t=>refFeatures(t).area));
@@ -1139,6 +1238,8 @@ function classify(b){
   b.conf = b.area>maxArea*1.25 ? "merged" : !res.length ? "none" : res[0].d<0.16 ? "sure" : res[0].d<0.32 ? "check" : "unsure";
   // two candidates that look the same (e.g. BRIO 144 vs IKEA 145): ask instead of guessing
   if(b.conf==="sure" && res[1] && res[1].d-res[0].d<0.03 && !res[1].t.ramp) b.conf="check";
+  // groove measurements are a bit noisier: only call it "sure" with a clear winner
+  if(SC.mode==="grooves" && b.conf==="sure" && (res[0].d>0.10 || (res[1] && res[1].d-res[0].d<0.08))) b.conf="check";
   if(b.conf==="merged"||b.conf==="unsure") b.pick=b.conf==="merged"?null:b.pick;
 }
 
@@ -1157,7 +1258,7 @@ function scPhotoStep(){
   scEl("scBody").innerHTML=`<div class="sctips"><h2>Scan your track</h2><ol>
     <li>Lay pieces <b>flat</b> on the floor, <b>not touching</b> each other — a hand's width apart is plenty.</li>
     <li>Put a sheet of <b>A4 paper</b> (or US Letter) flat <b>next to</b> them. It tells the app the scale.</li>
-    <li>A plain floor or rug that's clearly lighter or darker than the wood works best.</li>
+    <li>A plain floor or rug that's clearly lighter or darker than the wood works best. On a <b>wooden table</b>, the app can look for the grooves instead — keep the grooved side up.</li>
     <li>Take the photo from standing height, roughly from above, with everything in view. Avoid strong shadows.</li></ol>
     <p>You'll tap the paper's corners next, so the photo can be taken at an angle.</p>
     <div class="row2">${canCam?`<button class="big primary" id="scCam">📷 Use camera</button>`:""}
@@ -1243,21 +1344,37 @@ function scColourStep(){
   scSetSteps(3); const R=SC.rect, V=rectCanvas();
   const draw=()=>{ const g=V.g; g.setTransform(V.k,0,0,V.k,0,0); g.fillStyle="#1f1c18"; g.fillRect(0,0,R.w,R.h); g.drawImage(V.base,0,0);
     const [a,b,c,d]=R.paper; g.fillStyle="rgba(47,111,222,.35)"; g.fillRect(a,b,c-a,d-b);
-    [["wood","#e08a2e"],["bg","#2f6fde"]].forEach(([k,col])=>SC.taps[k].forEach(p=>{ g.beginPath(); g.arc(p[0],p[1],7,0,7); g.lineWidth=3; g.strokeStyle="#fff"; g.stroke(); g.fillStyle=col; g.fill(); }));
+    if(SC.mode==="colour") [["wood","#e08a2e"],["bg","#2f6fde"]].forEach(([k,col])=>SC.taps[k].forEach(p=>{ g.beginPath(); g.arc(p[0],p[1],7,0,7); g.lineWidth=3; g.strokeStyle="#fff"; g.stroke(); g.fillStyle=col; g.fill(); }));
+    scEl("scModeC").classList.toggle("on",SC.mode==="colour"); scEl("scModeG").classList.toggle("on",SC.mode==="grooves");
+    scEl("scTapRow").style.display=SC.mode==="colour"?"flex":"none";
     scEl("scWood").classList.toggle("on",SC.tapMode==="wood"); scEl("scBg").classList.toggle("on",SC.tapMode==="bg");
-    scEl("scNext3").disabled=!(SC.taps.wood.length&&SC.taps.bg.length); };
-  scEl("scFoot").innerHTML=`<span class="hint">This is the floor seen from straight above. Tap <b>on a track piece</b> (orange), then <b>on the floor</b> between pieces (blue). Add more taps if the colours vary.</span>
-    <button class="chip" id="scWood">● Track</button><button class="chip" id="scBg">● Floor</button>
-    <button id="scUndo3">Undo tap</button><button id="scBack3">Back</button><button id="scNext3" class="primary big">Find pieces</button>`;
+    const sep=SC.mode==="colour"?colourSeparation():null;
+    scEl("scHint3").innerHTML = SC.mode==="grooves"
+      ? "<b>Wooden table mode:</b> pieces are found by their two grooves, so the table's colour doesn't matter. Make sure the grooved side faces up and the light is even (no harsh glare). No taps needed."
+      : sep!==null && sep<12
+        ? "<b>The track and the floor look very similar in colour.</b> Switch to <b>Wooden table</b> mode above, or put a dark cloth or coloured paper under the pieces."
+        : "Tap <b>on a track piece</b> (orange), then <b>on the floor</b> between pieces (blue). Add more taps if the colours vary.";
+    scEl("scNext3").disabled = SC.mode==="colour" && !(SC.taps.wood.length&&SC.taps.bg.length); };
+  scEl("scFoot").innerHTML=`<span class="hint" id="scHint3"></span>
+    <span style="display:flex;gap:6px;align-items:center">Pieces are on: <button class="chip" id="scModeC">Floor / cloth</button><button class="chip" id="scModeG">Wooden table</button></span>
+    <span id="scTapRow" style="display:flex;gap:6px"><button class="chip" id="scWood">● Track</button><button class="chip" id="scBg">● Floor</button><button id="scUndo3">Undo tap</button></span>
+    <span class="sp"></span><button id="scBack3">Back</button><button id="scNext3" class="primary big">Find pieces</button>`;
+  scEl("scModeC").onclick=()=>{ SC.mode="colour"; draw(); }; scEl("scModeG").onclick=()=>{ SC.mode="grooves"; draw(); };
   scEl("scWood").onclick=()=>{ SC.tapMode="wood"; draw(); }; scEl("scBg").onclick=()=>{ SC.tapMode="bg"; draw(); };
   scEl("scUndo3").onclick=()=>{ const k=SC.taps.bg.length&&SC.tapMode==="bg"||!SC.taps.wood.length?"bg":"wood"; SC.taps[k].pop(); draw(); };
   scEl("scBack3").onclick=scCornerStep;
   scEl("scNext3").onclick=()=>{ scEl("scNext3").textContent="Looking…"; setTimeout(()=>{ scDetect(); scReviewStep(); },30); };
-  V.cv.onpointerdown=e=>{ const p=V.toImg(e); SC.taps[SC.tapMode].push(p); if(SC.tapMode==="wood"&&SC.taps.bg.length===0) SC.tapMode="bg"; draw(); };
+  V.cv.onpointerdown=e=>{ if(SC.mode!=="colour") return; const p=V.toImg(e); SC.taps[SC.tapMode].push(p); if(SC.tapMode==="wood"&&SC.taps.bg.length===0) SC.tapMode="bg"; draw(); };
   draw();
 }
 function scDetect(){
   const R=SC.rect, d=R.img.data, w=R.w, h=R.h;
+  if(SC.mode==="grooves"){
+    const valid=R.valid.slice(), [pa,pb,pc,pd]=R.paper;
+    for(let y=Math.max(0,pb|0);y<Math.min(h,pd);y++) for(let x=Math.max(0,pa|0);x<Math.min(w,pc);x++) valid[y*w+x]=0;   // ignore the paper
+    const mask=grooveMask(boxBlur(grayOf(d,w*h),w,h),valid,w,h,SC.sens); SC.levels=mask.levels;
+    SC.bodies=segment(mask,w,h); SC.bodies.forEach(classify); return;
+  }
   const col=(x,y)=>{ let r=0,g=0,b=0,n=0; for(let j=-3;j<=3;j++) for(let i=-3;i<=3;i++){ const xx=Math.round(x)+i, yy=Math.round(y)+j;
       if(xx<0||yy<0||xx>=w||yy>=h||!R.valid[yy*w+xx]) continue; const k=(yy*w+xx)*4; r+=d[k];g+=d[k+1];b+=d[k+2];n++; } return n?[r/n,g/n,b/n]:[0,0,0]; };
   // colour feature: two chroma axes plus a weaker brightness axis, so shadows matter less
@@ -1270,6 +1387,15 @@ function scDetect(){
     mask[i]=dw<db?1:0; }
   SC.bodies=segment(mask,w,h); SC.bodies.forEach(classify);
 }
+/* how far apart the tapped track and floor colours are (0 = identical); used to suggest wooden-table mode */
+function colourSeparation(){
+  const R=SC.rect, d=R.img.data, w=R.w, h=R.h; if(!SC.taps.wood.length||!SC.taps.bg.length) return null;
+  const col=(x,y)=>{ let r=0,g=0,b=0,n=0; for(let j=-4;j<=4;j++) for(let i=-4;i<=4;i++){ const xx=Math.round(x)+i, yy=Math.round(y)+j;
+      if(xx<0||yy<0||xx>=w||yy>=h||!R.valid[yy*w+xx]) continue; const k=(yy*w+xx)*4; r+=d[k];g+=d[k+1];b+=d[k+2];n++; } return n?[r/n,g/n,b/n]:[0,0,0]; };
+  const feat=([r,g,b])=>{ const s=r+g+b+1; return [ (r-b)/s*400, (g-b)/s*400, (r+g+b)/3*0.35 ]; };
+  let best=1e9; SC.taps.wood.forEach(a=>SC.taps.bg.forEach(b=>{ const p=feat(col(...a)), q=feat(col(...b));
+    best=Math.min(best,Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2])); })); return best;
+}
 function scSummary(){ const n={}; SC.bodies.forEach(b=>{ if(b.pick) n[b.pick]=(n[b.pick]||0)+(b.mult||1); }); return n; }
 function scReviewStep(){
   scSetSteps(4); const R=SC.rect, V=rectCanvas();
@@ -1281,16 +1407,20 @@ function scReviewStep(){
       g.fillStyle=colOf(b); g.fillRect(b.cx-tw/2-6,b.cy-11,tw+12,22); g.fillStyle="#fff"; g.textAlign="center"; g.textBaseline="middle"; g.fillText(label,b.cx,b.cy+1); });
     const n=scSummary(), tot=Object.values(n).reduce((a,b)=>a+b,0), bad=SC.bodies.filter(b=>!b.pick||b.conf!=="sure").length;
     scEl("scSum").innerHTML = tot ? Object.entries(n).map(([k,v])=>`<span>${v} × ${esc(types[k].name)} <b>${k}</b></span>`).join("") : "<span>No pieces recognised yet</span>";
-    const both=SC.brands.BRIO&&SC.brands.IKEA;
+    const both=SC.brands.BRIO&&SC.brands.IKEA, grooveTip = SC.mode==="grooves" ? " Missing pieces → raise Sensitivity; table grain picked up as track → lower it." : "";
     scEl("scHint4").innerHTML = `Found <b>${SC.bodies.length}</b> shape${SC.bodies.length===1?"":"s"}. ${bad?`<b>${bad}</b> to check (orange/red) — tap a shape to fix it.`:"Tap any shape to change it."}`+
-      (bad&&both?` Some BRIO and IKEA pieces are the same shape: untick a brand you don't have and they'll sort themselves out.`:"");
+      (bad&&both?` Some BRIO and IKEA pieces are the same shape: untick a brand you don't have and they'll sort themselves out.`:"")+grooveTip;
   };
   scEl("scFoot").innerHTML=`<span class="hint" id="scHint4"></span>
     <span class="chip-row">Brands: ${["BRIO","IKEA","Custom"].map(b=>`<button class="chip ${SC.brands[b]?"on":""}" data-brand="${b}">${b}</button>`).join(" ")}</span>
+    <span style="display:flex;gap:6px;align-items:center">Detect by: <button class="chip ${SC.mode==="colour"?"on":""}" data-mode="colour" ${SC.taps.wood.length&&SC.taps.bg.length?"":"disabled"}>Colour</button><button class="chip ${SC.mode==="grooves"?"on":""}" data-mode="grooves">Grooves</button></span>
+    ${SC.mode==="grooves"?`<label style="display:flex;gap:6px;align-items:center">Sensitivity <input type="range" id="scSens" min="1" max="10" value="${SC.sens}" style="width:140px"></label>`:""}
     <div class="sumlist" id="scSum" style="flex:1 1 100%"></div>
     <button id="scBack4">Back</button><button id="scAnother">Scan another photo</button><button id="scAdd" class="primary big">Add to inventory</button>`;
   scEl("scFoot").querySelectorAll("[data-brand]").forEach(bn=>bn.onclick=()=>{ SC.brands[bn.dataset.brand]=!SC.brands[bn.dataset.brand];
     bn.classList.toggle("on",SC.brands[bn.dataset.brand]); SC.bodies.forEach(classify); draw(); });
+  scEl("scFoot").querySelectorAll("[data-mode]").forEach(bn=>bn.onclick=()=>{ SC.mode=bn.dataset.mode; scDetect(); scReviewStep(); });
+  const sens=scEl("scSens"); if(sens) sens.onchange=()=>{ SC.sens=+sens.value; scDetect(); scReviewStep(); };
   scEl("scBack4").onclick=scColourStep;
   scEl("scAnother").onclick=()=>{ scAddToInv(); scPhotoStep(); };
   scEl("scAdd").onclick=()=>{ scAddToInv(); closeScan(); };
@@ -1323,7 +1453,7 @@ function scAddToInv(){
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
-window.__trackScan={homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX};
+window.__trackScan={homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
 /* ---------- Start ---------- */
 load(); rebuildTypes(); setView();
