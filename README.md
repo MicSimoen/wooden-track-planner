@@ -51,5 +51,5 @@ An open app updates the next time it is started while online.
 ## Dimensions and sources
 
 - BRIO: [woodenrailway.info track guide](https://woodenrailway.info/track/brio-track-guide). Track is 40 mm wide and 12 mm thick, ramps rise 64 mm.
-- IKEA LILLABO straights and curves: measurements of a 2025 reproduction collected by [ChooChooCAD](https://github.com/raduuuuu/ChooChooCAD/pull/64) (unverified).
-- Pieces marked *estimated* in the app (IKEA double Y, parallel switches, IKEA ramp length) are guesses. Measure yours and correct them with a custom piece.
+- IKEA LILLABO: [trackdrawer.com – IKEA Lillabo](https://trackdrawer.com/systemen/ikea-lillabo) (straights 50/100/146/205/240 mm, curves 45° R205 and 22.5° R200, ramp 205 mm, parallel spacing 40 mm, grooves 25.7 mm apart).
+- Pieces marked *estimated* in the app (IKEA double Y length, BRIO parallel switch) are guesses. Measure yours and correct them with a custom piece.

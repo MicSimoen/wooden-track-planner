@@ -251,7 +251,7 @@
 <script>
 (() => {
 "use strict";
-const D2R = Math.PI/180, HALF = 20, GROOVE = 11; // BRIO track is 40 mm wide
+const D2R = Math.PI/180, HALF = 20, GROOVE = 12.85; // track is 40 mm wide; grooves 25.7 mm apart (centre to centre)
 const TAU = Math.PI*2;
 
 /* ---------- Piece catalogue (dimensions in mm, curve radius = centre line) ----------
@@ -285,25 +285,23 @@ const BASE = [
   {grp:"Switches & crossings", id:"H",  name:"Crossing 90°", dim:"108 × 108 mm", lanes:[{k:"s",len:108},{k:"s",len:108,p0:{x:54,y:-54,a:90}}]},
   {grp:"Adapters", id:"MM", name:"Male–male", dim:"54 mm", lanes:[{k:"s",len:54,g:["M","M"]}]},
   {grp:"Adapters", id:"FF", name:"Female–female", dim:"54 mm", lanes:[{k:"s",len:54,g:["F","F"]}]},
-  /* IKEA LILLABO — measured from a reproduction of LILLABO track bought in 2025 (MakerWorld 2181560,
-     read off its meshes by the ChooChooCAD project). Curves share BRIO's large radius (~202 mm centre);
-     IKEA has no tight-radius curve, its "small" curve is a half-length 22.5° piece. */
-  {grp:"IKEA LILLABO", id:"I240", name:"IKEA long straight",   dim:"240 mm (BRIO D is 216)", lanes:[{k:"s",len:240}]},
-  {grp:"IKEA LILLABO", id:"I205", name:"IKEA straight",        dim:"205 mm (≠ BRIO 216)",    lanes:[{k:"s",len:205}]},
-  {grp:"IKEA LILLABO", id:"I145", name:"IKEA medium straight", dim:"145 mm (≈ BRIO A 144)",  lanes:[{k:"s",len:145}]},
-  {grp:"IKEA LILLABO", id:"I100", name:"IKEA short straight",  dim:"100 mm (≠ BRIO A1 108)", lanes:[{k:"s",len:100}]},
-  {grp:"IKEA LILLABO", id:"I50",  name:"IKEA mini straight",   dim:"50 mm (≠ BRIO A2 54)",   lanes:[{k:"s",len:50}]},
-  {grp:"IKEA LILLABO", id:"IC45", name:"IKEA curve",       dim:"45° · R 202 mm centre (same as BRIO E)", lanes:[{k:"a",r:202,deg:45}]},
-  {grp:"IKEA LILLABO", id:"IC22", name:"IKEA short curve", dim:"22.5° · R 202 mm — half a curve, not a tight one", lanes:[{k:"a",r:202,deg:22.5}]},
-  {grp:"IKEA LILLABO", id:"IC90", name:"IKEA 90° curve",   dim:"90° · R 202 mm centre", lanes:[{k:"a",r:202,deg:90}]},
-  /* LILLABO 50-piece set (103.200.77): wide "double-track Y" — one end single, the other two side-by-side ends.
-     Shape from IKEA's product photos; length ≈ medium straight and track spacing are estimates. Two variants in the set. */
-  {grp:"IKEA LILLABO", id:"IYP",  name:"IKEA double Y (hole at single end)", dim:"1 → 2 parallel tracks · ~145 mm long, ~46 mm apart (estimated)", lanes:[...sCurveSide(145,23,1,["F","M"]),...sCurveSide(145,23,-1,["F","M"])]},
-  {grp:"IKEA LILLABO", id:"IYP2", name:"IKEA double Y (peg at single end)",  dim:"1 → 2 parallel tracks · ~145 mm long, ~46 mm apart (estimated)", lanes:[...sCurveSide(145,23,1,["M","F"]),...sCurveSide(145,23,-1,["M","F"])]},
-  {grp:"IKEA LILLABO", id:"IDS",  name:"IKEA double straight (2 tracks)", dim:"~145 mm · two parallel tracks ~46 mm apart (estimated)", lanes:[{k:"s",len:145,p0:{x:0,y:-23,a:0}},{k:"s",len:145,p0:{x:0,y:23,a:0}}]},
-  {grp:"IKEA LILLABO", id:"IY",   name:"IKEA Y fork",      dim:"two 45° curves · estimated, check yours", lanes:[{k:"a",r:202,deg:45},{k:"a",r:202,deg:-45}]},
-  {grp:"IKEA LILLABO", id:"IMM",  name:"IKEA male–male",   dim:"50 mm · estimated", lanes:[{k:"s",len:50,g:["M","M"]}]},
-  {grp:"IKEA LILLABO", id:"IFF",  name:"IKEA female–female", dim:"50 mm · estimated", lanes:[{k:"s",len:50,g:["F","F"]}]},
+  /* IKEA LILLABO — dimensions from trackdrawer.com/systemen/ikea-lillabo (12 pieces): track 40 mm wide, 12 mm high,
+     grooves 25.7 mm apart, parallel tracks 40 mm apart. IKEA has no tight curve: its short curve is a 22.5° piece. */
+  {grp:"IKEA LILLABO", id:"I240", name:"IKEA long straight",   dim:"240 mm · LB-240 (BRIO D is 216)", lanes:[{k:"s",len:240}]},
+  {grp:"IKEA LILLABO", id:"I205", name:"IKEA straight",        dim:"205 mm · LB-205 (≠ BRIO 216)",    lanes:[{k:"s",len:205}]},
+  {grp:"IKEA LILLABO", id:"I145", name:"IKEA medium straight", dim:"146 mm · LB-146 (≈ BRIO A 144)",  lanes:[{k:"s",len:146}]},
+  {grp:"IKEA LILLABO", id:"I100", name:"IKEA short straight",  dim:"100 mm · LB-100 (≠ BRIO A1 108)", lanes:[{k:"s",len:100}]},
+  {grp:"IKEA LILLABO", id:"I50",  name:"IKEA mini straight",   dim:"50 mm · LB-50 (≠ BRIO A2 54)",    lanes:[{k:"s",len:50}]},
+  {grp:"IKEA LILLABO", id:"IMM",  name:"IKEA male–male",       dim:"50 mm, two pegs · LB-50PP",       lanes:[{k:"s",len:50,g:["M","M"]}]},
+  {grp:"IKEA LILLABO", id:"IFF",  name:"IKEA female–female",   dim:"50 mm, two holes · LB-50NN",      lanes:[{k:"s",len:50,g:["F","F"]}]},
+  {grp:"IKEA LILLABO", id:"IC45", name:"IKEA curve",           dim:"45° · R 205 mm centre (185 inner) · LB-B45", lanes:[{k:"a",r:205,deg:45}]},
+  {grp:"IKEA LILLABO", id:"IC22", name:"IKEA short curve",     dim:"22.5° · R 200 mm centre (180 inner) · LB-B22 — half a curve, not a tight one", lanes:[{k:"a",r:200,deg:22.5}]},
+  {grp:"IKEA LILLABO", id:"IYP",  name:"IKEA double Y (hole at single end)", dim:"1 → 2 tracks 40 mm apart · LB-Y2 · length ~146 mm estimated", lanes:[...sCurveSide(146,20,1,["F","M"]),...sCurveSide(146,20,-1,["F","M"])]},
+  {grp:"IKEA LILLABO", id:"IYP2", name:"IKEA double Y (peg at single end)",  dim:"1 → 2 tracks 40 mm apart · LB-Y1 · length ~146 mm estimated", lanes:[...sCurveSide(146,20,1,["M","F"]),...sCurveSide(146,20,-1,["M","F"])]},
+  /* Not in the LILLABO list above (older sets or third-party): kept so saved layouts still open */
+  {grp:"Other / unconfirmed", id:"IC90", name:"90° curve (IKEA-style)", dim:"90° · R 205 mm · not in IKEA's current list", lanes:[{k:"a",r:205,deg:90}]},
+  {grp:"Other / unconfirmed", id:"IY",   name:"Y fork, two curves", dim:"two 45° curves · not in IKEA's current list", lanes:[{k:"a",r:205,deg:45},{k:"a",r:205,deg:-45}]},
+  {grp:"Other / unconfirmed", id:"IDS",  name:"Double straight (2 tracks)", dim:"146 mm · two tracks 40 mm apart · not in IKEA's current list", lanes:[{k:"s",len:146,p0:{x:0,y:-20,a:0}},{k:"s",len:146,p0:{x:0,y:20,a:0}}]},
   /* Bridges: decks are raised straights (woodenrailway.info span table, deck length excludes ramps).
      BRIO ascending track #33332 is 216 mm. IKEA ramp peaks at ~65 mm; its length is an estimate. */
   {grp:"Bridges & ramps", id:"N",     name:"BRIO ascending track N",  dim:"216 mm · hole at the bottom, peg at the top", lanes:[{k:"s",len:216,g:["F","M"],lv:[0,1]}]},
@@ -312,8 +310,8 @@ const BASE = [
   {grp:"Bridges & ramps", id:"B216",  name:"Medium bridge deck", dim:"216 mm · arch, girder, lifting, swing", deck:true, lanes:[{k:"s",len:216}]},
   {grp:"Bridges & ramps", id:"B324",  name:"Long bridge deck",   dim:"324 mm · double suspension", deck:true, lanes:[{k:"s",len:324}]},
   {grp:"Bridges & ramps", id:"B360",  name:"Extra-long bridge deck", dim:"360 mm · suspension, viaduct, Sydney", deck:true, lanes:[{k:"s",len:360}]},
-  {grp:"Bridges & ramps", id:"IRAMP", name:"IKEA ramp (hole at bottom)", dim:"~240 mm estimated · 65 mm high at top", lanes:[{k:"s",len:240,g:["F","M"],lv:[0,1]}]},
-  {grp:"Bridges & ramps", id:"IRAMP2",name:"IKEA ramp (peg at bottom)",  dim:"~240 mm estimated · 65 mm high at top", lanes:[{k:"s",len:240,g:["M","F"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"IRAMP", name:"IKEA ramp (hole at bottom)", dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["F","M"],lv:[0,1]}]},
+  {grp:"Bridges & ramps", id:"IRAMP2",name:"IKEA ramp (peg at bottom)",  dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["M","F"],lv:[0,1]}]},
 ];
 const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,O1:0,Y:0,H:0,MM:1,FF:1};
 
@@ -434,6 +432,7 @@ let CLR = {pairs:[], minOK:null};
 function computeClearance(){
   const cell=40, grid=new Map(), pts={};
   S.pieces.forEach(p=>{ if(!types[p.type]) return; pts[p.id]=pieceSamples(p);
+    const ends=W[p.id]||[]; pts[p.id].forEach(q=>{ q.end=ends.some(c=>Math.hypot(c.x-q.x,c.y-q.y)<30); });   // last 3 cm of a piece
     pts[p.id].forEach(q=>{ const k=Math.floor(q.x/cell)+","+Math.floor(q.y/cell); if(!grid.has(k)) grid.set(k,[]); grid.get(k).push({pid:p.id,q}); }); });
   const linked=new Set(); links.forEach(l=>{ linked.add(l.A.pid+"-"+l.B.pid); linked.add(l.B.pid+"-"+l.A.pid); });
   const best={};
@@ -445,7 +444,7 @@ function computeClearance(){
         if(P.h>Q.h+1 && d<38){            // p passes over o
           const gap=P.h-(Q.h+S.thick), k=p.id+">"+o.pid;
           if(!best[k]||gap<best[k].gap) best[k]={upper:p.id,lower:o.pid,x:(P.x+Q.x)/2,y:(P.y+Q.y)/2,gap,hLow:Q.h+S.thick,hHigh:P.h};
-        } else if(Math.abs(P.h-Q.h)<=1 && d<30 && p.id<o.pid){ // same height, on top of each other
+        } else if(Math.abs(P.h-Q.h)<=1 && d<30 && p.id<o.pid && !(P.end&&Q.end)){ // same height, on top of each other (ends meeting are fine)
           const k=p.id+"="+o.pid; if(!best[k]) best[k]={upper:p.id,lower:o.pid,x:(P.x+Q.x)/2,y:(P.y+Q.y)/2,gap:-1,overlap:true,hLow:Q.h,hHigh:P.h};
         }
       });
@@ -577,7 +576,7 @@ function renderInv(){
     <p><button id="sForget">Forget what the scanner learned</button> <span style="color:var(--muted)" id="sLearnedN"></span></p>
     <p>BRIO ramps rise 64 mm and track is 12 mm thick, leaving ~52 mm under a bridge. IKEA ramps top out at ~65 mm. Measure your tallest train (motorised ones are taller) to check clearance.</p>
     <p>Real wooden track has a few mm of play at each joint, so a layout showing a small gap (under ~5 mm) usually still fits on the floor.</p>
-    <p>Dimensions follow the BRIO track guide on woodenrailway.info: track is 40 mm wide; straights 54 / 72 / 108 / 144 / 216 mm; large curve E 45° with inner edge ≈182 mm; short curve E1 45° with inner edge ≈90 mm. IKEA LILLABO uses the same curve radius, but its straights are different lengths (50 / 100 / 145 / 205 / 240 mm), so a loop that mixes brands may not close — the planner shows the gap. IKEA's short curve is a half-length 22.5° piece rather than a tighter radius. IKEA figures come from a 2025 reproduction of real LILLABO track and are unverified; pieces marked "estimated" are guesses. Measure yours and correct them with a custom piece if needed. Some owners also report IKEA pegs fitting tightly into BRIO holes.</p>
+    <p>Dimensions follow the BRIO track guide on woodenrailway.info: track is 40 mm wide; straights 54 / 72 / 108 / 144 / 216 mm; large curve E 45° with inner edge ≈182 mm; short curve E1 45° with inner edge ≈90 mm. IKEA LILLABO dimensions come from trackdrawer.com: straights 50 / 100 / 146 / 205 / 240 mm, curves 45° at R 205 mm and 22.5° at R 200 mm (centre line), ramp 205 mm, parallel tracks 40 mm apart. So IKEA curves are a touch wider than BRIO's (R 202) and a loop that mixes brands may not close exactly — the planner shows the gap. The double Y's length is still an estimate. Measure yours and correct them with a custom piece if needed. Some owners also report IKEA pegs fitting tightly into BRIO holes.</p>
   </details>`;
   el.innerHTML=h;
   const ln=document.getElementById("sLearnedN"); if(ln){ let n=0; Object.values(S.learned||{}).forEach(m=>Object.values(m).forEach(a=>n+=a.length));
@@ -1109,7 +1108,7 @@ function features(c){ const H=hull(c.bnd), r=minRect(H), area=c.n*MMPX*MMPX, ha=
   return {area, long:(r.long+1)*MMPX, short:(r.short+1)*MMPX, sol:Math.min(1,area/ha), hull:H, ang:r.ang}; }
 /* find pieces in a top-down mask: grooves are filled, pegs cut off and counted */
 /* ---- wooden-table mode: find track by its two grooves instead of its colour ----
-   Across a piece the brightness goes: wood | groove | wood | groove | wood, with the grooves ~11 mm either side
+   Across a piece the brightness goes: wood | groove | wood | groove | wood, with the grooves ~12.9 mm either side
    of the centre line. An oriented filter (12 directions, averaged a little along the track) answers
    "is this pixel the middle of a track?". */
 function grooveResponse(G,w,h){
@@ -1118,7 +1117,8 @@ function grooveResponse(G,w,h){
     const th=k*Math.PI/OR, tx=Math.cos(th), ty=Math.sin(th), nx=-ty, ny=tx;
     const off=(a,s)=>Math.round(a*ny+s*ty)*w+Math.round(a*nx+s*tx);
     const set=as=>{ const o=[]; as.forEach(a=>S.forEach(s=>o.push(off(a,s)))); return o; };
-    const oC=set([0]), oGm=set([-5,-6]), oGp=set([5,6]), oOm=set([-8,-9]), oOp=set([8,9]);
+    // at 2 mm/px: grooves at ±12.85 mm → ±6–7 px; plain wood between groove and edge at ±17–19 mm → ±9 px
+    const oC=set([0]), oGm=set([-6,-7]), oGp=set([6,7]), oOm=set([-9]), oOp=set([9]);
     const mean=(i,o)=>{ let t=0; for(let j=0;j<o.length;j++) t+=G[i+o[j]]; return t/o.length; };
     for(let y=pad;y<h-pad;y++) for(let x=pad;x<w-pad;x++){ const i=y*w+x;
       const C=mean(i,oC), Gm=mean(i,oGm), Gp=mean(i,oGp), Om=mean(i,oOm), Op=mean(i,oOp);
