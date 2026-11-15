@@ -38,6 +38,9 @@ Your layouts and inventory are stored on the device, inside the app. Use **Save 
 - 10–20 pieces per photo; several photos add up.
 - Look-alikes (e.g. BRIO 144 mm vs IKEA 145 mm straights, or ramps vs straights seen from above) are marked orange so you can choose.
   Untick a brand you don't own to reduce them.
+- The scanner **learns your pieces**: every piece you confirm or correct is remembered (per device), so later scans match
+  your actual track and camera rather than nominal catalogue sizes. Settings → *Forget what the scanner learned* resets it.
+- Tapped paper corners snap to the paper's edges when the sheet stands out (a coloured sheet works great).
 - Everything runs on the device; photos are not uploaded anywhere.
 
 ## Updating

@@ -318,7 +318,7 @@ const BASE = [
 const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,O1:0,Y:0,H:0,MM:1,FF:1};
 
 /* ---------- State ---------- */
-let S = {pieces:[], inv:{...DEFAULT_INV}, custom:[], tolPos:3, tolAng:3, gender:true, nextId:1, collapsed:{}, rise:64, trainH:45, thick:12};
+let S = {pieces:[], inv:{...DEFAULT_INV}, custom:[], tolPos:3, tolAng:3, gender:true, nextId:1, collapsed:{}, rise:64, trainH:45, thick:12, learned:{}};
 let types = {}, typeList = [];
 let sel = null;        // selected piece id
 let active = null;     // {pid, ci} open end to extend from
@@ -574,11 +574,14 @@ function renderInv(){
     <label>Height of one bridge level (mm)<input id="sRise" type="number" min="20" step="1" value="${S.rise}"></label>
     <label>Track thickness (mm)<input id="sThick" type="number" min="5" step="1" value="${S.thick}"></label>
     <label>Tallest train (mm, rail top to roof)<input id="sTrain" type="number" min="10" step="1" value="${S.trainH}"></label>
+    <p><button id="sForget">Forget what the scanner learned</button> <span style="color:var(--muted)" id="sLearnedN"></span></p>
     <p>BRIO ramps rise 64 mm and track is 12 mm thick, leaving ~52 mm under a bridge. IKEA ramps top out at ~65 mm. Measure your tallest train (motorised ones are taller) to check clearance.</p>
     <p>Real wooden track has a few mm of play at each joint, so a layout showing a small gap (under ~5 mm) usually still fits on the floor.</p>
     <p>Dimensions follow the BRIO track guide on woodenrailway.info: track is 40 mm wide; straights 54 / 72 / 108 / 144 / 216 mm; large curve E 45° with inner edge ≈182 mm; short curve E1 45° with inner edge ≈90 mm. IKEA LILLABO uses the same curve radius, but its straights are different lengths (50 / 100 / 145 / 205 / 240 mm), so a loop that mixes brands may not close — the planner shows the gap. IKEA's short curve is a half-length 22.5° piece rather than a tighter radius. IKEA figures come from a 2025 reproduction of real LILLABO track and are unverified; pieces marked "estimated" are guesses. Measure yours and correct them with a custom piece if needed. Some owners also report IKEA pegs fitting tightly into BRIO holes.</p>
   </details>`;
   el.innerHTML=h;
+  const ln=document.getElementById("sLearnedN"); if(ln){ let n=0; Object.values(S.learned||{}).forEach(m=>Object.values(m).forEach(a=>n+=a.length));
+    ln.textContent = n ? `(${n} confirmed piece${n>1?"s":""} remembered)` : "(nothing learned yet)"; }
 }
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
@@ -831,6 +834,8 @@ document.getElementById("inv").addEventListener("click",e=>{
   if(S.pieces.some(p=>p.type===dc)){ toast("Remove the placed pieces of that type first"); return; }
   S.custom=S.custom.filter(c=>c.id!==dc); delete S.inv[dc]; rebuildTypes(); refresh();
 });
+document.getElementById("inv").addEventListener("click",e=>{
+  if(e.target.id!=="sForget") return; S.learned={}; save(); renderInv(); toast("Scanner memory cleared"); });
 document.getElementById("inv").addEventListener("change",e=>{
   const t=e.target;
   if(t.dataset.own){ S.inv[t.dataset.own]=Math.max(0,parseInt(t.value)||0); refresh(); }
@@ -1069,8 +1074,14 @@ function boxPass(m,w,h,r,erode,horiz){ const o=new Uint8Array(w*h), n=horiz?w:h,
   return o; }
 const dilate=(m,w,h,r)=>boxPass(boxPass(m,w,h,r,false,true),w,h,r,false,false);
 const erode =(m,w,h,r)=>boxPass(boxPass(m,w,h,r,true,true),w,h,r,true,false);
-const closeM=(m,w,h,r)=>erode(dilate(m,w,h,r),w,h,r);
-const openM =(m,w,h,r)=>dilate(erode(m,w,h,r),w,h,r);
+/* round brush (same in every direction) via distance transform; square ones eat diagonal pieces */
+const dilateR=(m,w,h,r)=>{ const D=distTo(m,w,h), o=new Uint8Array(w*h); for(let i=0;i<w*h;i++) o[i]=D[i]<=r?1:0; return o; };
+const erodeR =(m,w,h,r)=>{ const inv=new Uint8Array(w*h); for(let i=0;i<w*h;i++) inv[i]=m[i]?0:1;
+  // pixels outside the picture count as background
+  const D=distTo(inv,w,h), o=new Uint8Array(w*h);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x, edge=Math.min(x+1,y+1,w-x,h-y); o[i]=m[i]&&D[i]>r&&edge>r?1:0; } return o; };
+const closeM=(m,w,h,r)=>erodeR(dilateR(m,w,h,r),w,h,r);
+const openM =(m,w,h,r)=>dilateR(erodeR(m,w,h,r),w,h,r);
 const N4=[[1,0],[-1,0],[0,1],[0,-1]], N8=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
 function components(m,w,h,minPx,conn8){ const lab=new Int32Array(w*h), comps=[]; let id=0; const st=[], NB=conn8?N8:N4;
   for(let i=0;i<w*h;i++){ if(!m[i]||lab[i]) continue; id++; let n=0, sx=0, sy=0; const bnd=[]; st.push(i); lab[i]=id;
@@ -1091,11 +1102,11 @@ const polyArea=H=>{ let a=0; for(let i=0;i<H.length;i++){ const p=H[i],q=H[(i+1)
 function minRect(H){ let best=null;
   for(let i=0;i<H.length;i++){ const p=H[i],q=H[(i+1)%H.length], a=Math.atan2(q[1]-p[1],q[0]-p[0]), c=Math.cos(a), s=Math.sin(a);
     let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; for(const v of H){ const u=v[0]*c+v[1]*s, w=-v[0]*s+v[1]*c; x0=Math.min(x0,u);x1=Math.max(x1,u);y0=Math.min(y0,w);y1=Math.max(y1,w); }
-    const A=(x1-x0)*(y1-y0); if(!best||A<best.A) best={A,long:Math.max(x1-x0,y1-y0),short:Math.min(x1-x0,y1-y0)}; }
-  return best||{long:0,short:0}; }
+    const A=(x1-x0)*(y1-y0); if(!best||A<best.A) best={A,long:Math.max(x1-x0,y1-y0),short:Math.min(x1-x0,y1-y0),ang:(x1-x0>=y1-y0)?a:a+Math.PI/2}; }
+  return best||{long:0,short:0,ang:0}; }
 /* measure one blob (pixel units → mm) */
 function features(c){ const H=hull(c.bnd), r=minRect(H), area=c.n*MMPX*MMPX, ha=Math.max(1,polyArea(H))*MMPX*MMPX;
-  return {area, long:(r.long+1)*MMPX, short:(r.short+1)*MMPX, sol:Math.min(1,area/ha), hull:H}; }
+  return {area, long:(r.long+1)*MMPX, short:(r.short+1)*MMPX, sol:Math.min(1,area/ha), hull:H, ang:r.ang}; }
 /* find pieces in a top-down mask: grooves are filled, pegs cut off and counted */
 /* ---- wooden-table mode: find track by its two grooves instead of its colour ----
    Across a piece the brightness goes: wood | groove | wood | groove | wood, with the grooves ~11 mm either side
@@ -1182,19 +1193,31 @@ const boxBlur=(G,w,h)=>{ const o=new Float32Array(w*h); for(let y=1;y<h-1;y++) f
   o[i]=(G[i-w-1]+G[i-w]+G[i-w+1]+G[i-1]+G[i]+G[i+1]+G[i+w-1]+G[i+w]+G[i+w+1])/9; } return o; };
 
 function segment(mask,w,h){
-  const m=closeM(mask,w,h,3);                    // fill grooves and small gaps (6 mm)
-  const filled=closeM(m,w,h,5);                  // also fill the peg holes (~18 mm) so thin end walls survive
-  const body=openM(filled,w,h,5);                // remove anything narrower than ~22 mm: the pegs
-  const big=components(body,w,h,Math.round(1000/(MMPX*MMPX)));
-  // pegs: what's left after removing bodies, a knob-sized blob next to a body
-  const rest=new Uint8Array(w*h), grown=dilate(body,w,h,2); for(let i=0;i<w*h;i++) rest[i]=m[i]&&!grown[i]?1:0;
-  const small=components(openM(rest,w,h,2),w,h,Math.round(120/(MMPX*MMPX)));
-  big.comps.forEach(c=>{ c.pegs=0; Object.assign(c,features(c)); });
-  small.comps.forEach(k=>{ const a=k.n*MMPX*MMPX; if(a>900) return;
-    let hit=null; for(let dy=-8;dy<=8&&!hit;dy++) for(let dx=-8;dx<=8&&!hit;dx++){ const x=Math.round(k.cx)+dx,y=Math.round(k.cy)+dy;
-      if(x>=0&&y>=0&&x<w&&y<h&&big.lab[y*w+x]) hit=big.lab[y*w+x]; }
-    if(hit){ const b=big.comps.find(c=>c.id===hit); if(b) b.pegs++; } });
-  return big.comps; }
+  // 1) close the grooves only (~10 mm) and split into separate pieces, so neighbours a finger apart stay apart
+  const m=closeM(mask,w,h,2);
+  const cc=components(m,w,h,Math.round(600/(MMPX*MMPX)));
+  const out=[], pad=16;
+  cc.comps.forEach(c=>{
+    let x0=1e9,y0=1e9,x1=-1,y1=-1; c.bnd.forEach(([x,y])=>{ if(x<x0)x0=x; if(y<y0)y0=y; if(x>x1)x1=x; if(y>y1)y1=y; });
+    x0=Math.max(0,x0-pad); y0=Math.max(0,y0-pad); x1=Math.min(w-1,x1+pad); y1=Math.min(h-1,y1+pad);
+    const W=x1-x0+1, Hh=y1-y0+1, sub=new Uint8Array(W*Hh);
+    for(let y=0;y<Hh;y++) for(let x=0;x<W;x++) sub[y*W+x]= cc.lab[(y+y0)*w+(x+x0)]===c.id ? 1:0;
+    // 2) per piece: fill the peg holes (≤ ~26 mm), then remove anything narrower than ~30 mm: the pegs
+    const filled=closeM(sub,W,Hh,6), body=openM(filled,W,Hh,7);
+    const big=components(body,W,Hh,Math.round(1000/(MMPX*MMPX)));
+    // 3) pegs = knob-sized leftovers touching a body
+    const grown=dilateR(body,W,Hh,1), rest=new Uint8Array(W*Hh); for(let i=0;i<W*Hh;i++) rest[i]=sub[i]&&!grown[i]?1:0;
+    const small=components(rest,W,Hh,Math.round(56/(MMPX*MMPX)),true);    // a peg's knob, ≥ ~56 mm² (edge specks are smaller)
+    big.comps.forEach(b=>{ b.pegs=0; });
+    const Db=distTo(body,W,Hh);
+    small.comps.forEach(k=>{ const a=k.n*MMPX*MMPX; if(a>1200) return;
+      if(Db[Math.round(k.cy)*W+Math.round(k.cx)]*MMPX<3.5) return;          // a peg sticks out; edge specks don't
+      let hit=null; for(let dy=-9;dy<=9&&!hit;dy++) for(let dx=-9;dx<=9&&!hit;dx++){ const x=Math.round(k.cx)+dx,y=Math.round(k.cy)+dy;
+        if(x>=0&&y>=0&&x<W&&y<Hh&&big.lab[y*W+x]) hit=big.lab[y*W+x]; }
+      if(hit){ const b=big.comps.find(q=>q.id===hit); if(b) b.pegs++; } });
+    big.comps.forEach(b=>{ b.bnd=b.bnd.map(([x,y])=>[x+x0,y+y0]); b.cx+=x0; b.cy+=y0; Object.assign(b,features(b)); out.push(b); });
+  });
+  return out; }
 /* reference measurements of every catalogue piece, made with exactly the same pipeline */
 const REF={};
 function refKey(){ if(SC.mode!=="grooves") return "colour"; const L=SC.levels||{}; const r=v=>v==null?"x":Math.round(v/8)*8; return `g:${r(L.wood)}:${r(L.groove)}:${r(L.bg)}`; }
@@ -1227,10 +1250,16 @@ function refFeatures(t){
   return cache[t.id]={area:f.area,long:f.long,short:f.short,sol:f.sol,pegs:t.conns.filter(c=>c.g==="M").length};
 }
 function scanCandidates(){ return typeList.filter(t=>!t.deck && SC.brands[brandOf(t)]); }
+function featDist(b,r,usePegs){
+  let d=Math.abs(b.area-r.area)/r.area + 1.5*Math.abs(b.long-r.long)/r.long + Math.abs(b.short-r.short)/r.short + 2*Math.abs(b.sol-r.sol);
+  if(usePegs) d+=0.12*Math.abs(b.pegs-r.pegs);               // pegs help tell adapters and switch versions apart
+  return d; }
 function classify(b){
+  const learned=(S.learned&&S.learned[SC.mode])||{};
   const res=scanCandidates().map(t=>{ const r=refFeatures(t);
-    let d=Math.abs(b.area-r.area)/r.area + 1.5*Math.abs(b.long-r.long)/r.long + Math.abs(b.short-r.short)/r.short + 2*Math.abs(b.sol-r.sol);
-    if(SC.mode==="colour") d+=0.12*Math.abs(b.pegs-r.pegs);  // pegs help tell adapters and switch versions apart
+    let d=featDist(b,r,SC.mode==="colour");
+    // your own confirmed pieces, measured by your camera, beat the catalogue's nominal sizes
+    (learned[t.id]||[]).forEach(L=>{ d=Math.min(d, 0.75*featDist(b,L,SC.mode==="colour")); });
     if(t.ramp) d+=0.04;                                        // a ramp looks like a straight from above; prefer the straight
     return {t,d}; }).sort((a,b)=>a.d-b.d);
   const maxArea=Math.max(...scanCandidates().map(t=>refFeatures(t).area));
@@ -1308,13 +1337,54 @@ function scCornerStep(){
   scEl("scPaper").value=SC.paper; scEl("scPaper").onchange=e=>SC.paper=e.target.value;
   scEl("scReset2").onclick=()=>{ SC.corners=[]; draw(); };
   scEl("scBack2").onclick=scPhotoStep;
-  scEl("scNext2").onclick=()=>{ scEl("scHint2").textContent="Straightening the photo…"; setTimeout(()=>{ try{ scRectify(); scColourStep(); }catch(err){ console.error(err); toast("That didn't work — check the corners"); } },30); };
+  scEl("scNext2").onclick=()=>{ scEl("scHint2").textContent="Straightening the photo…"; setTimeout(()=>{ try{
+      const sn=snapCorners(SC.img,orderCorners(SC.corners)); SC.corners=sn.corners; if(sn.snapped) toast("Corners snapped to the paper's edges");
+      scRectify(); scColourStep(); }catch(err){ console.error(err); toast("That didn't work — check the corners"); } },30); };
   V.cv.onpointerdown=e=>{ const p=V.toImg(e), near=SC.corners.findIndex(c=>Math.hypot(c[0]-p[0],c[1]-p[1])<40*im.width/V.cv.getBoundingClientRect().width);
     if(near>=0) dragI=near; else if(SC.corners.length<4){ SC.corners.push(p); dragI=SC.corners.length-1; }
     V.cv.setPointerCapture(e.pointerId); draw(); };
   V.cv.onpointermove=e=>{ if(dragI<0) return; SC.corners[dragI]=V.toImg(e); draw(); };
   V.cv.onpointerup=V.cv.onpointercancel=()=>{ dragI=-1; };
   draw();
+}
+/* Where was the camera? From the paper's homography (Zhang's method with square pixels and the principal point in the
+   middle). If the focal length can't be pinned down (near-overhead shots), assume a typical phone/iPad lens. */
+function cameraFromH(Hmm2img,W,Hh){
+  const M=[[Hmm2img[0],Hmm2img[1],Hmm2img[2]],[Hmm2img[3],Hmm2img[4],Hmm2img[5]],[Hmm2img[6],Hmm2img[7],Hmm2img[8]]];
+  const col=j=>[M[0][j]-W/2*M[2][j], M[1][j]-Hh/2*M[2][j], M[2][j]];
+  const a=col(0), b=col(1), c=col(2), prior=0.65*Math.hypot(W,Hh);
+  // Estimating the focal length from one sheet of paper is very unstable for near-overhead photos (a few pixels of
+  // corner error swing it ±30%), so use a typical phone/iPad main-camera lens (~26–30 mm equivalent) instead.
+  const f = prior;
+  const ki=v=>[v[0]/f,v[1]/f,v[2]], n=v=>Math.hypot(...v);
+  const lam=2/(n(ki(a))+n(ki(b)));
+  let r1=ki(a).map(v=>v*lam); const r2=ki(b).map(v=>v*lam), t=ki(c).map(v=>v*lam);
+  const r3=[r1[1]*r2[2]-r1[2]*r2[1], r1[2]*r2[0]-r1[0]*r2[2], r1[0]*r2[1]-r1[1]*r2[0]];
+  const C=[-(r1[0]*t[0]+r1[1]*t[1]+r1[2]*t[2]), -(r2[0]*t[0]+r2[1]*t[1]+r2[2]*t[2]), Math.abs(r3[0]*t[0]+r3[1]*t[1]+r3[2]*t[2])];
+  const tilt=Math.acos(Math.min(1,Math.abs(r3[2])/n(r3)))*180/Math.PI;
+  return {x:C[0], y:C[1], z:C[2], f, tilt};
+}
+/* Snap tapped corners onto the paper's real corners: grow the paper region from its middle by colour, then for each
+   corner take the region point furthest out in that corner's direction, close to where you tapped. Skipped when the
+   paper doesn't stand out from the table (e.g. white on white). */
+function snapCorners(im,C){
+  const W=im.width, H=im.height, d=im.getContext("2d").getImageData(0,0,W,H).data;
+  const cx=C.reduce((s,p)=>s+p[0],0)/4, cy=C.reduce((s,p)=>s+p[1],0)/4;
+  const avg=(x,y,r)=>{ let a=[0,0,0],n=0; for(let j=-r;j<=r;j++) for(let i=-r;i<=r;i++){ const xx=Math.round(x)+i,yy=Math.round(y)+j; if(xx<0||yy<0||xx>=W||yy>=H) continue; const k=(yy*W+xx)*4; a[0]+=d[k];a[1]+=d[k+1];a[2]+=d[k+2];n++; } return a.map(v=>v/Math.max(1,n)); };
+  const paper=avg(cx,cy,5), dist=(k,c)=>Math.hypot(d[k]-c[0],d[k+1]-c[1],d[k+2]-c[2]);
+  // contrast: paper vs. just outside each corner
+  let outside=0; C.forEach(p=>{ const ux=p[0]-cx, uy=p[1]-cy, L=Math.hypot(ux,uy)||1; const o=avg(p[0]+ux/L*18,p[1]+uy/L*18,3); outside+=Math.hypot(o[0]-paper[0],o[1]-paper[1],o[2]-paper[2])/4; });
+  if(outside<60) return {corners:C, snapped:false};
+  const tol=outside*0.5, seen=new Uint8Array(W*H), st=[Math.round(cy)*W+Math.round(cx)], reg=[];
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; C.forEach(p=>{x0=Math.min(x0,p[0]);y0=Math.min(y0,p[1]);x1=Math.max(x1,p[0]);y1=Math.max(y1,p[1]);});
+  x0-=40;y0-=40;x1+=40;y1+=40; seen[st[0]]=1;
+  while(st.length){ const k=st.pop(), x=k%W, y=(k/W)|0; reg.push(k);
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const xx=x+dx, yy=y+dy; if(xx<x0||yy<y0||xx>x1||yy>y1||xx<0||yy<0||xx>=W||yy>=H) continue;
+      const kk=yy*W+xx; if(seen[kk]) continue; seen[kk]=1; if(dist(kk*4,paper)<tol) st.push(kk); } }
+  const out=C.map(p=>{ const ux=p[0]-cx, uy=p[1]-cy, L=Math.hypot(ux,uy)||1; let best=null, bv=-1e9;
+    reg.forEach(k=>{ const x=k%W, y=(k/W)|0; if(Math.hypot(x-p[0],y-p[1])>30) return; const v=((x-cx)*ux+(y-cy)*uy)/L; if(v>bv){bv=v;best=[x+0.5,y+0.5];} });
+    return best||p; });
+  return {corners:out, snapped:true};
 }
 /* warp the floor to a top-down view in millimetres */
 function scRectify(){
@@ -1335,7 +1405,7 @@ function scRectify(){
     const s=((v|0)*im.width+(u|0))*4; o[k]=src[s]; o[k+1]=src[s+1]; o[k+2]=src[s+2]; o[k+3]=255; valid[j*w+i]=1; }
   // hide the paper itself
   const pw=dst[2][0], ph=dst[2][1];
-  SC.rect={w,h,x0,y0,img:out,valid,paper:[(0-x0)/MMPX-4,(0-y0)/MMPX-4,(pw-x0)/MMPX+4,(ph-y0)/MMPX+4]};
+  SC.rect={w,h,x0,y0,img:out,valid,paper:[(0-x0)/MMPX-4,(0-y0)/MMPX-4,(pw-x0)/MMPX+4,(ph-y0)/MMPX+4], cam:cameraFromH(Hmm2img,im.width,im.height)};
   SC.taps={wood:[],bg:[]}; SC.tapMode="wood";
 }
 function rectCanvas(){ const R=SC.rect, V=scCanvas(R.w,R.h), base=document.createElement("canvas"); base.width=R.w; base.height=R.h;
@@ -1349,11 +1419,12 @@ function scColourStep(){
     scEl("scTapRow").style.display=SC.mode==="colour"?"flex":"none";
     scEl("scWood").classList.toggle("on",SC.tapMode==="wood"); scEl("scBg").classList.toggle("on",SC.tapMode==="bg");
     const sep=SC.mode==="colour"?colourSeparation():null;
-    scEl("scHint3").innerHTML = SC.mode==="grooves"
+    const tiltWarn = R.cam && R.cam.tilt>30 ? `<b>The photo is taken at a steep angle (${Math.round(R.cam.tilt)}°)</b> — sizes are less accurate; a photo from more directly above works better. ` : "";
+    scEl("scHint3").innerHTML = tiltWarn + (SC.mode==="grooves"
       ? "<b>Wooden table mode:</b> pieces are found by their two grooves, so the table's colour doesn't matter. Make sure the grooved side faces up and the light is even (no harsh glare). No taps needed."
       : sep!==null && sep<12
         ? "<b>The track and the floor look very similar in colour.</b> Switch to <b>Wooden table</b> mode above, or put a dark cloth or coloured paper under the pieces."
-        : "Tap <b>on a track piece</b> (orange), then <b>on the floor</b> between pieces (blue). Add more taps if the colours vary.";
+        : "Tap <b>on a track piece</b> (orange), then <b>on the floor</b> between pieces (blue). Add more taps if the colours vary.");
     scEl("scNext3").disabled = SC.mode==="colour" && !(SC.taps.wood.length&&SC.taps.bg.length); };
   scEl("scFoot").innerHTML=`<span class="hint" id="scHint3"></span>
     <span style="display:flex;gap:6px;align-items:center">Pieces are on: <button class="chip" id="scModeC">Floor / cloth</button><button class="chip" id="scModeG">Wooden table</button></span>
@@ -1377,15 +1448,37 @@ function scDetect(){
   }
   const col=(x,y)=>{ let r=0,g=0,b=0,n=0; for(let j=-3;j<=3;j++) for(let i=-3;i<=3;i++){ const xx=Math.round(x)+i, yy=Math.round(y)+j;
       if(xx<0||yy<0||xx>=w||yy>=h||!R.valid[yy*w+xx]) continue; const k=(yy*w+xx)*4; r+=d[k];g+=d[k+1];b+=d[k+2];n++; } return n?[r/n,g/n,b/n]:[0,0,0]; };
-  // colour feature: two chroma axes plus a weaker brightness axis, so shadows matter less
-  const feat=([r,g,b])=>{ const s=r+g+b+1; return [ (r-b)/s*400, (g-b)/s*400, (r+g+b)/3*0.35 ]; };
-  const W=SC.taps.wood.map(p=>feat(col(...p))), B=SC.taps.bg.map(p=>feat(col(...p)));
-  const dist=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
   const mask=new Uint8Array(w*h), [pa,pb,pc,pd]=R.paper;
-  for(let i=0;i<w*h;i++){ if(!R.valid[i]) continue; const x=i%w, y=(i/w)|0; if(x>=pa&&x<=pc&&y>=pb&&y<=pd) continue;
-    const f=feat([d[i*4],d[i*4+1],d[i*4+2]]); let dw=1e9,db=1e9; W.forEach(q=>dw=Math.min(dw,dist(f,q))); B.forEach(q=>db=Math.min(db,dist(f,q)));
-    mask[i]=dw<db?1:0; }
-  SC.bodies=segment(mask,w,h); SC.bodies.forEach(classify);
+  const usable=i=>{ if(!R.valid[i]) return false; const x=i%w, y=(i/w)|0; return !(x>=pa&&x<=pc&&y>=pb&&y<=pd); };
+  // Colour "warmth" (chroma): wood is warm, most floors/tables/cloths are neutral or a different hue. Chroma hardly
+  // changes between lit and shadowed areas, so it is far more stable than brightness.
+  const chroma=([r,g,b])=>{ const s=r+g+b+1; return [(r-b)/s,(g-b)/s]; };
+  const avg=a=>a.reduce((s,v)=>[s[0]+v[0]/a.length,s[1]+v[1]/a.length],[0,0]);
+  const Wc=avg(SC.taps.wood.map(p=>chroma(col(...p)))), Bc=avg(SC.taps.bg.map(p=>chroma(col(...p))));
+  const dv=[Wc[0]-Bc[0],Wc[1]-Bc[1]], dn=Math.hypot(...dv);
+  if(dn>0.035){
+    // project every pixel on the line from floor colour to wood colour, then let Otsu pick the split
+    const ux=dv[0]/dn, uy=dv[1]/dn, P=new Float32Array(w*h), hist=new Float64Array(256), lo=-0.5*dn, hi=1.5*dn, bin=v=>Math.max(0,Math.min(255,Math.round((v-lo)/(hi-lo)*255)));
+    for(let i=0;i<w*h;i++){ if(!usable(i)) continue; const [c1,c2]=chroma([d[i*4],d[i*4+1],d[i*4+2]]); P[i]=(c1-Bc[0])*ux+(c2-Bc[1])*uy; hist[bin(P[i])]++; }
+    let tot=0,sum=0; for(let k=0;k<256;k++){ tot+=hist[k]; sum+=k*hist[k]; }
+    let wB=0,sB=0,best=-1,th=128; for(let k=0;k<256;k++){ wB+=hist[k]; if(!wB) continue; const wF=tot-wB; if(!wF) break; sB+=k*hist[k];
+      const mB=sB/wB, mF=(sum-sB)/wF, v=wB*wF*(mB-mF)**2; if(v>best){best=v;th=k;} }
+    // keep the split between the two tapped colours (Otsu can drift if one class is tiny)
+    const thv=Math.min(Math.max(lo+th/255*(hi-lo), 0.25*dn), 0.75*dn);
+    for(let i=0;i<w*h;i++) if(usable(i)) mask[i]=P[i]>thv?1:0;
+    SC.colourInfo={method:"warmth", separation:dn};
+  } else {
+    // colours too similar in hue: fall back to nearest-sample with brightness
+    const feat=([r,g,b])=>{ const s=r+g+b+1; return [ (r-b)/s*400, (g-b)/s*400, (r+g+b)/3*0.35 ]; };
+    const Wf=SC.taps.wood.map(p=>feat(col(...p))), Bf=SC.taps.bg.map(p=>feat(col(...p)));
+    const dist=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+    for(let i=0;i<w*h;i++){ if(!usable(i)) continue;
+      const f=feat([d[i*4],d[i*4+1],d[i*4+2]]); let dw=1e9,db=1e9; Wf.forEach(q=>dw=Math.min(dw,dist(f,q))); Bf.forEach(q=>db=Math.min(db,dist(f,q)));
+      mask[i]=dw<db?1:0; }
+    SC.colourInfo={method:"nearest", separation:dn};
+  }
+  if(window.__colDebug) window.__lastMask=mask;
+  SC.bodies=segment(mask,w,h); SC.bodies.forEach(b=>parallax(b)); SC.bodies.forEach(classify);
 }
 /* how far apart the tapped track and floor colours are (0 = identical); used to suggest wooden-table mode */
 function colourSeparation(){
@@ -1395,6 +1488,20 @@ function colourSeparation(){
   const feat=([r,g,b])=>{ const s=r+g+b+1; return [ (r-b)/s*400, (g-b)/s*400, (r+g+b)/3*0.35 ]; };
   let best=1e9; SC.taps.wood.forEach(a=>SC.taps.bg.forEach(b=>{ const p=feat(col(...a)), q=feat(col(...b));
     best=Math.min(best,Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2])); })); return best;
+}
+/* Pieces are ~12 mm tall. Seen from a camera that isn't straight above, a piece's outline also includes its top
+   (shifted away from the camera) and a strip of its side, so it looks longer in the direction away from the camera.
+   Undo that using where the camera was. */
+function parallax(b){
+  const cam=SC.rect&&SC.rect.cam; if(!cam||!(cam.z>S.thick*3)||window.__noParallax) return;
+  const bx=SC.rect.x0+b.cx*MMPX, by=SC.rect.y0+b.cy*MMPX, vx=bx-cam.x, vy=by-cam.y, dist=Math.hypot(vx,vy);
+  const d=S.thick*dist/(cam.z-S.thick);                      // how far the top is pushed out, in mm
+  const phi=b.ang-Math.atan2(vy,vx), c=Math.abs(Math.cos(phi)), sn=Math.abs(Math.sin(phi));
+  const k=1/(1+S.thick/(2*cam.z));                            // tops are a little closer to the camera, so a bit larger
+  const L=b.long, Sh=b.short;
+  b.long=Math.max(10,(L-d*c)*k); b.short=Math.max(10,(Sh-d*sn)*k);
+  b.area=Math.max(100,(b.area-d*(Sh*c+L*sn))*k*k);
+  b.parallax=d;
 }
 function scSummary(){ const n={}; SC.bodies.forEach(b=>{ if(b.pick) n[b.pick]=(n[b.pick]||0)+(b.mult||1); }); return n; }
 function scReviewStep(){
@@ -1437,7 +1544,7 @@ function scPicker(b,redraw){
   const opt=(t,extra)=>`<button class="opt" data-pick="${t.id}">${iconSVG(t)}<span>${esc(t.name)} <b>${t.id}</b><small>${esc(t.dim||"")}${extra||""}</small></span></button>`;
   const top=b.cands.map((c,i)=>opt(c.t, i===0?" · best match":"")).join("");
   const others=scanCandidates().filter(t=>!b.cands.some(c=>c.t.id===t.id)).map(t=>`<option value="${t.id}">${esc(t.name)} (${t.id})</option>`).join("");
-  sh.innerHTML=`<h3>What is this piece? <small style="font-weight:400;color:var(--muted)">measured ≈ ${Math.round(b.long)} × ${Math.round(b.short)} mm${b.pegs?` · ${b.pegs} peg${b.pegs>1?"s":""}`:""}</small></h3>
+  sh.innerHTML=`<h3>What is this piece? <small style="font-weight:400;color:var(--muted)">measured ≈ ${Math.round(b.long)} × ${Math.round(b.short)} mm${b.pegs?` · ${b.pegs} peg${b.pegs>1?"s":""}`:""} · your answer is remembered, so this piece is recognised better next time</small></h3>
     <div class="opts">${top}</div>
     <p style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 0">
       <select id="scOther" style="flex:1;min-width:200px;padding:10px;font-size:15px"><option value="">Something else…</option>${others}</select>
@@ -1449,11 +1556,18 @@ function scPicker(b,redraw){
   scEl("scOther").onchange=e=>{ if(e.target.value) done(e.target.value); };
   scEl("scShClose").onclick=()=>sh.remove();
 }
+function scLearn(){
+  // remember the measurements of every piece you confirmed (max 8 per type, newest kept)
+  const L=(S.learned=S.learned||{}), M=(L[SC.mode]=L[SC.mode]||{});
+  SC.bodies.forEach(b=>{ if(!b.pick || (b.mult||1)>1 || b.conf==="merged") return;
+    const arr=(M[b.pick]=M[b.pick]||[]); arr.push({area:b.area,long:b.long,short:b.short,sol:b.sol,pegs:b.pegs}); if(arr.length>8) arr.shift(); });
+}
 function scAddToInv(){
+  scLearn();
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
-window.__trackScan={homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
+window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
 /* ---------- Start ---------- */
 load(); rebuildTypes(); setView();
