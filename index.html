@@ -221,6 +221,8 @@
   body.kids .pill.ok{ background:#d6f5df } body.kids .pill.warn{ background:#fff0c7 } body.kids .pill.bad{ background:#ffe0dc }
   body.kids #toast{ font-size:20px; padding:12px 20px; border-radius:16px; top:84px }
   body.kids .v3bar button{ font-size:20px; min-height:56px; border-radius:18px }
+  .genrow{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px }
+  .genrow label{ font-size:12.5px; color:var(--muted) } .genrow input{ width:100%; padding:8px; border:1px solid var(--line); border-radius:7px; font:inherit; font-size:16px; margin-top:3px }
   #confetti{ position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:6 }
   #confetti i{ position:absolute; top:-30px; font-style:normal; font-size:30px; animation:fall linear forwards }
   @keyframes fall{ to{ transform:translateY(110vh) rotate(540deg) } }
@@ -244,6 +246,7 @@
       </defs>
       <defs id="rampDefs"></defs>
       <rect x="-20000" y="-20000" width="40000" height="40000" fill="url(#gMajor)" id="bg"/>
+      <g id="layerFloor"></g>
       <g id="layerPieces"></g>
       <g id="layerMarks"></g>
     </svg>
@@ -260,9 +263,10 @@
       <button id="b3d" class="primary" title="Look at the layout in 3D"><span class="adult">3D view</span><span class="kidonly">👀 3D</span></button>
       <button id="bFit" title="Zoom to layout"><span class="adult">Fit</span><span class="kidonly">🔍 All</span></button>
       <button id="bZin" class="adult">＋</button><button id="bZout" class="adult">－</button>
-      <button id="bDemo"><span class="adult">Demo oval</span><span class="kidonly">🎲 Example</span></button>
+      <button id="bDemo"><span class="adult">Demo oval</span><span class="kidonly">🎲 Surprise!</span></button>
       <button id="bIO" class="adult">Save / load</button>
       <button id="bClear" class="danger adult">Clear</button>
+      <button id="bGen" class="adult" title="Make a random layout from your pieces that fits your floor">🎲 Random</button>
       <button id="bKids" class="adult" title="Big, colourful and simple — for little builders">🧸 Kids mode</button>
       <button id="bHelp" class="adult" title="Help">?</button>
       <button id="bGrown" class="kidonly" title="Hold to go back to the full planner">🔒 Grown-ups</button>
@@ -298,6 +302,20 @@
       </div>
       <div class="v3help adult">Drag to orbit · right-drag / two fingers to pan · wheel to zoom. Blue haze = room your tallest train needs (set in Settings) · red marks = not enough room.</div>
       <div id="v3dMsg"></div>
+    </div>
+    <div class="modal" id="genModal">
+      <div class="card">
+        <h3>🎲 Random track</h3>
+        <p style="margin:0 0 8px;font-size:12.5px;color:var(--muted)">Makes a layout from the pieces in your inventory that fits on your floor. Loops are built so they close exactly; switches add side tracks, each finished with a buffer stop or a ramp track if you have one. Press again for a different layout. (Bridges aren't used yet.)</p>
+        <div class="genrow">
+          <label>Floor width (cm)<input id="gW" type="number" min="40" step="10"></label>
+          <label>Floor depth (cm)<input id="gD" type="number" min="40" step="10"></label>
+          <label>Dead ends, at most<input id="gE" type="number" min="0" max="8" step="1"></label>
+        </div>
+        <label class="chk2" style="margin-top:8px"><input type="checkbox" id="gShow"> Show the floor area on the plan</label>
+        <p id="gMsg" style="font-size:12.5px;margin:8px 0 0;min-height:1.2em"></p>
+        <div class="btns"><button id="gClose">Close</button><button id="gGo" class="primary">🎲 Make a track</button></div>
+      </div>
     </div>
     <div class="modal" id="modal">
       <div class="card">
@@ -383,6 +401,9 @@ const BASE = [
   {grp:"BRIO adapters & ends", id:"C",  name:"Medium straight, two holes C", dim:"144 mm (retired)", lanes:[{k:"s",len:144,g:["F","F"]}]},
   {grp:"BRIO adapters & ends", id:"R",  name:"Buffer stop R", dim:"40 mm · hole end · striped barrier", stop:true, lanes:[{k:"s",len:40,g:["F","M"],c:[true,false]}]},
   {grp:"BRIO adapters & ends", id:"S",  name:"Buffer stop S", dim:"40 mm · peg end · striped barrier", stop:true, lanes:[{k:"s",len:40,g:["M","F"],c:[true,false]}]},
+  /* U and V (woodenrailway.info): 54 mm end pieces that slope down to the floor so cars can drive on and off (pack 33331, now in 33385 with R and S) */
+  {grp:"BRIO adapters & ends", id:"U",  name:"Ramp track U", dim:"54 mm · hole end · slopes down to the floor so cars can drive on and off", carRamp:true, lanes:[{k:"s",len:54,g:["F","M"],c:[true,false]}]},
+  {grp:"BRIO adapters & ends", id:"V",  name:"Ramp track V", dim:"54 mm · peg end · slopes down to the floor so cars can drive on and off", carRamp:true, lanes:[{k:"s",len:54,g:["M","F"],c:[true,false]}]},
   /* IKEA LILLABO — dimensions from trackdrawer.com/systemen/ikea-lillabo (12 pieces): track 40 mm wide, 12 mm high,
      grooves 25.7 mm apart, parallel tracks 40 mm apart. IKEA has no tight curve: its short curve is a 22.5° piece. */
   {grp:"IKEA LILLABO", id:"I240", name:"IKEA long straight",   dim:"240 mm · LB-240 (BRIO D is 216)", lanes:[{k:"s",len:240}]},
@@ -500,12 +521,14 @@ function rebuildTypes(){
   const defs=document.getElementById("rampDefs"); let g="";
   typeList.filter(t=>t.ramp).forEach(t=>{ const l=t.lanes[0], up=l.lv&&l.lv[1]>l.lv[0];
     g+=`<linearGradient id="rg-${t.id}" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${l.len}" y2="0"><stop offset="0" stop-color="${up?"#c99a60":"#f0d3a4"}"/><stop offset="1" stop-color="${up?"#f0d3a4":"#c99a60"}"/></linearGradient>`; });
+  typeList.filter(t=>t.carRamp).forEach(t=>{ const L=t.lanes[0].len;
+    g+=`<linearGradient id="cg-${t.id}" gradientUnits="userSpaceOnUse" x1="${L*0.3}" y1="0" x2="${L}" y2="0"><stop offset="0" stop-color="#dcb37c"/><stop offset="1" stop-color="#a77b4a"/></linearGradient>`; });
   if(defs) defs.innerHTML=g;
 }
 const byId = id => S.pieces.find(p=>p.id===id);
 /* grouping: by what a piece does, or by who makes it */
 const CAT_ORDER=["Straights","Curves","Switches","Crossings","Double track","Adapters & ends","Bridges & ramps","Custom"];
-const CAT_FIXED={H:"Crossings",H1:"Crossings",H2:"Crossings",H3:"Crossings",EE:"Double track",EE1:"Double track",K1:"Double track",R:"Adapters & ends",S:"Adapters & ends"};
+const CAT_FIXED={H:"Crossings",H1:"Crossings",H2:"Crossings",H3:"Crossings",EE:"Double track",EE1:"Double track",K1:"Double track",R:"Adapters & ends",S:"Adapters & ends",U:"Adapters & ends",V:"Adapters & ends"};
 function catOf(t){
   if(t.grp==="Custom") return "Custom";
   if(CAT_FIXED[t.id]) return CAT_FIXED[t.id];
@@ -687,7 +710,7 @@ function renderPieces(){
     if(lv>0){ // shadow on the floor below a raised piece or ramp
       h+=`<path d="${t.band}" transform="${tf(7*lv,10*lv)}" fill="#000" opacity="${t.ramp?0.10:0.16}" pointer-events="none"/>`;
     }
-    const fill = s?"#ecc794": t.ramp?`url(#rg-${t.id})`: (p.level>0?"#e6c08b":"var(--wood)");
+    const fill = s?"#ecc794": t.ramp?`url(#rg-${t.id})`: t.carRamp?`url(#cg-${t.id})`: (p.level>0?"#e6c08b":"var(--wood)");
     const stroke = s?"var(--accent)": t.deck?"#b8452f": (p.level>0?"#6d7f99":"var(--wood-edge)");
     const sw = s?2.2: (t.deck?4:(p.level>0||t.ramp?1.8:1));
     h+=`<g class="piece" data-id="${p.id}" transform="${tf(0,0)}">`+
@@ -697,6 +720,7 @@ function renderPieces(){
        (t.barrier?`<path d="${t.barrier.red}" fill="#d23c2f" stroke="#7a1f17" stroke-width="0.8"/><path d="${t.barrier.white}" fill="#fff"/>`:"");
     (t.pegList||[]).forEach(pg=>{ const mate=linkOf[p.id+":"+pg.ci], mk=mate&&byId(mate.pid)?Math.max(key(p),key(byId(mate.pid))):key(p);
       addPeg(mk,`<path class="piece" data-id="${p.id}" transform="${tf(0,0)}" d="${pg.d}" fill="${s?"#ecc794":t.ramp?"#dcb37c":(p.level>0?"#e6c08b":"var(--wood)")}" stroke="${s?"var(--accent)":"var(--wood-edge)"}" stroke-width="0.9" stroke-linejoin="round"/>`); });
+    if(t.carRamp){ const L=t.lanes[0].len; h+=`<path d="M${L*0.5} -10 L${L*0.78} 0 L${L*0.5} 10" fill="none" stroke="#5e3f20" stroke-width="2.5" opacity=".6"/>`; }
     if(t.ramp){ const L=t.lanes[0].len; for(let x=L*0.3;x<L*0.85;x+=L*0.22) h+=`<path d="M${x-8} -9 L${x+4} 0 L${x-8} 9" fill="none" stroke="#7a5530" stroke-width="2.5" opacity=".7"/>`; }
     if(p.level>0 && !t.ramp){ const c=t.center; h+=`<text x="${c.x}" y="${(p.mirror?-1:1)*(c.y)+4}" transform="scale(1 ${p.mirror?-1:1})" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5a72">▲${p.level}</text>`; }
     h+=`</g>`;
@@ -782,10 +806,11 @@ function renderStatus(free){
 const used = id => S.pieces.filter(p=>p.type===id).length;
 
 function iconSVG(t){
-  const xs=t.pts.map(p=>p.x), ys=t.pts.map(p=>p.y);
+  const ext=t.pts.concat(t.conns.filter(c=>c.g==="M").map(c=>({x:c.x+Math.cos(c.a)*18,y:c.y+Math.sin(c.a)*18})));   // pegs stick out ~18 mm
+  const xs=ext.map(p=>p.x), ys=ext.map(p=>p.y);
   const x0=Math.min(...xs)-6,y0=Math.min(...ys)-6,w=Math.max(...xs)-x0+6,h=Math.max(...ys)-y0+6;
   const sz=Math.max(w,h*46/34);
-  return `<svg viewBox="${x0-(sz-w)/2} ${y0-(sz*34/46-h)/2} ${sz} ${sz*34/46}"><path d="${t.band}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/60}"/><path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="${sz/30}" opacity=".5"/>${t.pegs?`<path d="${t.pegs}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/80}"/>`:""}${t.holes?`<path d="${t.holes}" fill="#fffdf8"/>`:""}${t.barrier?`<path d="${t.barrier.red}" fill="#d23c2f"/><path d="${t.barrier.white}" fill="#fff"/>`:""}</svg>`;
+  return `<svg viewBox="${x0-(sz-w)/2} ${y0-(sz*34/46-h)/2} ${sz} ${sz*34/46}"><path d="${t.band}" fill="${t.carRamp?`url(#cg-${t.id})`:"var(--wood)"}" stroke="var(--wood-edge)" stroke-width="${sz/60}"/><path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="${sz/30}" opacity=".5"/>${t.pegs?`<path d="${t.pegs}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/80}"/>`:""}${t.holes?`<path d="${t.holes}" fill="#fffdf8"/>`:""}${t.barrier?`<path d="${t.barrier.red}" fill="#d23c2f"/><path d="${t.barrier.white}" fill="#fff"/>`:""}</svg>`;
 }
 function groupedTypes(filter){
   const by=S.groupBy==="make"?makeOf:catOf, order=S.groupBy==="make"?MAKE_ORDER:CAT_ORDER, out=new Map();
@@ -884,8 +909,13 @@ function showInfo(id){
 }
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
+function renderFloor(){
+  const el=document.getElementById("layerFloor"); const f=S.gen&&S.gen.show&&S.floor;
+  el.innerHTML = f ? `<rect x="${-f.w/2}" y="${-f.d/2}" width="${f.w}" height="${f.d}" fill="#fff8e8" fill-opacity=".55" stroke="#c99a60" stroke-width="3" stroke-dasharray="18 10" rx="6"/>
+    <text x="${-f.w/2+12}" y="${-f.d/2+28}" font-size="22" fill="#a8794a">Floor ${Math.round(f.w/10)} × ${Math.round(f.d/10)} cm</text>` : "";
+}
 function refresh(full=true){
-  computeLinks(); renderPieces(); const free=renderMarks(); renderStatus(free);
+  computeLinks(); renderFloor(); renderPieces(); const free=renderMarks(); renderStatus(free);
   if(full) renderInv();
   document.getElementById("bUndo").disabled=!hist.length; document.getElementById("bRedo").disabled=!redo.length;
   const hasSel=!!sel; ["bRot","bFlip","bDel","bUp","bDown"].forEach(b=>document.getElementById(b).disabled=!hasSel);
@@ -1005,6 +1035,175 @@ function demo(){
   seq.forEach(t=>addPiece(t));
   hist.length=hs; // one undo step for the whole demo
   sel=null; active=null; refresh(); fit();
+}
+
+/* ---------- Random layout generator ----------
+   Loops: pick a sequence X of pieces whose turns add up to 360°/k and lay it k times (k = 2 or 4). Because each copy is the
+   previous one turned by 360°/k, the k copies always meet the start exactly, whatever the pieces are. Switches in X give
+   side tracks (dead ends), which grow a few pieces and end in a buffer stop / ramp track when one is available. */
+const GEN={};
+function genOptions(){
+  const T0={x:0,y:0,a:0,g:"M",lv:0}, plain=[], grow=[], sw=[], caps=[];
+  typeList.forEach(t=>{
+    if(t.ramp||t.deck) return;
+    const C=t.conns;
+    if(t.stop||t.carRamp){ caps.push({id:t.id,g:C[0].g}); return; }
+    [false,true].forEach(mirror=>{
+      C.forEach((c,ci)=>{
+        const p={type:t.id,x:0,y:0,rot:0,mirror,level:0}; alignTo(p,ci,T0); const wc=worldConns(p);
+        const ex=wc.map((w,i)=>({i,x:w.x,y:w.y,a:normA(w.a),g:w.g})).filter(e=>e.i!==ci);
+        if(C.length===2){
+          const rec={id:t.id,mirror,ci,rel:ex[0],turn:ex[0].a/D2R,eg:c.g};
+          if(Math.abs(ex[0].a)>1e-6||!mirror) grow.push(rec);                                 // any direction, for side tracks
+          if(c.g==="F" && ex[0].g==="M" && (Math.abs(ex[0].a)>1e-6||!mirror)) plain.push(rec);  // forward pieces for loops
+        } else if(c.g==="F" && ex.every(e=>e.g==="M") && ex.every(e=>e.x>20)) {
+          ex.forEach(e=>sw.push({id:t.id,mirror,ci,through:e.i,rel:e,turn:e.a/D2R,spurs:ex.length-1,sw:true}));
+        }
+      });
+    });
+  });
+  return {plain,grow,sw,caps};
+}
+const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+function genX(O,k,avail,maxEnds){
+  const target=360/k, X=[], use={}, can=(id,n=1)=>((use[id]||0)+n)*k<=(avail[id]||0), take=(r,n=1)=>{ use[r.id]=(use[r.id]||0)+n; };
+  let rem=target;
+  if(maxEnds>0 && O.sw.length && Math.random()<0.75){
+    const opts=O.sw.filter(s=>(avail[s.id]||0)>0 && s.turn>-0.01 && s.turn<=target+0.01);
+    if(opts.length){ const s=pick(opts); X.push(s); rem-=s.turn; if(Math.random()<0.3 && maxEnds>2){ const s2=pick(opts); if(s2.turn<=rem+0.01){ X.push(s2); rem-=s2.turn; } } }
+  }
+  const curves=O.plain.filter(r=>r.turn>0.01);
+  // prefer one kind of curve per attempt (looks tidier), sometimes mix
+  const pref=Math.random()<0.6 ? pick(curves.length?curves:[null]) : null;
+  let guard=0;
+  while(rem>0.01 && guard++<60){
+    let opts=curves.filter(c=>c.turn<=rem+0.01 && can(c.id));
+    if(pref){ const o2=opts.filter(c=>c.id===pref.id); if(o2.length) opts=o2; }
+    if(!opts.length) return null;
+    const c=pick(opts); X.push(c); take(c); rem-=c.turn;
+  }
+  if(Math.abs(rem)>0.01) return null;
+  const nw=Math.random()<0.45 ? 1+rnd(2) : 0;     // S-bends: one curve each way
+  for(let i=0;i<nw;i++){ const opts=curves.filter(c=>can(c.id,2)); if(!opts.length) break; const c=pick(opts);
+    const back=O.plain.find(r=>r.id===c.id && r.ci===c.ci && r.mirror!==c.mirror); if(!back) break; X.push(c,back); take(c,2); }
+  const straights=O.plain.filter(r=>Math.abs(r.turn)<0.01);
+  const ns=rnd(Math.random()<0.5?5:10);
+  for(let i=0;i<ns;i++){ const opts=straights.filter(r=>can(r.id)); if(!opts.length) break; const r=pick(opts); X.push(r); take(r); }
+  return shuffle(X);
+}
+function genGrid(){ const G=new Map(), pcs=[]; const key=(x,y)=>Math.floor(x/40)+","+Math.floor(y/40);
+  return {pcs,
+    ok(p){ const wc=worldConns(p), nb=new Set(); pcs.forEach((q,qi)=>{ if(q.wc.some(a=>wc.some(b=>Math.hypot(a.x-b.x,a.y-b.y)<2))) nb.add(qi); });
+      const sm=pieceSamples(p,10);
+      for(const s of sm){ const gx=Math.floor(s.x/40), gy=Math.floor(s.y/40);
+        for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){ const L=G.get((gx+dx)+","+(gy+dy)); if(!L) continue;
+          for(const o of L) if(!nb.has(o.i) && Math.hypot(o.x-s.x,o.y-s.y)<38) return false; } }
+      return true; },
+    add(p){ const i=pcs.length; p.wc=worldConns(p); pcs.push(p); pieceSamples(p,10).forEach(s=>{ const k=key(s.x,s.y); if(!G.has(k)) G.set(k,[]); G.get(k).push({x:s.x,y:s.y,i}); }); }
+  };
+}
+function genSpur(O,grid,rem,T,res){
+  let cur=T; const n=rnd(4);
+  for(let i=0;i<n;i++){
+    const opts=shuffle(O.grow.filter(r=>r.eg!==cur.g && (rem[r.id]||0)>0 && Math.abs(r.turn)<46)).slice(0,6); let done=false;
+    for(const r of opts){ const p={type:r.id,x:0,y:0,rot:0,mirror:r.mirror,level:0}; alignTo(p,r.ci,cur);
+      if(!grid.ok(p)) continue; grid.add(p); rem[r.id]--; cur=worldConns(p)[1-r.ci]; done=true; break; }
+    if(!done) break;
+  }
+  for(const c of shuffle(O.caps.filter(c=>c.g!==cur.g && (rem[c.id]||0)>0))){
+    const p={type:c.id,x:0,y:0,rot:0,mirror:false,level:0}; alignTo(p,0,cur);
+    if(grid.ok(p)){ grid.add(p); rem[c.id]--; res.capped++; return; }
+  }
+  res.open++;
+}
+function genLoop(O,k,avail,maxEnds){
+  const X=genX(O,k,avail,maxEnds); if(!X||X.length<2) return null;
+  const rem={...avail}, grid=genGrid(), spurs=[]; let T={x:0,y:0,a:0,g:"M",lv:0}, ends=0, nsw=0;
+  for(let r=0;r<k;r++) for(const tok of X){
+    let tk=tok;
+    if(tok.sw && !(ends+tok.spurs<=maxEnds && rem[tok.id]>0)){   // over the dead-end budget: use a plain piece of the same shape
+      tk=O.plain.find(q=>(rem[q.id]||0)>0 && Math.hypot(q.rel.x-tok.rel.x,q.rel.y-tok.rel.y)<1 && Math.abs(normA(q.rel.a-tok.rel.a))<0.01);
+      if(!tk) return null;
+    }
+    if(!((rem[tk.id]||0)>0)) return null;
+    const p={type:tk.id,x:0,y:0,rot:0,mirror:tk.mirror,level:0}; alignTo(p,tk.ci,T);
+    if(!grid.ok(p)) return null;
+    grid.add(p); rem[tk.id]--;
+    const wc=worldConns(p);
+    if(tk.sw){ ends+=tk.spurs; nsw++; wc.forEach((c,i)=>{ if(i!==tk.ci && i!==tk.through) spurs.push(c); }); T=wc[tk.through]; }
+    else T=wc[1-tk.ci];
+  }
+  if(Math.hypot(T.x,T.y)>1.5 || Math.abs(normA(T.a))>0.02) return null;
+  const res={capped:0,open:0}; spurs.forEach(c=>genSpur(O,grid,rem,c,res));
+  return {pieces:grid.pcs, ends:res.capped+res.open, capped:res.capped, nsw, loop:true};
+}
+function genLine(O,avail){   // no loop possible: a line with both ends finished
+  const rem={...avail}, grid=genGrid(), res={capped:0,open:0};
+  const st=O.plain.filter(r=>(rem[r.id]||0)>0); if(!st.length) return null;
+  const r=pick(st), p={type:r.id,x:0,y:0,rot:0,mirror:r.mirror,level:0}; alignTo(p,r.ci,{x:0,y:0,a:0,g:"M",lv:0}); grid.add(p); rem[r.id]--;
+  const wc=worldConns(p); const run=(c)=>{ let cur=c; const n=2+rnd(8);
+    for(let i=0;i<n;i++){ const opts=shuffle(O.grow.filter(q=>q.eg!==cur.g && (rem[q.id]||0)>0)).slice(0,6); let ok=false;
+      for(const q of opts){ const z={type:q.id,x:0,y:0,rot:0,mirror:q.mirror,level:0}; alignTo(z,q.ci,cur); if(!grid.ok(z)) continue; grid.add(z); rem[q.id]--; cur=worldConns(z)[1-q.ci]; ok=true; break; }
+      if(!ok) break; }
+    genSpur(O,grid,rem,cur,{capped:0,open:0}); return cur; };
+  // genSpur adds 0–3 more pieces and a cap; count the ends ourselves
+  const before=()=>grid.pcs.filter(q=>types[q.type].stop||types[q.type].carRamp).length;
+  run(wc[1-r.ci]); run(wc[r.ci]);
+  const capped=before();
+  return {pieces:grid.pcs, ends:2, capped, nsw:0, loop:false};
+}
+/* place the layout on the floor: try turning it so it fits, centred on (0,0) */
+function genFit(L,W,D){
+  const pts=[]; L.pieces.forEach(p=>pieceSamples(p,15).forEach(s=>pts.push(s)));
+  let best=null;
+  for(let deg=0;deg<180;deg+=7.5){ const a=deg*D2R, c=Math.cos(a), s=Math.sin(a); let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+    pts.forEach(q=>{ const x=q.x*c-q.y*s, y=q.x*s+q.y*c; x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y); });
+    const w=x1-x0+2*HALF, h=y1-y0+2*HALF;
+    if(w<=W && h<=D){ const sc=(deg%90===0?0:1)+(deg%45===0?0:1); if(!best||sc<best.sc){ best={a,sc,cx:(x0+x1)/2,cy:(y0+y1)/2}; if(sc===0) break; } }
+  }
+  if(!best) return false;
+  const c=Math.cos(best.a), s=Math.sin(best.a);
+  L.pieces.forEach(p=>{ const x=p.x*c-p.y*s-best.cx, y=p.x*s+p.y*c-best.cy; p.x=x; p.y=y; p.rot=normA(p.rot+best.a); delete p.wc; });
+  return true;
+}
+function generateLayout(W,D,maxEnds,ms=900){
+  const avail={}; typeList.forEach(t=>avail[t.id]=S.inv[t.id]||0);
+  const O=genOptions(); let best=null, tries=0, valid=0; const t0=performance.now();
+  while(performance.now()-t0<ms){ tries++;
+    let L=null;
+    const k=Math.random()<0.7?2:4;
+    L=genLoop(O,k,avail,maxEnds);
+    if(!L && maxEnds>=2 && Math.random()<0.05) L=genLine(O,avail);
+    if(!L || L.ends>maxEnds) continue;
+    if(!genFit(L,W,D)) continue;
+    valid++;
+    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw;
+    if(!best||sc>best.sc){ best=L; best.sc=sc; }
+  }
+  if(best) best.stats={tries,valid};
+  return best;
+}
+function runGenerator(fromKids){
+  const g=S.gen||(S.gen={w:200,d:150,ends:2,show:true});
+  if(!typeList.some(t=>(S.inv[t.id]||0)>0)){ toast("Enter your pieces in the Inventory first"); return false; }
+  const L=generateLayout(g.w*10,g.d*10,g.ends);
+  if(!L){ if(!fromKids) document.getElementById("gMsg").textContent="Couldn't make a track that fits — try a bigger floor, more dead ends, or add curves to your inventory."; return false; }
+  snapshot(); S.pieces=L.pieces.map(p=>({id:S.nextId++,type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:0}));
+  S.floor={w:g.w*10,d:g.d*10}; sel=null; active=null; save(); refresh(); fit();
+  const msg=`${L.pieces.length} pieces${L.loop?", one loop":""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
+  if(!fromKids) document.getElementById("gMsg").textContent=msg;
+  toast(fromKids?"Here's a new track! 🚂":msg);
+  return true;
+}
+{ const M=document.getElementById("genModal"), $=id=>document.getElementById(id);
+  document.getElementById("bGen").onclick=()=>{ const g=S.gen||(S.gen={w:200,d:150,ends:2,show:true});
+    $("gW").value=g.w; $("gD").value=g.d; $("gE").value=g.ends; $("gShow").checked=!!g.show; $("gMsg").textContent=""; M.classList.add("show"); };
+  const read=()=>{ S.gen={w:Math.max(40,+$("gW").value||200), d:Math.max(40,+$("gD").value||150), ends:Math.min(8,Math.max(0,Math.round(+$("gE").value||0))), show:$("gShow").checked}; save(); };
+  $("gGo").onclick=()=>{ read(); $("gMsg").textContent="Thinking…"; setTimeout(()=>{ if(runGenerator(false)) M.classList.remove("show"); },20); };
+  $("gShow").onchange=()=>{ read(); renderFloor(); };
+  $("gClose").onclick=()=>M.classList.remove("show");
+  M.onclick=e=>{ if(e.target===M) M.classList.remove("show"); };
 }
 
 /* ---------- Pointer interaction (mouse, pen and touch; two fingers pinch-zoom and pan) ---------- */
@@ -1176,7 +1375,7 @@ document.getElementById("bDown").onclick=()=>levelSel(-1);
 document.getElementById("bFit").onclick=fit;
 document.getElementById("bZin").onclick=()=>zoom(1/1.3);
 document.getElementById("bZout").onclick=()=>zoom(1.3);
-document.getElementById("bDemo").onclick=demo;
+document.getElementById("bDemo").onclick=()=>{ if(S.kids && typeList.some(t=>(S.inv[t.id]||0)>0) && runGenerator(true)) return; demo(); };
 function setKids(on){
   S.kids=!!on; document.body.classList.toggle("kids",S.kids); wasClosed=null;
   if(S.kids){ S.sideHidden=false; document.getElementById("app").classList.remove("noside"); document.getElementById("pinfo").classList.remove("show"); groupMode=false; }
@@ -1319,8 +1518,9 @@ function solidMesh(p,t,h0,mat){
   const shapes=pieceOutline(t).map(poly=>{ const sh=new THREE.Shape(poly[0].slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1])));
     poly.slice(1).forEach(hl=>sh.holes.push(new THREE.Path(hl.slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1]))))); return sh; });
   const g=new THREE.ExtrudeGeometry(shapes,{depth:S.thick,bevelEnabled:false,curveSegments:1});
-  const pos=g.attributes.position;
-  for(let i=0;i<pos.count;i++){ const w=worldPt(p,pos.getX(i),pos.getY(i)); pos.setXYZ(i,w.x,h0+pos.getZ(i),w.y); }
+  const pos=g.attributes.position, L=t.lanes[0].len||1;
+  const zf = t.carRamp ? (x,z)=> z*(1-0.88*Math.min(1,Math.max(0,(x-8)/(L-8)))) : (x,z)=>z;   // car ramp: top slopes down to the floor
+  for(let i=0;i<pos.count;i++){ const x=pos.getX(i), w=worldPt(p,x,pos.getY(i)); pos.setXYZ(i,w.x,h0+zf(x,pos.getZ(i)),w.y); }
   g.computeVertexNormals();
   const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; return m;
 }
@@ -1366,7 +1566,7 @@ function build3D(){
     t.lanes.forEach(l=>{
       if(t.deck) G.add(ribbon(p,l,mDeck,(lv,u)=>hf(lv,u)-6,HALF+4,6)); // red girder under the bridge deck
       // grooves: 6 mm wide, 3 mm deep (drawn as darker channels just below the top surface)
-      [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick+0.08,3,0.1,o); gr.castShadow=false; gr.receiveShadow=true; G.add(gr); });
+      if(!t.carRamp) [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick+0.08,3,0.1,o); gr.castShadow=false; gr.receiveShadow=true; G.add(gr); });
       if(env){ const e=ribbon(p,l,mEnv,(lv,u)=>hf(lv,u)+S.thick,HALF-3,S.trainH); e.castShadow=false; e.receiveShadow=false; G.add(e); }
     });
     if(t.stop){ // buffer: a block across the closed end with red/white stripes
@@ -1959,7 +2159,8 @@ function scAddToInv(){
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
-window.__planner={addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
+window.__dbg={samples:p=>pieceSamples(p,10), wc:p=>worldConns(p)};
+window.__planner={generateLayout, runGenerator, addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
 window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
 /* ---------- Start ---------- */

@@ -7,6 +7,8 @@ Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own
 - Gap measurement, plus **joint play**: a loop a few mm off is checked against the play in every peg-and-hole joint, and one tap bends it shut
 - Bridges and ramps with height levels, plus a **3D view** and a **clearance check** for track passing under bridges
 - Custom pieces for anything that isn't in the list
+- **Random track**: makes a layout from your inventory that fits a floor size you give, with at most the number of dead ends you allow (finished with buffer stops or ramp tracks when you have them)
+- **Kids mode**: big colourful buttons, only the pieces you own, a 🎲 Surprise button; hold 🔒 Grown-ups for 2 s to leave
 - **Scan your inventory with the camera**: photograph your pieces next to a sheet of A4 paper, tap its corners, and the app measures and recognises each piece (you check and correct before adding)
 - Made for iPad: pinch to zoom, big buttons, a floating toolbar next to the selected piece, +/− steppers
 - Works offline and can be added to the iPad/iPhone home screen as an app
@@ -50,6 +52,6 @@ An open app updates the next time it is started while online.
 
 ## Dimensions and sources
 
-- BRIO: [woodenrailway.info track guide](https://woodenrailway.info/track/brio-track-guide) — the full range (straights and gender variants, curves, double curves, L/M, O1/P1, O/P, I/J, Q, F/G, F1/G1, F2/G2, T, H, H1, H2, H3, K1, buffer stops, N/N1 ascending track). Track 40 mm wide and 12 mm high; grooves 6 mm wide, 3 mm deep, 26 mm apart; peg 11.5 mm on a 7 mm neck; hole 15–17 mm with a 5 mm throat; double track 46 mm apart; ramps rise 64 mm.
+- BRIO: [woodenrailway.info track guide](https://woodenrailway.info/track/brio-track-guide) — the full range (straights and gender variants, curves, double curves, L/M, O1/P1, O/P, I/J, Q, F/G, F1/G1, F2/G2, T, H, H1, H2, H3, K1, buffer stops R/S, U/V ramp tracks, N/N1 ascending track). Track 40 mm wide and 12 mm high; grooves 6 mm wide, 3 mm deep, 26 mm apart; peg 11.5 mm on a 7 mm neck; hole 15–17 mm with a 5 mm throat; double track 46 mm apart; ramps rise 64 mm.
 - IKEA LILLABO: [trackdrawer.com – IKEA Lillabo](https://trackdrawer.com/systemen/ikea-lillabo) (straights 50/100/146/205/240 mm, curves 45° R205 and 22.5° R200, ramp 205 mm, parallel spacing 40 mm, grooves 25.7 mm apart).
 - Only pieces confirmed by these two sources are included. The LILLABO Y's length isn't published; ~150 mm was measured from a photo. Measure yours and correct them with a custom piece.
