@@ -1222,8 +1222,8 @@ function build3D(){
   const mPier=new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.9});
   const mEnv=new THREE.MeshBasicMaterial({color:0x4a8ad8,transparent:true,opacity:0.13,depthWrite:false,side:THREE.DoubleSide});
   const mGrooveM=new THREE.MeshStandardMaterial({color:0x9a6d40,roughness:0.9});
-  const mHole=new THREE.MeshStandardMaterial({color:0x4a3826,roughness:1});
-  const mPeg=new THREE.MeshStandardMaterial({color:0xe2bd88,roughness:0.75});
+  const mHole=new THREE.MeshStandardMaterial({color:0xcfc7b8,roughness:1});   // you see the (shaded) floor through a hole
+  const mPeg=new THREE.MeshStandardMaterial({color:0xd8ae76,roughness:0.8});    // same beech as the track, a touch darker so it reads
   const env=document.getElementById("c3Env").checked;
   const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise;
   S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
