@@ -69,6 +69,43 @@
   .modal textarea{height:180px;font-family:ui-monospace,Menlo,monospace;font-size:12px}
   .modal .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
   .piece{cursor:move}
+  /* ---- side panel: tabs, palette tiles, inventory rows ---- */
+  aside header{ padding:12px 12px 0 }
+  aside h1{ margin-bottom:8px }
+  .tabs{ display:flex; gap:0; border-bottom:1px solid var(--line) }
+  .tabs button{ flex:1; border:0; border-bottom:3px solid transparent; border-radius:0; background:none; box-shadow:none; font-weight:600; color:var(--muted); min-height:40px }
+  .tabs button.on{ color:var(--ink); border-bottom-color:var(--accent) }
+  .bar{ display:flex; justify-content:space-between; align-items:center; gap:8px; margin:8px 4px; flex-wrap:wrap }
+  .seg{ display:flex; align-items:center; gap:4px; font-size:12px; color:var(--muted) }
+  .seg button{ min-height:30px; padding:3px 10px; font-size:12px; box-shadow:none }
+  .seg button.on{ background:var(--accent); color:#fff; border-color:var(--accent) }
+  .chk2{ display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted) }
+  .chk2 input{ width:auto }
+  .hint2{ font-size:12px; color:var(--muted); margin:4px 6px 8px; line-height:1.4 }
+  .grp{ cursor:pointer } .grp .gn{ text-transform:none; letter-spacing:0 }
+  .tiles{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:6px; padding:0 4px 6px }
+  .tile{ position:relative; display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 4px 6px; border:1px solid var(--line);
+         border-radius:10px; background:#fff; cursor:pointer; text-align:center; touch-action:manipulation }
+  .tile:hover{ background:#f6efe2 } .tile:active{ transform:scale(.97) }
+  .tile svg{ width:56px; height:40px }
+  .tile .tn{ font-size:11.5px; line-height:1.15; font-weight:600; min-height:2.3em; display:flex; align-items:center }
+  .tile .badge{ font-size:10.5px; color:var(--muted) } .badge.zero{ color:var(--warn) } .badge.neg{ color:var(--bad); font-weight:700 }
+  .info{ position:absolute; top:3px; right:3px; width:22px; height:22px; min-height:0; padding:0; border-radius:50%; font:italic 700 12px Georgia,serif; color:var(--muted); box-shadow:none }
+  .irow{ position:relative; display:grid; grid-template-columns:46px minmax(0,1fr) 26px auto; gap:8px; align-items:center; padding:6px 6px; border-bottom:1px solid #f1ebe0 }
+  .irow svg{ width:46px; height:34px }
+  .irow .nm{ font-size:13px; font-weight:600; line-height:1.2 } .irow .sub{ display:block; font-weight:400; font-size:11px; color:var(--muted) } .irow .neg{ color:var(--bad) }
+  .irow .info{ position:static }
+  #bScan{ margin:8px 4px; width:calc(100% - 8px) }
+  .mk{ display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.04em; padding:0 5px; border-radius:4px; line-height:15px; vertical-align:1px }
+  .mk.br{ background:#fde3d8; color:#a3361f } .mk.ik{ background:#dbe7fb; color:#1f4fa3 } .mk.cu{ background:#ece6da; color:#6b5f50 }
+  .sets{ padding:4px 8px 16px } .sets h3{ font-size:13px; margin:14px 0 4px } .sets label{ display:block; font-size:12.5px; color:var(--muted); margin-top:6px }
+  .sets input[type=number]{ width:100%; padding:6px; border:1px solid var(--line); border-radius:6px; font:inherit }
+  #pinfo{ position:absolute; left:8px; right:8px; bottom:8px; z-index:4; display:none; background:#fff; border:1px solid var(--line); border-radius:12px;
+          box-shadow:0 8px 30px rgba(0,0,0,.18); padding:12px; font-size:13px }
+  #pinfo.show{ display:block } #pinfo p{ margin:6px 0 } #pinfo .pcard{ display:flex; gap:10px; align-items:center } #pinfo svg{ width:70px; height:50px }
+  #pinfo .pbtns{ display:flex; gap:8px; justify-content:flex-end }
+  aside{ position:relative }
+  @media (pointer:coarse){ .tile svg{ width:64px; height:46px } .tile .tn{ font-size:12.5px } .info{ width:28px; height:28px } .irow{ grid-template-columns:52px minmax(0,1fr) 30px auto; padding:8px 6px } }
   /* ---- scanner ---- */
   .scan{ position:fixed; inset:0; z-index:20; background:#1f1c18; color:#fff; display:none; flex-direction:column;
          padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left) }
@@ -109,6 +146,7 @@
   #app.noside aside{ display:none }
   .scanbtn{ width:100%; margin-top:8px; background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600 }
   .stepper{ display:flex; align-items:center; gap:2px }
+  .stepper input{ padding:2px 4px; border:1px solid var(--line); border-radius:5px; font:inherit; font-size:12px; background:#fff }
   .stepper .stp{ min-height:0; width:26px; height:26px; padding:0; font-size:16px; line-height:1; box-shadow:none }
   .stepper input{ width:38px !important; text-align:center !important }
   #selbar{ position:absolute; z-index:3; transform:translateX(-50%); display:none; gap:4px; padding:5px; background:var(--panel);
@@ -155,10 +193,10 @@
   <aside>
     <header>
       <h1>Wooden Track Planner</h1>
-      <p>BRIO &amp; IKEA LILLABO compatible · set how many you own, tap a piece to add it</p>
-      <button id="bScanTop" class="scanbtn">📷 Scan pieces with the camera</button>
+      <nav class="tabs" id="tabs"><button data-tab="pieces">Pieces</button><button data-tab="inventory">Inventory</button><button data-tab="settings">Settings</button></nav>
     </header>
     <div id="inv"></div>
+    <div id="pinfo"></div>
   </aside>
   <main>
     <svg id="svg" xmlns="http://www.w3.org/2000/svg">
@@ -302,8 +340,8 @@ const BASE = [
   {grp:"BRIO adapters & ends", id:"C1", name:"Short straight, two holes C1", dim:"108 mm (retired)", lanes:[{k:"s",len:108,g:["F","F"]}]},
   {grp:"BRIO adapters & ends", id:"B",  name:"Medium straight, two pegs B", dim:"144 mm (retired)", lanes:[{k:"s",len:144,g:["M","M"]}]},
   {grp:"BRIO adapters & ends", id:"C",  name:"Medium straight, two holes C", dim:"144 mm (retired)", lanes:[{k:"s",len:144,g:["F","F"]}]},
-  {grp:"BRIO adapters & ends", id:"R",  name:"Buffer stop R", dim:"40 mm · hole end", lanes:[{k:"s",len:40,g:["F","M"],c:[true,false]}]},
-  {grp:"BRIO adapters & ends", id:"S",  name:"Buffer stop S", dim:"40 mm · peg end", lanes:[{k:"s",len:40,g:["M","F"],c:[true,false]}]},
+  {grp:"BRIO adapters & ends", id:"R",  name:"Buffer stop R", dim:"40 mm · hole end · striped barrier", stop:true, lanes:[{k:"s",len:40,g:["F","M"],c:[true,false]}]},
+  {grp:"BRIO adapters & ends", id:"S",  name:"Buffer stop S", dim:"40 mm · peg end · striped barrier", stop:true, lanes:[{k:"s",len:40,g:["M","F"],c:[true,false]}]},
   /* IKEA LILLABO — dimensions from trackdrawer.com/systemen/ikea-lillabo (12 pieces): track 40 mm wide, 12 mm high,
      grooves 25.7 mm apart, parallel tracks 40 mm apart. IKEA has no tight curve: its short curve is a 22.5° piece. */
   {grp:"IKEA LILLABO", id:"I240", name:"IKEA long straight",   dim:"240 mm · LB-240 (BRIO D is 216)", lanes:[{k:"s",len:240}]},
@@ -333,7 +371,8 @@ const BASE = [
 const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,MM:1,FF:1};
 
 /* ---------- State ---------- */
-let S = {pieces:[], inv:{...DEFAULT_INV}, custom:[], tolPos:3, tolAng:3, gender:true, nextId:1, collapsed:{}, rise:64, trainH:45, thick:12, learned:{}};
+let S = {pieces:[], inv:{...DEFAULT_INV}, custom:[], tolPos:3, tolAng:3, gender:true, nextId:1, collapsed:{}, rise:64, trainH:45, thick:12, learned:{},
+         tab:"pieces", groupBy:"type", showAll:false, showRetired:false, playPos:1.5, playAng:1.5};
 let types = {}, typeList = [];
 let sel = null;        // selected piece id
 let active = null;     // {pid, ci} open end to extend from
@@ -399,6 +438,11 @@ function buildType(t){
     if(c.g==="M"){ pegs+=rect(c,-1,7,3.5)+circ(c.x+ox*11.75,c.y+oy*11.75,5.75); }
     else { holes+=rect(c,-6,0.5,2.5)+circ(c.x-ox*10,c.y-oy*10,8); } });
   t.pegs=pegs; t.holes=holes;
+  if(t.stop){ // striped barrier across the closed end (last 10 mm), red and white stripes
+    const L=t.lanes[0].len; let st=`M${L-10} ${-HALF}L${L} ${-HALF}L${L} ${HALF}L${L-10} ${HALF}Z`, wh="";
+    for(let y=-HALF+5;y<HALF;y+=10) wh+=`M${L-10} ${y}L${L} ${y}L${L} ${y+5}L${L-10} ${y+5}Z`;
+    t.barrier={red:st, white:wh};
+  }
   const cx=C.reduce((s,c)=>s+c.x,0)/C.length, cy=C.reduce((s,c)=>s+c.y,0)/C.length;
   t.center={x:cx,y:cy};
   return t;
@@ -413,6 +457,21 @@ function rebuildTypes(){
   if(defs) defs.innerHTML=g;
 }
 const byId = id => S.pieces.find(p=>p.id===id);
+/* grouping: by what a piece does, or by who makes it */
+const CAT_ORDER=["Straights","Curves","Switches","Crossings","Double track","Adapters & ends","Bridges & ramps","Custom"];
+const CAT_FIXED={H:"Crossings",H1:"Crossings",H2:"Crossings",H3:"Crossings",EE:"Double track",EE1:"Double track",K1:"Double track",R:"Adapters & ends",S:"Adapters & ends"};
+function catOf(t){
+  if(t.grp==="Custom") return "Custom";
+  if(CAT_FIXED[t.id]) return CAT_FIXED[t.id];
+  if(t.ramp||t.deck) return "Bridges & ramps";
+  if(t.conns.length>2) return "Switches";
+  const g=t.conns.map(c=>c.g).sort().join("");
+  if(g==="MM"||g==="FF") return "Adapters & ends";
+  return t.lanes.some(l=>l.k==="a") ? "Curves" : "Straights";
+}
+const MAKE_ORDER=["BRIO","IKEA LILLABO","Custom"];
+const makeOf=t=> t.grp==="Custom" ? "Custom" : (t.grp==="IKEA LILLABO"||t.id==="IRAMP") ? "IKEA LILLABO" : "BRIO";
+const isRetired=t=>/retired/.test(t.dim||"");
 function localConns(p){ return types[p.type].conns.map(c => p.mirror ? {x:c.x,y:-c.y,a:-c.a,g:c.g,lv:c.lv} : c); }
 function toWorld(p,c){ const q=compose({x:p.x,y:p.y,a:p.rot},{x:c.x,y:c.y,a:c.a}); q.a=normA(q.a); q.g=c.g; q.lv=(p.level||0)+c.lv; return q; }
 /* level the piece must sit at so its connector ci meets target T (null if impossible) */
@@ -444,6 +503,74 @@ function computeLinks(){
   }
 }
 const isFree = (pid,ci) => !linkOf[pid+":"+ci];
+
+/* ---------- Joint play ----------
+   Each joint can shift ~playPos mm and turn ~playAng°. If two loose ends belong to the same chain (a loop that is
+   slightly off), the gap closes if the joints along the chain can absorb it: the angle error needs one small turn
+   per joint, and the distance can be made up by the shifts plus the leftover turn at each joint × its distance
+   from the gap. */
+let GAPS=[];
+function chainPath(fromId,toId){                 // pieces and joints between two pieces, through existing joints
+  const prev=new Map([[fromId,null]]), q=[fromId];
+  while(q.length){ const id=q.shift(); if(id===toId) break;
+    (W[id]||[]).forEach((c,ci)=>{ const l=linkOf[id+":"+ci]; if(l && !prev.has(l.pid)){ prev.set(l.pid,{from:id,ci,pos:c}); q.push(l.pid); } }); }
+  if(!prev.has(toId)) return null;
+  const pieces=[toId], joints=[]; let cur=toId;
+  while(prev.get(cur)){ const st=prev.get(cur); joints.unshift({pos:{x:st.pos.x,y:st.pos.y}, a:st.from, ci:st.ci, b:cur}); cur=st.from; pieces.unshift(cur); }
+  return {pieces,joints};
+}
+/* Linearised solve: every joint k may turn by φk (|φk| ≤ playAng) about its own point and slide sk (|sk| ≤ playPos)
+   along the track. Find the smallest such movements (relative to their limits) that bring end B onto end A with the
+   right angle: u = Jᵀ (J Jᵀ + λI)⁻¹ r on normalised variables. Feasible when no joint needs more than its play. */
+function jointPos(j){ return worldConns(byId(j.a))[j.ci]; }
+function flexSolve(path,A,B){
+  const aPer=Math.max(1e-6,S.playAng*D2R), pPer=Math.max(1e-6,S.playPos), K=path.joints.length, AW=100;   // 100 mm per radian weighting
+  const r=[A.x-B.x, A.y-B.y, AW*normA(A.a+Math.PI-B.a)], cols=[];
+  path.joints.forEach(j=>{ const P=jointPos(j);
+    cols.push([aPer*-(B.y-P.y), aPer*(B.x-P.x), AW*aPer]);            // turn
+    cols.push([pPer*Math.cos(P.a), pPer*Math.sin(P.a), 0]); });       // slide along the joint
+  const M=[[1e-6,0,0],[0,1e-6,0],[0,0,1e-6]]; cols.forEach(c=>{ for(let i=0;i<3;i++) for(let k=0;k<3;k++) M[i][k]+=c[i]*c[k]; });
+  const y=solveLin(M,r), u=cols.map(c=>c[0]*y[0]+c[1]*y[1]+c[2]*y[2]);
+  return {u, worst:Math.max(0,...u.map(Math.abs)), aPer, pPer, K};
+}
+function flexCheck(A,B,d,ang){
+  const path=chainPath(A.p.id,B.p.id);
+  if(!path||!path.joints.length) return {ok:false, loop:false};
+  const sol=flexSolve(path,A.c,B.c);
+  return {ok: sol.worst<=1, loop:true, need:sol.worst, path};
+}
+/* Bend the chain shut by applying the solve a few times (re-linearising), never past a joint's play. Joints keep
+   within the snap tolerance, so every connection still holds. */
+function closeWithPlay(aKey,bKey){
+  const [aid,aci]=aKey.split(":").map(Number), [bid,bci]=bKey.split(":").map(Number);
+  computeLinks(); const path=chainPath(aid,bid); if(!path||!path.joints.length) return;
+  snapshot(); const backup=JSON.stringify(S.pieces);
+  const sideOf=k=>{ const j=path.joints[k], seen=new Set([j.b]), q=[j.b];
+    while(q.length){ const id=q.pop(); (W[id]||[]).forEach((c,ci)=>{ const l=linkOf[id+":"+ci]; if(!l) return;
+      if((id===j.b&&l.pid===j.a)||(id===j.a&&l.pid===j.b)) return; if(!seen.has(l.pid)){ seen.add(l.pid); q.push(l.pid); } }); }
+    return seen.has(aid)?null:[...seen]; };
+  const movers=path.joints.map((_,k)=>sideOf(k)), total=path.joints.map(()=>[0,0]);
+  const ends=()=>({A:worldConns(byId(aid))[aci], B:worldConns(byId(bid))[bci]});
+  for(let it=0; it<12; it++){
+    const {A,B}=ends(); if(Math.hypot(A.x-B.x,A.y-B.y)<0.5 && Math.abs(normA(A.a-B.a-Math.PI))<0.2*D2R) break;
+    const sol=flexSolve(path,A,B);
+    // apply from the far end back, so each joint's own point is still where the solve assumed
+    for(let k=path.joints.length-1;k>=0;k--){ if(!movers[k]) continue;
+      let du=sol.u[2*k], dv=sol.u[2*k+1];
+      du=Math.max(-1-total[k][0],Math.min(1-total[k][0],du)); dv=Math.max(-1-total[k][1],Math.min(1-total[k][1],dv));
+      total[k][0]+=du; total[k][1]+=dv;
+      const P=jointPos(path.joints[k]), phi=du*sol.aPer, sh=dv*sol.pPer, c=Math.cos(phi), sn=Math.sin(phi);
+      movers[k].forEach(id=>{ const q=byId(id), dx=q.x-P.x, dy=q.y-P.y;
+        q.x=P.x+dx*c-dy*sn+sh*Math.cos(P.a); q.y=P.y+dx*sn+dy*c+sh*Math.sin(P.a); q.rot=normA(q.rot+phi); });
+    }
+    computeLinks();
+  }
+  computeLinks();
+  if(!isFree(aid,aci) || !isFree(bid,bci)){
+    const turn=Math.max(...total.map(t=>Math.abs(t[0])))*S.playAng, slide=Math.max(...total.map(t=>Math.abs(t[1])))*S.playPos;
+    toast(`Closed — each joint turns ≤ ${turn.toFixed(1)}° and slides ≤ ${slide.toFixed(1)} mm`); refresh();
+  } else { S.pieces=JSON.parse(backup); hist.pop(); toast("Couldn't close it within the play"); refresh(); }
+}
 
 /* ---------- Rendering ---------- */
 const svg=document.getElementById("svg"), LP=document.getElementById("layerPieces"), LM=document.getElementById("layerMarks");
@@ -517,7 +644,8 @@ function renderPieces(){
     h+=`<g class="piece" data-id="${p.id}" transform="${tf(0,0)}">`+
        `<path d="${t.band}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="round"/>`+
        `<path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="5" stroke-linecap="butt" opacity=".45"/>`+
-       (t.holes?`<path d="${t.holes}" fill="#f8f6f1" stroke="var(--wood-edge)" stroke-width="0.8"/>`:"");
+       (t.holes?`<path d="${t.holes}" fill="#f8f6f1" stroke="var(--wood-edge)" stroke-width="0.8"/>`:"")+
+       (t.barrier?`<path d="${t.barrier.red}" fill="#d23c2f" stroke="#7a1f17" stroke-width="0.8"/><path d="${t.barrier.white}" fill="#fff"/>`:"");
     if(t.pegs) pegLayer+=`<path class="piece" data-id="${p.id}" transform="${tf(0,0)}" d="${t.pegs}" fill="${s?"#ecc794":t.ramp?"#dcb37c":(p.level>0?"#e6c08b":"var(--wood)")}" stroke="${stroke}" stroke-width="${Math.min(sw,1.2)}"/>`;
     if(t.ramp){ const L=t.lanes[0].len; for(let x=L*0.3;x<L*0.85;x+=L*0.22) h+=`<path d="M${x-8} -9 L${x+4} 0 L${x-8} 9" fill="none" stroke="#7a5530" stroke-width="2.5" opacity=".7"/>`; }
     if(p.level>0 && !t.ramp){ const c=t.center; h+=`<text x="${c.x}" y="${(p.mirror?-1:1)*(c.y)+4}" transform="scale(1 ${p.mirror?-1:1})" text-anchor="middle" font-size="11" font-weight="700" fill="#4a5a72">▲${p.level}</text>`; }
@@ -540,13 +668,18 @@ function renderMarks(){
     else h+=`<g class="end" data-pid="${p.id}" data-ci="${ci}"><circle cx="${c.x-ox*4}" cy="${c.y-oy*4}" r="${hitR}" fill="transparent"/><circle cx="${c.x-ox*10}" cy="${c.y-oy*10}" r="5" fill="${c.lv?"#dce8fb":"#fff"}" stroke="${c.lv?"#2d5597":"#e08a2e"}" stroke-width="2.2"/></g>`;
   }));
   // near misses between free ends (gaps that almost close)
+  GAPS=[];
   for(let i=0;i<free.length;i++) for(let j=i+1;j<free.length;j++){
-    const A=free[i],B=free[j]; if(A.p.id===B.p.id || A.c.lv!==B.c.lv) continue;
-    const d=Math.hypot(A.c.x-B.c.x,A.c.y-B.c.y); if(d>45) continue;
+    const A=free[i],B=free[j]; if(A.p.id===B.p.id || A.c.lv!==B.c.lv || A.c.g===B.c.g&&S.gender) continue;
+    const d=Math.hypot(A.c.x-B.c.x,A.c.y-B.c.y); if(d>60) continue;
     const da=Math.abs(normA(A.c.a-B.c.a-Math.PI))/D2R; if(da>25) continue;
-    const mx=(A.c.x+B.c.x)/2, my=(A.c.y+B.c.y)/2;
-    h+=`<line x1="${A.c.x}" y1="${A.c.y}" x2="${B.c.x}" y2="${B.c.y}" stroke="var(--warn)" stroke-width="2.5" stroke-dasharray="4 3"/>`+
-       `<g transform="translate(${mx} ${my-16})"><rect x="-40" y="-11" width="80" height="18" rx="5" fill="#fff6e3" stroke="var(--warn)"/><text text-anchor="middle" y="2" font-size="11" fill="#8a5a00">gap ${d.toFixed(0)} mm${da>=1?" · "+da.toFixed(0)+"°":""}</text></g>`;
+    const fx=flexCheck(A,B,d,da*D2R); GAPS.push({A,B,d,da,fx});
+    const mx=(A.c.x+B.c.x)/2, my=(A.c.y+B.c.y)/2, ok=fx.ok, col=ok?"var(--ok)":"var(--warn)";
+    const txt = ok ? `gap ${d.toFixed(0)} mm · closes with play · tap` : `gap ${d.toFixed(0)} mm${da>=1?" · "+da.toFixed(0)+"°":""}${fx.loop?` · needs ${Math.round(fx.need*100)}% of the play`:""}`;
+    const tw=txt.length*6.6+20, k=Math.max(1,z);           // label stays ~13 px tall on screen at any zoom
+    h+=`<line x1="${A.c.x}" y1="${A.c.y}" x2="${B.c.x}" y2="${B.c.y}" stroke="${col}" stroke-width="${2.5*k}" stroke-dasharray="${4*k} ${3*k}"/>`+
+       `<g class="${ok?"flexfix":""}" data-a="${A.p.id}:${A.ci}" data-b="${B.p.id}:${B.ci}" transform="translate(${mx} ${my-22*k}) scale(${k})" style="${ok?"cursor:pointer":""}">`+
+       `<rect x="${-tw/2}" y="-14" width="${tw}" height="24" rx="7" fill="${ok?"#e9f6ee":"#fff6e3"}" stroke="${col}" stroke-width="1.2"/><text text-anchor="middle" y="3" font-size="12.5" font-weight="600" fill="${ok?"#1f6a43":"#8a5a00"}">${txt}</text></g>`;
   }
   computeClearance(); h+=renderClearance();
   LM.innerHTML=h;
@@ -562,7 +695,11 @@ function renderStatus(free){
   if(!n){ st.innerHTML=`<span class="pill">Empty — click a piece in the list to start</span>`; return; }
   const clashes=links.filter(l=>l.clash).length, b=bbox();
   let h=`<span class="pill">${n} pieces</span>`;
-  h+= free.length? `<span class="pill warn">${free.length} open end${free.length>1?"s":""}</span>` : `<span class="pill ok">✓ closed layout, no open ends</span>`;
+  const flexOK=GAPS.filter(g=>g.fx.ok), coveredEnds=new Set(); flexOK.forEach(g=>{ coveredEnds.add(g.A.p.id+":"+g.A.ci); coveredEnds.add(g.B.p.id+":"+g.B.ci); });
+  const openLeft=free.filter(f=>!coveredEnds.has(f.p.id+":"+f.ci)).length;
+  h+= !free.length ? `<span class="pill ok">✓ closed layout, no open ends</span>`
+     : !openLeft ? `<span class="pill ok">✓ closes with joint play (${flexOK.length} gap${flexOK.length>1?"s":""} — tap the green label to close)</span>`
+     : `<span class="pill warn">${free.length} open end${free.length>1?"s":""}${flexOK.length?` · ${flexOK.length} close with play`:""}</span>`;
   if(clashes) h+=`<span class="pill bad">${clashes} wrong-gender join${clashes>1?"s":""} (needs adapter)</span>`;
   const over=typeList.filter(t=>used(t.id)>(S.inv[t.id]||0));
   if(over.length) h+=`<span class="pill bad">More than you own: ${over.map(t=>t.id).join(", ")}</span>`;
@@ -580,46 +717,93 @@ function iconSVG(t){
   const xs=t.pts.map(p=>p.x), ys=t.pts.map(p=>p.y);
   const x0=Math.min(...xs)-6,y0=Math.min(...ys)-6,w=Math.max(...xs)-x0+6,h=Math.max(...ys)-y0+6;
   const sz=Math.max(w,h*46/34);
-  return `<svg viewBox="${x0-(sz-w)/2} ${y0-(sz*34/46-h)/2} ${sz} ${sz*34/46}"><path d="${t.band}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/60}"/><path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="${sz/30}" opacity=".5"/>${t.pegs?`<path d="${t.pegs}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/80}"/>`:""}${t.holes?`<path d="${t.holes}" fill="#fffdf8"/>`:""}</svg>`;
+  return `<svg viewBox="${x0-(sz-w)/2} ${y0-(sz*34/46-h)/2} ${sz} ${sz*34/46}"><path d="${t.band}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/60}"/><path d="${t.grooves}" fill="none" stroke="var(--groove)" stroke-width="${sz/30}" opacity=".5"/>${t.pegs?`<path d="${t.pegs}" fill="var(--wood)" stroke="var(--wood-edge)" stroke-width="${sz/80}"/>`:""}${t.holes?`<path d="${t.holes}" fill="#fffdf8"/>`:""}${t.barrier?`<path d="${t.barrier.red}" fill="#d23c2f"/><path d="${t.barrier.white}" fill="#fff"/>`:""}</svg>`;
 }
+function groupedTypes(filter){
+  const by=S.groupBy==="make"?makeOf:catOf, order=S.groupBy==="make"?MAKE_ORDER:CAT_ORDER, out=new Map();
+  typeList.filter(filter).forEach(t=>{ const g=by(t); if(!out.has(g)) out.set(g,[]); out.get(g).push(t); });
+  return [...out.entries()].sort((a,b)=>order.indexOf(a[0])-order.indexOf(b[0]));
+}
+const groupToggle=()=>`<div class="seg" role="group" aria-label="Group by">Group by <button class="${S.groupBy==="type"?"on":""}" data-groupby="type">Type</button><button class="${S.groupBy==="make"?"on":""}" data-groupby="make">Make</button></div>`;
 function renderInv(){
-  const el=document.getElementById("inv"); let h="", g="";
-  typeList.forEach(t=>{
-    const grp=t.grp||"Custom";
-    if(grp!==g){ g=grp; const nOwn=typeList.filter(x=>(x.grp||"Custom")===grp).reduce((s,x)=>s+(S.inv[x.id]||0),0);
-      h+=`<div class="grp" data-grp="${esc(grp)}" style="cursor:pointer">${S.collapsed[grp]?"▸":"▾"} ${esc(grp)} <span style="text-transform:none;letter-spacing:0">· ${nOwn} owned</span></div>`; }
-    if(S.collapsed[grp]) return;
-    const own=S.inv[t.id]||0, u=used(t.id), left=own-u;
-    h+=`<div class="row" data-type="${t.id}" title="Click to add">${iconSVG(t)}
-      <div><div class="nm">${esc(t.name)}<code>${esc(t.id)}</code></div><div class="dim">${esc(t.dim||"")}</div></div>
-      <div class="cnt"><div class="stepper"><button class="stp" data-dec="${t.id}" aria-label="One less">−</button><input type="number" inputmode="numeric" min="0" value="${own}" data-own="${t.id}" aria-label="How many you own"><button class="stp" data-inc="${t.id}" aria-label="One more">+</button></div>
-      <span class="left ${left<0?"neg":left===0?"zero":""}">${u} used · ${left} left</span></div></div>`;
-  });
-  h+=`<details><summary>Add a custom piece</summary>
-    <p>For IKEA or other brands' odd pieces — measure along the middle of the track.</p>
-    <label>Name<input id="cName" placeholder="e.g. IKEA long curve"></label>
-    <label>Kind<select id="cKind"><option value="s">Straight</option><option value="a">Curve</option><option value="r">Ramp (floor → bridge)</option><option value="b">Bridge deck</option></select></label>
-    <label>Length (mm, straight / ramp / deck)<input id="cLen" type="number" value="144"></label>
-    <label>Centre radius (mm, curve)<input id="cR" type="number" value="202"></label>
-    <label>Angle (°, curve)<input id="cDeg" type="number" value="45"></label>
-    <p><button id="cAdd" class="primary">Add piece type</button></p>
-    ${S.custom.length?`<p>Custom: ${S.custom.map(c=>`${esc(c.name)} <a href="#" data-delc="${c.id}">remove</a>`).join(" · ")}</p>`:""}
-  </details>
-  <details><summary>Settings &amp; dimensions</summary>
-    <label><input type="checkbox" id="sGender" ${S.gender?"checked":""} style="width:auto"> Respect male/female ends</label>
-    <label>Join tolerance — distance (mm)<input id="sTolP" type="number" min="0.5" step="0.5" value="${S.tolPos}"></label>
-    <label>Join tolerance — angle (°)<input id="sTolA" type="number" min="0.5" step="0.5" value="${S.tolAng}"></label>
+  const el=document.getElementById("inv"); let h="";
+  document.querySelectorAll("#tabs [data-tab]").forEach(b=>b.classList.toggle("on",b.dataset.tab===(S.tab||"pieces")));
+  const tab=S.tab||"pieces", owned=t=>(S.inv[t.id]||0)>0;
+  if(tab==="pieces"){
+    const anyOwned=typeList.some(owned), showAll=S.showAll||!anyOwned;
+    h+=`<div class="bar">${groupToggle()}<label class="chk2"><input type="checkbox" data-showall ${showAll?"checked":""} ${anyOwned?"":"disabled"}> All pieces</label></div>`;
+    if(!anyOwned) h+=`<p class="hint2">You haven't entered any track yet — showing everything. Set your counts in <b>Inventory</b> (or scan them) and this list shows just your pieces.</p>`;
+    groupedTypes(t=>showAll ? (!isRetired(t)||owned(t)||S.showRetired) : owned(t)).forEach(([g,list])=>{
+      const k="p:"+g; h+=`<div class="grp" data-grp="${esc(k)}">${S.collapsed[k]?"▸":"▾"} ${esc(g)}</div>`;
+      if(S.collapsed[k]) return;
+      h+=`<div class="tiles">`+list.map(t=>{ const own=S.inv[t.id]||0, left=own-used(t.id);
+        return `<div class="tile" data-type="${t.id}" title="Tap to add">${iconSVG(t)}<span class="tn">${esc(shortName(t))}</span>${makeTag(t)}
+          <span class="badge ${left<0?"neg":left===0?"zero":""}">${own?left+" left":"–"}</span>
+          <button class="info" data-info="${t.id}" aria-label="Details">i</button></div>`; }).join("")+`</div>`;
+    });
+  }
+  if(tab==="inventory"){
+    const total=typeList.reduce((s,t)=>s+(S.inv[t.id]||0),0);
+    h+=`<button id="bScan" class="scanbtn">📷 Scan pieces with the camera</button>
+      <div class="bar">${groupToggle()}<label class="chk2"><input type="checkbox" data-retired ${S.showRetired?"checked":""}> Retired BRIO</label></div>
+      <p class="hint2">${total} piece${total===1?"":"s"} in your collection. Use − / + or type a number.</p>`;
+    groupedTypes(t=>!isRetired(t)||owned(t)||S.showRetired).forEach(([g,list])=>{
+      const k="i:"+g, n=list.reduce((s,t)=>s+(S.inv[t.id]||0),0);
+      h+=`<div class="grp" data-grp="${esc(k)}">${S.collapsed[k]?"▸":"▾"} ${esc(g)} <span class="gn">· ${n}</span></div>`;
+      if(S.collapsed[k]) return;
+      list.forEach(t=>{ const own=S.inv[t.id]||0, u=used(t.id), left=own-u;
+        h+=`<div class="irow">${iconSVG(t)}<div class="nm">${esc(shortName(t))} ${makeTag(t)}<span class="sub">${[u?`${u} in layout`:"", left<0?`<span class="neg">${-left} short</span>`:""].filter(Boolean).join(" · ")}</span></div>
+          <button class="info" data-info="${t.id}" aria-label="Details">i</button>
+          <div class="stepper"><button class="stp" data-dec="${t.id}" aria-label="One less">−</button><input type="number" inputmode="numeric" min="0" value="${own}" data-own="${t.id}" aria-label="How many you own"><button class="stp" data-inc="${t.id}" aria-label="One more">+</button></div></div>`; });
+    });
+    h+=`<details><summary>Add a custom piece</summary>
+      <p>For pieces that aren't in the list — measure along the middle of the track.</p>
+      <label>Name<input id="cName" placeholder="e.g. Hape long curve"></label>
+      <label>Kind<select id="cKind"><option value="s">Straight</option><option value="a">Curve</option><option value="r">Ramp (floor → bridge)</option><option value="b">Bridge deck</option></select></label>
+      <label>Length (mm, straight / ramp / deck)<input id="cLen" type="number" value="144"></label>
+      <label>Centre radius (mm, curve)<input id="cR" type="number" value="202"></label>
+      <label>Angle (°, curve)<input id="cDeg" type="number" value="45"></label>
+      <p><button id="cAdd" class="primary">Add piece type</button></p>
+      ${S.custom.length?`<p>Custom: ${S.custom.map(c=>`${esc(c.name)} <a href="#" data-delc="${c.id}">remove</a>`).join(" · ")}</p>`:""}
+    </details>`;
+  }
+  if(tab==="settings"){
+    h+=`<div class="sets">
+    <h3>Joining</h3>
+    <label class="chk2"><input type="checkbox" id="sGender" ${S.gender?"checked":""}> Respect male/female ends</label>
+    <label>Snap tolerance — distance (mm)<input id="sTolP" type="number" min="0.5" step="0.5" value="${S.tolPos}"></label>
+    <label>Snap tolerance — angle (°)<input id="sTolA" type="number" min="0.5" step="0.5" value="${S.tolAng}"></label>
+    <label>Play per joint — distance (mm)<input id="sPlayP" type="number" min="0" step="0.5" value="${S.playPos}"></label>
+    <label>Play per joint — angle (°)<input id="sPlayA" type="number" min="0" step="0.5" value="${S.playAng}"></label>
+    <p class="hint2">A peg (11.5 mm) sits loosely in its hole (15–17 mm), so every joint can shift and turn a little. The planner uses this to tell whether a loop that is a few mm off will still close.</p>
+    <h3>Bridges &amp; clearance</h3>
     <label>Height of one bridge level (mm)<input id="sRise" type="number" min="20" step="1" value="${S.rise}"></label>
     <label>Track thickness (mm)<input id="sThick" type="number" min="5" step="1" value="${S.thick}"></label>
     <label>Tallest train (mm, rail top to roof)<input id="sTrain" type="number" min="10" step="1" value="${S.trainH}"></label>
-    <p><button id="sForget">Forget what the scanner learned</button> <span style="color:var(--muted)" id="sLearnedN"></span></p>
-    <p>BRIO ramps rise 64 mm and track is 12 mm thick, leaving ~52 mm under a bridge. IKEA ramps top out at ~65 mm. Measure your tallest train (motorised ones are taller) to check clearance.</p>
-    <p>Real wooden track has a few mm of play at each joint, so a layout showing a small gap (under ~5 mm) usually still fits on the floor.</p>
-    <p>Dimensions follow the BRIO track guide on woodenrailway.info: track is 40 mm wide; straights 54 / 72 / 108 / 144 / 216 mm; large curve E 45° with inner edge ≈182 mm; short curve E1 45° with inner edge ≈90 mm. IKEA LILLABO dimensions come from trackdrawer.com: straights 50 / 100 / 146 / 205 / 240 mm, curves 45° at R 205 mm and 22.5° at R 200 mm (centre line), ramp 205 mm, parallel tracks 40 mm apart. So IKEA curves are a touch wider than BRIO's (R 202) and a loop that mixes brands may not close exactly — the planner shows the gap. The double Y's length is still an estimate. Measure yours and correct them with a custom piece if needed. Some owners also report IKEA pegs fitting tightly into BRIO holes.</p>
-  </details>`;
+    <h3>Scanner</h3>
+    <p><button id="sForget">Forget what the scanner learned</button> <span class="hint2" id="sLearnedN"></span></p>
+    <details><summary>Where the dimensions come from</summary>
+      <p>BRIO: woodenrailway.info track guide — track 40 mm wide, 12 mm high, grooves 6 mm wide and 26 mm apart, peg 11.5 mm on a 7 mm neck, hole 15–17 mm, double track 46 mm apart, ascending track rises 64 mm.</p>
+      <p>IKEA LILLABO: trackdrawer.com — straights 50 / 100 / 146 / 205 / 240 mm, curves 45° at R 205 and 22.5° at R 200 (centre line), ramp 205 mm, parallel tracks 40 mm apart. The Y's length (~150 mm) is measured from a photo.</p>
+    </details></div>`;
+  }
   el.innerHTML=h;
   const ln=document.getElementById("sLearnedN"); if(ln){ let n=0; Object.values(S.learned||{}).forEach(m=>Object.values(m).forEach(a=>n+=a.length));
     ln.textContent = n ? `(${n} confirmed piece${n>1?"s":""} remembered)` : "(nothing learned yet)"; }
+}
+/* short display name: drop make prefixes and part codes — those live in the info card */
+function shortName(t){ const n=t.name.replace(/^IKEA\s+/,"").replace(/^BRIO\s+/,"").replace(/\s+[A-Z][0-9]?\/[A-Z][0-9]?$/,"").replace(/\s+(N1|N)$/,""); return n.charAt(0).toUpperCase()+n.slice(1); }
+/* when grouped by type, say whose piece it is */
+const makeTag=t=> S.groupBy==="type" && makeOf(t)!=="BRIO" ? `<span class="mk ${makeOf(t)==="Custom"?"cu":"ik"}">${makeOf(t)==="Custom"?"Custom":"IKEA"}</span>` : (S.groupBy==="type"?`<span class="mk br">BRIO</span>`:"");
+/* details card for one piece (hidden from the main lists) */
+function showInfo(id){
+  const t=types[id]; if(!t) return; const own=S.inv[id]||0, u=used(id);
+  const box=document.getElementById("pinfo");
+  box.innerHTML=`<div class="pcard">${iconSVG(t)}<div><b>${esc(t.name)}</b> <code>${esc(t.id)}</code>
+    <div class="hint2">${esc(makeOf(t))} · ${esc(catOf(t))}</div></div></div>
+    <p>${esc(t.dim||"")}</p><p class="hint2">${t.conns.length} end${t.conns.length>1?"s":""}: ${t.conns.map(c=>c.g==="M"?"peg":"hole").join(", ")}. You own ${own}, ${u} in the layout.</p>
+    <div class="pbtns"><button class="primary" data-addinfo="${id}">Add to layout</button><button data-closeinfo>Close</button></div>`;
+  box.classList.add("show");
 }
 const esc = s => String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 
@@ -759,6 +943,7 @@ function startPinch(){
   hideSelbar();
 }
 svg.addEventListener("pointerdown",e=>{
+  const fx=e.target.closest(".flexfix"); if(fx){ closeWithPlay(fx.dataset.a,fx.dataset.b); return; }
   fingers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   try{ svg.setPointerCapture(e.pointerId); }catch(_){}
   if(fingers.size>=2){ startPinch(); return; }
@@ -852,6 +1037,9 @@ function placeSelbar(){
 
 /* ---------- UI wiring ---------- */
 document.getElementById("inv").addEventListener("click",e=>{
+  const gb=e.target.closest("[data-groupby]"); if(gb){ S.groupBy=gb.dataset.groupby; save(); renderInv(); return; }
+  const inf=e.target.closest("[data-info]"); if(inf){ e.stopPropagation(); showInfo(inf.dataset.info); return; }
+  const tile=e.target.closest(".tile"); if(tile){ addPiece(tile.dataset.type); return; }
   const stp=e.target.closest(".stp");
   if(stp){ const id=stp.dataset.inc||stp.dataset.dec; S.inv[id]=Math.max(0,(S.inv[id]||0)+(stp.dataset.inc?1:-1)); refresh(); return; }
   if(e.target.id==="bScan"){ openScan(); return; }
@@ -878,6 +1066,10 @@ document.getElementById("inv").addEventListener("change",e=>{
   const t=e.target;
   if(t.dataset.own){ S.inv[t.dataset.own]=Math.max(0,parseInt(t.value)||0); refresh(); }
   if(t.id==="sGender"){ S.gender=t.checked; refresh(); }
+  if(t.dataset.showall!==undefined){ S.showAll=t.checked; save(); renderInv(); }
+  if(t.dataset.retired!==undefined){ S.showRetired=t.checked; save(); renderInv(); }
+  if(t.id==="sPlayP"){ S.playPos=Math.max(0,+t.value||0); refresh(); }
+  if(t.id==="sPlayA"){ S.playAng=Math.max(0,+t.value||0); refresh(); }
   if(t.id==="sTolP"){ S.tolPos=Math.max(0.5,+t.value||3); refresh(); }
   if(t.id==="sTolA"){ S.tolAng=Math.max(0.5,+t.value||3); refresh(); }
   if(t.id==="sRise"){ S.rise=Math.max(20,+t.value||64); refresh(); }
@@ -919,7 +1111,10 @@ function setHelp(show){ S.helpHidden=!show; helpEl.style.display=show?"block":"n
 document.querySelectorAll(".hideHelp").forEach(x=>x.onclick=()=>setHelp(false));
 document.getElementById("bHelp").onclick=()=>setHelp(helpEl.style.display==="none");
 document.getElementById("bSide").onclick=()=>{ S.sideHidden=!S.sideHidden; document.getElementById("app").classList.toggle("noside",S.sideHidden); save(); setTimeout(()=>refresh(false),50); };
-document.getElementById("bScanTop").onclick=()=>openScan();
+document.getElementById("pinfo").onclick=e=>{ const box=document.getElementById("pinfo");
+  if(e.target.dataset.addinfo){ addPiece(e.target.dataset.addinfo); box.classList.remove("show"); }
+  if(e.target.dataset.closeinfo!==undefined) box.classList.remove("show"); };
+document.getElementById("tabs").onclick=e=>{ const b=e.target.closest("[data-tab]"); if(!b) return; S.tab=b.dataset.tab; save(); renderInv(); };
 // floating bar actions
 document.getElementById("sbRot").onclick=rotateSel;
 document.getElementById("sbFlip").onclick=flipSel;
@@ -1035,6 +1230,12 @@ function build3D(){
       [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick-3+0.05,3,3.2,o); gr.castShadow=false; G.add(gr); });
       if(env){ const e=ribbon(p,l,mEnv,(lv,u)=>hf(lv,u)+S.thick,HALF-3,S.trainH); e.castShadow=false; e.receiveShadow=false; G.add(e); }
     });
+    if(t.stop){ // buffer: a block across the closed end with red/white stripes
+      const L=t.lanes[0].len, q=lanePose(t.lanes[0],1,0), w=worldPt(p,q.x-5,q.y), a=-(p.rot), h=(p.level||0)*S.rise+S.thick;
+      for(let i=0;i<4;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(10,22,10),new THREE.MeshStandardMaterial({color:i%2?0xffffff:0xd23c2f,roughness:.6}));
+        const off=-15+i*10, nx=-Math.sin(p.rot)*(p.mirror?-1:1)*off, ny=Math.cos(p.rot)*(p.mirror?-1:1)*off;
+        m.position.set(w.x+nx,h+11,w.y+ny); m.rotation.y=a; m.castShadow=true; G.add(m); }
+    }
     // pegs (11.5 mm knob on a 7 mm neck) and holes, at the height of their end of the piece
     localConns(p).forEach((lc,ci)=>{ const c=toWorld(p,lc), h=c.lv*S.rise, ox=Math.cos(c.a), oy=Math.sin(c.a);
       if(lc.g==="M"){
@@ -1625,6 +1826,7 @@ function scAddToInv(){
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
+window.__planner={addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
 window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
 /* ---------- Start ---------- */

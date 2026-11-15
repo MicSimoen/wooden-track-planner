@@ -3,8 +3,8 @@
 Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own.
 
 - Real piece dimensions (BRIO track guide, measured LILLABO pieces), snapping joints, peg/hole checks
-- Inventory: set how many of each piece you own, see what's used and what's left
-- Gap measurement, so you can see whether a loop will close
+- Side panel with **Pieces** (a palette of what you own), **Inventory** (counts, camera scan, custom pieces) and **Settings**; group by type or by make
+- Gap measurement, plus **joint play**: a loop a few mm off is checked against the play in every peg-and-hole joint, and one tap bends it shut
 - Bridges and ramps with height levels, plus a **3D view** and a **clearance check** for track passing under bridges
 - Custom pieces for anything that isn't in the list
 - **Scan your inventory with the camera**: photograph your pieces next to a sheet of A4 paper, tap its corners, and the app measures and recognises each piece (you check and correct before adding)
