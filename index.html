@@ -438,7 +438,7 @@ function buildType(t){
   const keyhole=(c,dir,R,N)=>{ const ox=Math.cos(c.a)*dir, oy=Math.sin(c.a)*dir, nx=-Math.sin(c.a), ny=Math.cos(c.a);
     const xi=P_C-Math.sqrt(R*R-N*N), at=(a,b)=>[(c.x+ox*a+nx*b).toFixed(2),(c.y+oy*a+ny*b).toFixed(2)].join(" ");
     const sweep = dir>0 ? 1 : 0;
-    return `M${at(0,-N)}L${at(xi,-N)}A${R} ${R} 0 1 ${sweep} ${at(xi,N)}L${at(0,N)}Z`; };
+    return `M${at(-0.8,-N)}L${at(xi,-N)}A${R} ${R} 0 1 ${sweep} ${at(xi,N)}L${at(-0.8,N)}`; };   // open at the end edge: no line across the mouth
   let pegs="", holes="";
   C.forEach(c=>{ if(c.g==="M") pegs+=keyhole(c,1,P_R,P_N); else holes+=keyhole(c,-1,H_R,H_N); });
   t.pegs=pegs; t.holes=holes;
@@ -1164,6 +1164,7 @@ async function open3D(){
     try{
       if(!window.THREE) await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js");
       if(!THREE.OrbitControls) await loadScript("https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js");
+      if(!window.polygonClipping) await loadScript("https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js");
       init3D();
     }catch(e){ console.error("3D load failed", e && e.stack || e); msg.textContent="Couldn't load the 3D library — check your internet connection."; return; }
   }
@@ -1204,6 +1205,38 @@ function ribbon(p,l,mat,hFn,wHalf,thick,off=0){
   g.setIndex(idx); g.computeVertexNormals();
   const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; return m;
 }
+/* The outline of a flat piece as it really is, in its own coordinates: all its tracks merged (switches!), pegs added,
+   keyhole slots cut out. Result: polygons with holes, ready to extrude to the track's thickness. */
+const SOLID={};
+function pieceOutline(t){
+  if(SOLID[t.id]) return SOLID[t.id];
+  const ring=pts=>{ const r=pts.map(q=>[+q[0].toFixed(3),+q[1].toFixed(3)]); r.push(r[0]); return r; };
+  let parts=[];
+  if(t.outline) parts.push([ring(t.outline)]);
+  else t.lanes.forEach(l=>{ const n=l.k!=="a"?1:Math.max(8,Math.ceil(Math.abs(l.deg)/2));
+    const P=o=>{ const a=[]; for(let i=0;i<=n;i++){ const q=lanePose(l,i/n,o); a.push([q.x,q.y]); } return a; };
+    parts.push([ring(P(HALF).concat(P(-HALF).reverse()))]); });
+  // keyhole: neck from the end edge + round knob/hole 11.75 mm out (peg) or in (hole)
+  const key=(c,dir,R,N,ext)=>{ const ox=Math.cos(c.a)*dir, oy=Math.sin(c.a)*dir, nx=-Math.sin(c.a), ny=Math.cos(c.a), at=(a,b)=>[c.x+ox*a+nx*b, c.y+oy*a+ny*b];
+    const xi=11.75-Math.sqrt(R*R-N*N), pts=[at(ext,-N), at(xi,-N)];
+    const start=Math.atan2(-N,xi-11.75), end=Math.atan2(N,xi-11.75), span=(end-start+2*Math.PI)%(2*Math.PI);
+    for(let i=1;i<40;i++){ const a=start+i*span/40; pts.push(at(11.75+R*Math.cos(a), R*Math.sin(a))); }   // the long way round: the full circle beyond the neck
+    pts.push(at(xi,N), at(ext,N)); return [ring(pts)]; };
+  t.conns.forEach(c=>{ if(c.g==="M") parts.push(key(c,1,5.75,3.5,-1)); });
+  let solid=polygonClipping.union(...parts);
+  const holes=t.conns.filter(c=>c.g==="F").map(c=>key(c,-1,6.75,4.25,-2));
+  if(holes.length) solid=polygonClipping.difference(solid,...holes);
+  return SOLID[t.id]=solid;
+}
+function solidMesh(p,t,h0,mat){
+  const shapes=pieceOutline(t).map(poly=>{ const sh=new THREE.Shape(poly[0].slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1])));
+    poly.slice(1).forEach(hl=>sh.holes.push(new THREE.Path(hl.slice(0,-1).map(q=>new THREE.Vector2(q[0],q[1]))))); return sh; });
+  const g=new THREE.ExtrudeGeometry(shapes,{depth:S.thick,bevelEnabled:false,curveSegments:1});
+  const pos=g.attributes.position;
+  for(let i=0;i<pos.count;i++){ const w=worldPt(p,pos.getX(i),pos.getY(i)); pos.setXYZ(i,w.x,h0+pos.getZ(i),w.y); }
+  g.computeVertexNormals();
+  const m=new THREE.Mesh(g,mat); m.castShadow=true; m.receiveShadow=true; return m;
+}
 /* a flat solid with any outline (local coords), placed like the piece */
 function prism(p,outline,h0,thick,mat){
   const tri=THREE.ShapeUtils.triangulateShape(outline.map(q=>new THREE.Vector2(q[0],q[1])),[]), W=outline.map(q=>worldPt(p,q[0],q[1])), P=[], idx=[];
@@ -1227,12 +1260,13 @@ function build3D(){
   const env=document.getElementById("c3Env").checked;
   const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise;
   S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
-    if(t.outline) G.add(prism(p,t.outline,(p.level||0)*S.rise,S.thick,mWood));
+    const flat=!t.ramp;                              // flat pieces: one real solid (holes through, pegs attached)
+    if(flat) G.add(solidMesh(p,t,(p.level||0)*S.rise,mWood));
     t.lanes.forEach(l=>{
-      if(!t.outline) G.add(ribbon(p,l,mWood,hf,HALF,S.thick));
+      if(!flat) G.add(ribbon(p,l,mWood,hf,HALF,S.thick));
       if(t.deck) G.add(ribbon(p,l,mDeck,(lv,u)=>hf(lv,u)-6,HALF+4,6)); // red girder under the bridge deck
       // grooves: 6 mm wide, 3 mm deep (drawn as darker channels just below the top surface)
-      [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick-3+0.05,3,3.2,o); gr.castShadow=false; G.add(gr); });
+      [GROOVE,-GROOVE].forEach(o=>{ const gr=ribbon(p,l,mGrooveM,(lv,u)=>hf(lv,u)+S.thick+0.08,3,0.1,o); gr.castShadow=false; gr.receiveShadow=true; G.add(gr); });
       if(env){ const e=ribbon(p,l,mEnv,(lv,u)=>hf(lv,u)+S.thick,HALF-3,S.trainH); e.castShadow=false; e.receiveShadow=false; G.add(e); }
     });
     if(t.stop){ // buffer: a block across the closed end with red/white stripes
@@ -1244,7 +1278,7 @@ function build3D(){
     // pegs (11.5 mm knob on a 7 mm neck) and holes, at the height of their end of the piece
     // pegs (11.5 mm knob on a 7 mm neck) — their top is a hair above the wood so a peg shows inside the next piece;
     // holes are drawn only where no peg sits in them
-    localConns(p).forEach((lc,ci)=>{ const c=toWorld(p,lc), h=c.lv*S.rise, ox=Math.cos(c.a), oy=Math.sin(c.a), H=S.thick+0.3;
+    if(t.ramp) localConns(p).forEach((lc,ci)=>{ const c=toWorld(p,lc), h=c.lv*S.rise, ox=Math.cos(c.a), oy=Math.sin(c.a), H=S.thick+0.3;
       if(lc.g==="M"){
         const knob=new THREE.Mesh(new THREE.CylinderGeometry(5.75,5.75,H,24),mPeg); knob.position.set(c.x+ox*11.75,h+H/2,c.y+oy*11.75); knob.castShadow=true; G.add(knob);
         const neck=new THREE.Mesh(new THREE.BoxGeometry(8,H,7),mPeg); neck.position.set(c.x+ox*4,h+H/2,c.y+oy*4); neck.rotation.y=-c.a; G.add(neck);

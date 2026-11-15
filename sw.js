@@ -1,12 +1,13 @@
 // Offline cache for Wooden Track Planner.
 // Bump VERSION whenever you change index.html so iPads pick up the new version.
-const VERSION = "v11";
+const VERSION = "v12";
 const CACHE = "track-planner-" + VERSION;
 const APP = ["./", "index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 const LIBS = [
   "https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js",
-  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"
+  "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js",
+  "https://cdn.jsdelivr.net/npm/polygon-clipping@0.15.7/dist/polygon-clipping.umd.min.js"
 ];
 
 self.addEventListener("install", e => {
