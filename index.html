@@ -187,11 +187,57 @@
     .help{display:none}
   }
   /* ---- phones: full-screen plan, pieces in a bottom sheet, one-row toolbar with a ⋯ menu ---- */
-  #bMore, .sheetX{ display:none }
+  .sheetX{ display:none }
+  .phoneonly{ display:none }
+  @media (max-width:700px), (max-height:520px){ #moreMenu .phoneonly{ display:block } }
+  /* one calm toolbar: navigation left, actions right, the rest under ⋯ */
+  .toolbar{ flex-wrap:nowrap; align-items:center }
+  .toolbar button{ min-height:40px; font-size:14px; display:inline-flex; align-items:center; gap:2px }
+  #bMore{ font-size:20px; line-height:1; min-width:40px; justify-content:center }
+  #bLike.liked{ color:#d6336c; border-color:#f3b6c9; background:#fff0f5 }
+  .pop{ animation:pop .45s ease }
+  @keyframes pop{ 40%{ transform:scale(1.35) } 100%{ transform:scale(1) } }
+  .roll{ animation:roll .6s ease }
+  @keyframes roll{ 30%{ transform:rotate(-25deg) scale(1.15) } 60%{ transform:rotate(200deg) scale(1.2) } 100%{ transform:rotate(360deg) scale(1) } }
+  /* gallery */
+  .card.gal{ width:min(860px,94vw); max-height:86vh; overflow:auto }
+  .galhead{ display:flex; align-items:center; justify-content:space-between; margin-bottom:8px } .galhead h3{ margin:0 }
+  #galClose{ width:40px; height:40px; border-radius:20px; font-size:16px }
+  .agal{ display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:12px }
+  .agal .gcard{ min-width:0; border:1px solid var(--line); border-radius:12px; padding:8px; background:#fffdf8; display:flex; flex-direction:column; gap:6px }
+  .gthumb{ padding:0; border:0; background:#f4ecdf; border-radius:8px; height:120px; box-shadow:none }
+  .gcard svg{ width:100%; height:100%; display:block }
+  .gname{ width:100%; box-sizing:border-box; min-width:0; font:inherit; font-weight:600; border:1px solid transparent; border-radius:6px; padding:4px 6px; background:transparent }
+  .gname:focus{ border-color:var(--line); background:#fff; outline:none }
+  .gmeta{ font-size:12px; color:var(--muted); padding:0 6px } .gbtns{ display:flex; gap:6px } .gbtns button{ flex:1 }
+  .kgal{ display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:18px }
+  .kgal .gcard{ height:170px; padding:10px; border:0; border-radius:26px; background:#fff3d6; box-shadow:0 6px 0 rgba(0,0,0,.12) }
+  .kgal .gcard:active{ transform:translateY(4px); box-shadow:0 2px 0 rgba(0,0,0,.12) }
+  .galempty{ text-align:center; font-size:15px; color:var(--muted); padding:30px 10px }
+  .kgal .galempty{ font-size:60px; grid-column:1/-1 }
+  /* kids dock */
+  .kbar{ position:absolute; left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:5;
+         display:flex; align-items:center; gap:14px; padding:10px 16px; background:rgba(255,255,255,.88); border-radius:60px;
+         box-shadow:0 8px 28px rgba(0,0,0,.16) }
+  .kbar button{ width:78px; height:78px; border-radius:50%; border:0; font-size:38px; line-height:1; padding:0; display:flex; align-items:center; justify-content:center;
+                color:#fff; box-shadow:0 5px 0 rgba(0,0,0,.18); touch-action:manipulation; -webkit-user-select:none; user-select:none }
+  .kbar button:active{ transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.18) }
+  #kUndo{ background:#ffb020; font-size:44px; font-weight:800 } #kPieces{ background:#3d9bff } #kDice{ background:#ff5fa2 }
+  #kLike{ background:#ffe3ee } #kGal{ background:#00b894 } #k3d{ background:#9b5de5 }
+  .kbar .kbig{ width:110px; height:110px; font-size:60px; margin:-22px 4px 0 }
+  #bGrown{ position:absolute; top:calc(12px + env(safe-area-inset-top)); right:12px; z-index:5; width:46px; height:46px; border-radius:23px; padding:0;
+           font-size:20px; background:rgba(255,255,255,.75); border:1px solid var(--line); overflow:hidden }
+  #bGrown::after{ content:""; position:absolute; left:0; bottom:0; height:5px; width:0; background:#9c9285 }
+  #bGrown.holding::after{ width:100%; transition:width 1.6s linear }
+  body.kids .status{ top:calc(14px + env(safe-area-inset-top)); bottom:auto; left:50%; right:auto; transform:translateX(-50%); justify-content:center }
+  body.kids #toast{ top:auto; bottom:calc(150px + env(safe-area-inset-bottom)); font-size:26px }
+  body.kids #b3dClose{ font-size:28px; min-height:64px; padding:6px 22px; border-radius:22px }
+  body.kids .v3bar button{ min-height:56px; font-size:18px }
   #moreMenu{ display:none; position:absolute; top:58px; right:8px; z-index:6; background:var(--panel); border:1px solid var(--line); border-radius:14px;
              box-shadow:0 10px 30px rgba(0,0,0,.18); padding:6px; gap:2px; min-width:210px }
   #moreMenu button{ text-align:left; font-size:16px; min-height:46px; border:0; background:transparent; box-shadow:none; border-radius:9px }
   #moreMenu button:active{ background:#f1e9dc }
+  #moreMenu.show{ display:grid }
   @media (max-width:700px), (max-height:520px){
     #app{ grid-template-columns:1fr !important; grid-template-rows:1fr !important }
     aside{ position:fixed; left:0; right:0; bottom:0; z-index:7; height:min(58dvh,560px); border:0; border-radius:18px 18px 0 0;
@@ -204,6 +250,7 @@
     .toolbar .wide, body:not(.kids) .toolbar .wideA{ display:none !important }
     .toolbar button{ padding:6px 11px; font-size:16px; min-height:42px; min-width:42px; justify-content:center }
     .toolbar .lbl{ display:none }
+    #bRedo, #bFit{ display:none !important }
     #bMore{ display:inline-flex; font-size:22px; line-height:1 }
     #moreMenu.show{ display:grid }
     .status{ left:8px; right:8px; bottom:calc(8px + env(safe-area-inset-bottom)); flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none }
@@ -217,7 +264,11 @@
     body.kids aside h1{ font-size:20px }
     body.kids .toolbar{ gap:6px }
     body.kids .toolbar button{ font-size:22px; min-height:52px; padding:6px 11px; border-radius:16px }
-    body.kids #bGrown{ font-size:18px; min-height:46px }
+    .kbar{ gap:6px; padding:7px 8px } .kbar button{ width:50px; height:50px; font-size:25px } #kUndo{ font-size:28px }
+    .kbar .kbig{ width:70px; height:70px; font-size:40px; margin:-12px 2px 0 }
+    body.kids .status{ max-width:calc(100% - 130px) } body.kids .status .pill{ font-size:14px; padding:6px 12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+    body.kids #toast{ bottom:calc(110px + env(safe-area-inset-bottom)); font-size:20px }
+    .agal{ grid-template-columns:repeat(2,1fr) } .kgal{ grid-template-columns:repeat(2,1fr); gap:12px } .kgal .gcard{ height:130px }
     .ktiles{ grid-template-columns:repeat(auto-fill,minmax(98px,1fr)); gap:12px }
     .ktile svg{ width:76px; height:54px }
   }
@@ -240,9 +291,7 @@
   body.kids .toolbar button:active{ transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.18) }
   body.kids #bSide{ background:#3d9bff } body.kids #bUndo{ background:#ffad1f } body.kids #b3d{ background:#9b5de5 }
   body.kids #bFit{ background:#00b894 } body.kids #bDemo{ background:#ff5fa2 }
-  body.kids #bGrown{ position:relative; overflow:hidden; background:#9c9285; font-size:15px; min-height:48px; padding:6px 14px }
-  body.kids #bGrown::after{ content:""; position:absolute; left:0; bottom:0; height:6px; width:0; background:#fff; opacity:.8 }
-  body.kids #bGrown.holding::after{ width:100%; transition:width 1.6s linear }
+
   .ktiles{ display:grid; grid-template-columns:repeat(auto-fill,minmax(118px,1fr)); gap:14px; padding:10px 8px 20px }
   .ktile{ position:relative; display:flex; flex-direction:column; align-items:center; gap:6px; padding:14px 6px 10px; border-radius:22px;
           background:var(--kc,#ffd6a5); box-shadow:0 6px 0 rgba(0,0,0,.13); cursor:pointer; touch-action:manipulation; transition:transform .08s }
@@ -259,7 +308,7 @@
   body.kids #sbRot{ background:#3d9bff } body.kids #sbFlip{ background:#00b894 } body.kids #sbDel{ background:#ff5a4e }
   body.kids .pill{ font-size:19px; font-weight:700; padding:10px 18px; border:0; box-shadow:0 3px 0 rgba(0,0,0,.1) }
   body.kids .pill.ok{ background:#d6f5df } body.kids .pill.warn{ background:#fff0c7 } body.kids .pill.bad{ background:#ffe0dc }
-  body.kids #toast{ font-size:20px; padding:12px 20px; border-radius:16px; top:84px }
+  body.kids #toast{ font-size:20px; padding:12px 20px; border-radius:16px }
   body.kids .v3bar button{ font-size:20px; min-height:56px; border-radius:18px }
   .genrow{ display:grid; grid-template-columns:repeat(3,1fr); gap:10px }
   .genrow label{ font-size:12.5px; color:var(--muted) } .genrow input{ width:100%; padding:8px; border:1px solid var(--line); border-radius:7px; font:inherit; font-size:16px; margin-top:3px }
@@ -291,35 +340,41 @@
       <g id="layerPieces"></g>
       <g id="layerMarks"></g>
     </svg>
-    <div class="toolbar">
+    <div class="toolbar adult">
       <button id="bSide" title="Show or hide the piece list">☰<span class="lbl"> Pieces</span></button>
-      <button id="bUndo" title="Undo (Ctrl+Z)">↶<span class="adult lbl"> Undo</span><span class="kidonly lbl"> Oops</span></button>
-      <button id="bRedo" class="adult" title="Redo (Ctrl+Y)">↷</button>
-      <button id="bRot" class="adult wide" title="Rotate 45° / cycle which end connects (R)">⟳ Rotate</button>
-      <button id="bFlip" class="adult wide" title="Flip curve left/right (F)">⇋ Flip</button>
-      <button id="bUp" class="adult wide" title="Raise one level, e.g. onto bridge supports (PageUp)">▲ Raise</button>
-      <button id="bDown" class="adult wide" title="Lower one level (PageDown)">▼ Lower</button>
-      <button id="bDel" class="danger adult wide" title="Delete (Del)">✕ Delete</button>
+      <button id="bUndo" title="Undo (Ctrl+Z)">↶</button>
+      <button id="bRedo" title="Redo (Ctrl+Y)">↷</button>
       <span class="sp"></span>
-      <button id="b3d" class="primary" title="Look at the layout in 3D"><span class="adult">3D<span class="lbl"> view</span></span><span class="kidonly">👀 3D</span></button>
-      <button id="bFit" title="Zoom to layout"><span class="adult">Fit</span><span class="kidonly">🔍<span class="lbl"> All</span></span></button>
-      <button id="bZin" class="adult wide">＋</button><button id="bZout" class="adult wide">－</button>
-      <button id="bDemo" class="wideA"><span class="adult">Demo oval</span><span class="kidonly">🎲<span class="lbl"> Surprise!</span></span></button>
-      <button id="bIO" class="adult wide">Save / load</button>
-      <button id="bClear" class="danger adult wide">Clear</button>
-      <button id="bGen" class="adult wide" title="Make a random layout from your pieces that fits your floor">🎲 Random</button>
-      <button id="bKids" class="adult wide" title="Big, colourful and simple — for little builders">🧸 Kids mode</button>
-      <button id="bHelp" class="adult wide" title="Help">?</button>
-      <button id="bGrown" class="kidonly" title="Hold to go back to the full planner">🔒<span class="lbl"> Grown-ups</span></button>
-      <button id="bMore" class="adult" title="More" aria-haspopup="menu">⋯</button>
+      <button id="bGen" class="primary" title="Make a new random track from your pieces (floor size: Settings)">🎲<span class="lbl"> Random</span></button>
+      <button id="bLike" title="Keep this track in My tracks">♡<span class="lbl"> Save</span></button>
+      <button id="bGal" title="My saved tracks">📚<span class="lbl"> My tracks</span></button>
+      <button id="b3d" title="Look at the layout in 3D">3D</button>
+      <button id="bFit" title="Show the whole layout">⤢<span class="lbl"> Fit</span></button>
+      <button id="bMore" title="More" aria-haspopup="menu">⋯</button>
     </div>
     <div id="moreMenu" class="adult" role="menu">
-      <button data-for="bGen">🎲 Random track</button>
-      <button data-for="bDemo">⬭ Demo oval</button>
-      <button data-for="bIO">💾 Save / load</button>
-      <button data-for="bKids">🧸 Kids mode</button>
-      <button data-for="bClear" class="danger">✕ Clear layout</button>
+      <button id="bKids">🧸 Kids mode</button>
+      <button id="bSettings">⚙︎ Play area &amp; settings</button>
+      <button id="bFitM" class="phoneonly">⤢ Show the whole track</button>
+      <button id="bDemo">⬭ Demo oval</button>
+      <button id="bIO">💾 Export / import file</button>
+      <button id="bHelp">❓ How it works</button>
+      <button id="bClear" class="danger">✕ Clear layout</button>
     </div>
+    <div hidden>
+      <button id="bRot"></button><button id="bFlip"></button><button id="bUp"></button><button id="bDown"></button>
+      <button id="bDel"></button><button id="bZin"></button><button id="bZout"></button>
+    </div>
+    <!-- kids: one row of big picture buttons, no reading needed -->
+    <div class="kbar kidonly" id="kbar">
+      <button id="kUndo" aria-label="Oops, undo">↶</button>
+      <button id="kPieces" aria-label="Pieces">🧩</button>
+      <button id="kDice" class="kbig" aria-label="New track">🎲</button>
+      <button id="kLike" aria-label="Keep this track">🤍</button>
+      <button id="kGal" aria-label="My tracks">🖼️</button>
+      <button id="k3d" aria-label="See it in 3D">👀</button>
+    </div>
+    <button id="bGrown" class="kidonly" title="Grown-ups: hold for 2 seconds">🔒</button>
     <div class="status" id="status"></div>
     <div class="help adult" id="help">
       <div class="touchonly"><b>Build:</b> tap an open end (●/○), then tap pieces in the list — they snap on and the chain continues.<br>
@@ -352,19 +407,10 @@
       <div class="v3help adult">Drag to orbit · right-drag / two fingers to pan · wheel to zoom. Blue haze = room your tallest train needs (set in Settings) · red marks = not enough room.</div>
       <div id="v3dMsg"></div>
     </div>
-    <div class="modal" id="genModal">
-      <div class="card">
-        <h3>🎲 Random track</h3>
-        <p style="margin:0 0 8px;font-size:12.5px;color:var(--muted)">Makes a layout from the pieces in your inventory that fits on your floor. Loops are built so they close exactly; switches add side tracks, each finished with a buffer stop or a ramp track if you have one. With bridges on, it can also lift part of a loop over a bridge, or make a figure eight that crosses over itself, as long as there's room for your train underneath (Settings). Press again for a different layout.</p>
-        <div class="genrow">
-          <label>Floor width (cm)<input id="gW" type="number" min="40" step="10"></label>
-          <label>Floor depth (cm)<input id="gD" type="number" min="40" step="10"></label>
-          <label>Dead ends, at most<input id="gE" type="number" min="0" max="8" step="1"></label>
-        </div>
-        <label class="chk2" style="margin-top:8px"><input type="checkbox" id="gBr"> Use bridges (ramps + bridge decks), incl. figure eights crossing over</label>
-        <label class="chk2" style="margin-top:6px"><input type="checkbox" id="gShow"> Show the floor area on the plan</label>
-        <p id="gMsg" style="font-size:12.5px;margin:8px 0 0;min-height:1.2em"></p>
-        <div class="btns"><button id="gClose">Close</button><button id="gGo" class="primary">🎲 Make a track</button></div>
+    <div class="modal" id="galModal">
+      <div class="card gal">
+        <div class="galhead"><h3>📚 My tracks</h3><button id="galClose" aria-label="Close">✕</button></div>
+        <div id="galGrid"></div>
       </div>
     </div>
     <div class="modal" id="modal">
@@ -833,8 +879,8 @@ function renderKidStatus(free){
   const st=document.getElementById("status"), n=S.pieces.length;
   const flexOK=GAPS.filter(g=>g.fx.ok), cov=new Set(); flexOK.forEach(g=>{ cov.add(g.A.p.id+":"+g.A.ci); cov.add(g.B.p.id+":"+g.B.ci); });
   const openLeft=free.filter(f=>!cov.has(f.p.id+":"+f.ci)).length, closed=n>=3&&!openLeft;
-  if(!n) st.innerHTML=`<span class="pill">👋 Tap a piece to start building!</span>`;
-  else if(closed) st.innerHTML=`<span class="pill ok">🎉 Your track goes all the way round!${free.length?" Tap the green label to join it.":""}</span>`;
+  if(!n) st.innerHTML=`<span class="pill">👋 Tap 🎲 or 🧩</span>`;
+  else if(closed) st.innerHTML=`<span class="pill ok">🎉 All the way round!${free.length?" Tap the green label.":""}</span>`;
   else st.innerHTML=`<span class="pill">🛤 ${n} piece${n>1?"s":""}</span>`;
   if(n&&typeList.some(t=>used(t.id)>(S.inv[t.id]||0))) st.innerHTML+=`<span class="pill bad">😮 Not enough pieces at home</span>`;
   if(closed && wasClosed===false) confetti();
@@ -926,7 +972,18 @@ function renderInv(){
     </details>`;
   }
   if(!S.kids && tab==="settings"){
+    const g=S.gen||(S.gen={w:200,d:150,ends:2,show:true,bridges:true});
     h+=`<div class="sets">
+    <h3 id="sPlay">Play area &amp; random tracks</h3>
+    <div class="genrow">
+      <label>Floor width (cm)<input id="sGW" type="number" min="40" step="10" value="${g.w}"></label>
+      <label>Floor depth (cm)<input id="sGD" type="number" min="40" step="10" value="${g.d}"></label>
+      <label>Dead ends, at most<input id="sGE" type="number" min="0" max="8" step="1" value="${g.ends}"></label>
+    </div>
+    <label class="chk2"><input type="checkbox" id="sGBr" ${g.bridges!==false?"checked":""}> Use bridges (ramps + decks), incl. figure eights crossing over</label>
+    <label class="chk2"><input type="checkbox" id="sGShow" ${g.show?"checked":""}> Show the floor area on the plan</label>
+    <label class="chk2"><input type="checkbox" id="sShake" ${S.shake!==false?"checked":""}> Kids mode: shake the iPad / phone for a new track</label>
+    <p class="hint2">🎲 Random uses these every time. Loops close exactly; switches give side tracks (with a buffer stop or ramp track if you have one) or passing loops; bridges only where your tallest train fits underneath.</p>
     <h3>Kids mode</h3>
     <p class="hint2">Big colourful buttons, only the pieces you own, and no settings to break. Hold <b>🔒 Grown-ups</b> for 2 seconds to come back.</p>
     <p><button id="sKids" class="primary">🧸 Switch to kids mode</button></p>
@@ -974,14 +1031,14 @@ function renderFloor(){
     <text x="${-f.w/2+12}" y="${-f.d/2+28}" font-size="22" fill="#a8794a">Floor ${Math.round(f.w/10)} × ${Math.round(f.d/10)} cm</text>` : "";
 }
 function refresh(full=true){
-  computeLinks(); renderFloor(); renderPieces(); const free=renderMarks(); renderStatus(free);
+  computeLinks(); renderFloor(); renderPieces(); if(typeof updateLike==="function") updateLike(); const free=renderMarks(); renderStatus(free);
   if(full) renderInv();
   document.getElementById("bUndo").disabled=!hist.length; document.getElementById("bRedo").disabled=!redo.length;
   const hasSel=!!sel; ["bRot","bFlip","bDel","bUp","bDown"].forEach(b=>document.getElementById(b).disabled=!hasSel);
   if(selbarReady) placeSelbar();
   save();
 }
-let toastT; function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),1800); }
+let toastT; function toast(m,ms=1800){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("show"),ms); }
 
 /* ---------- Actions ---------- */
 function firstFreeOther(p, exceptCi){
@@ -1500,11 +1557,12 @@ function runGenerator(fromKids){
   const g=S.gen||(S.gen={w:200,d:150,ends:2,show:true});
   if(!typeList.some(t=>(S.inv[t.id]||0)>0)){ toast("Enter your pieces in the Inventory first"); return false; }
   const L=generateLayout(g.w*10,g.d*10,g.ends,900,g.bridges!==false);
-  if(!L){ if(!fromKids) document.getElementById("gMsg").textContent="Couldn't make a track that fits — try a bigger floor, more dead ends, or add curves to your inventory."; return false; }
+  if(!L){ if(!fromKids) toast(`Couldn't make a track that fits ${g.w} × ${g.d} cm — try a bigger floor (⋯ → Play area), more dead ends, or more curves.`,5000); return false; }
+  GEN.kind = L.eight?"Figure eight":L.passes?"Passing loop":L.bridges?"Bridge loop":L.loop?"Loop":"Line";
   snapshot(); S.pieces=L.pieces.map(p=>({id:S.nextId++,type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:p.level||0}));
   S.floor={w:g.w*10,d:g.d*10}; sel=null; active=null; save(); refresh();
   for(let i=0;i<6;i++){ const gp=GAPS.find(q=>q.fx&&q.fx.ok); if(!gp) break; closeWithPlay(gp.A.p.id+":"+gp.A.ci, gp.B.p.id+":"+gp.B.ci); refresh(); }
-  fit();
+  fit(); GEN.lastPieces=layoutKey(S.pieces);
   const msg=`${L.pieces.length} pieces${L.eight?`, a figure eight over a bridge (crossing at ${L.cross===90?"90°":L.cross+"°"})`:L.loop?", one loop":""}${!L.eight&&L.bridges?` with ${L.bridges} bridge${L.bridges>1?"s":""}`:""}${L.passes?`${L.bridges&&!L.eight?" and":" with"} a passing loop`:""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
   let why="";
   if(g.bridges!==false && !GEN.bridgeOK){
@@ -1514,19 +1572,100 @@ function runGenerator(fromKids){
         : !decks.length ? " · No bridges: add a bridge deck to your inventory."
         : " · No bridges: the ramp tops both have pegs — add a two-hole mini (C2 / IKEA female–female) or the reversible deck B360R, plus a two-peg mini.";
   } else if(g.bridges!==false && GEN.bridgeOK && !L.eight && !L.bridges) why=" · Press again for a bridge — or allow a bigger floor (a figure eight needs about 150 × 150 cm).";
-  if(!fromKids) document.getElementById("gMsg").textContent=msg+why;
+  if(!fromKids){ toast(msg+why+` · floor ${g.w} × ${g.d} cm`, why?6000:3500); return true; }
   toast(fromKids?(L.passes?"Here's a new track — with two ways to go! 🔀":L.bridges?"Here's a new track — with a bridge! 🌉":"Here's a new track! 🚂"):msg);
   return true;
 }
-{ const M=document.getElementById("genModal"), $=id=>document.getElementById(id);
-  document.getElementById("bGen").onclick=()=>{ const g=S.gen||(S.gen={w:200,d:150,ends:2,show:true});
-    $("gW").value=g.w; $("gD").value=g.d; $("gE").value=g.ends; $("gShow").checked=!!g.show; $("gBr").checked=g.bridges!==false; $("gMsg").textContent=""; M.classList.add("show"); };
-  const read=()=>{ S.gen={w:Math.max(40,+$("gW").value||200), d:Math.max(40,+$("gD").value||150), ends:Math.min(8,Math.max(0,Math.round(+$("gE").value||0))), show:$("gShow").checked, bridges:$("gBr").checked}; save(); };
-  $("gGo").onclick=()=>{ read(); $("gMsg").textContent="Thinking…"; setTimeout(()=>{ if(runGenerator(false)) M.classList.remove("show"); },20); };
-  $("gShow").onchange=()=>{ read(); renderFloor(); };
-  $("gClose").onclick=()=>M.classList.remove("show");
-  M.onclick=e=>{ if(e.target===M) M.classList.remove("show"); };
+document.getElementById("bGen").onclick=()=>{ toast("Thinking… 🎲",900); setTimeout(()=>runGenerator(false),30); };
+document.getElementById("bFitM").onclick=fit;
+document.getElementById("bSettings").onclick=()=>{ if(document.getElementById("app").classList.contains("noside")) document.getElementById("bSide").click();
+  const t=document.querySelector('[data-tab="settings"]'); if(t) t.click(); setTimeout(()=>{ const h=document.getElementById("sPlay"); if(h) h.scrollIntoView({block:"start"}); },50); };
+
+/* ---------- My tracks: keep layouts you like ---------- */
+const layoutKey=pcs=>pcs.map(p=>`${p.type}@${Math.round(p.x)},${Math.round(p.y)},${Math.round(normA(p.rot)/D2R)},${p.mirror?1:0},${p.level||0}`).sort().join("|");
+const savedNow=()=>{ if(!S.pieces.length) return null; const k=layoutKey(S.pieces); return (S.saved||[]).find(t=>t.key===k)||null; };
+function updateLike(){
+  const on=!!savedNow(), b=document.getElementById("bLike"), k=document.getElementById("kLike");
+  if(b){ b.innerHTML=on?'♥<span class="lbl"> Saved</span>':'♡<span class="lbl"> Save</span>'; b.classList.toggle("liked",on); }
+  if(k){ k.textContent=on?"❤️":"🤍"; k.classList.toggle("liked",on); }
+  const g=document.getElementById("kGal"); if(g) g.classList.toggle("has",!!(S.saved||[]).length);
 }
+function toggleLike(){
+  if(!S.pieces.length){ toast(S.kids?"🎲 first!":"Nothing to save yet — build or make a track first"); return; }
+  S.saved=S.saved||[]; const cur=savedNow();
+  if(cur){ if(S.kids){ pop(document.getElementById("kLike")); return; }   // little ones can't un-like by accident
+    S.saved=S.saved.filter(t=>t!==cur); toast(`Removed “${cur.name}” from My tracks`); }
+  else { const name=`${GEN.lastPieces===layoutKey(S.pieces)&&GEN.kind?GEN.kind:"Track"} ${S.saved.length+1}`;
+    S.saved.unshift({id:Date.now(), name, at:Date.now(), key:layoutKey(S.pieces), pieces:JSON.parse(JSON.stringify(S.pieces))});
+    toast(S.kids?"❤️":`Saved as “${name}” in My tracks`); pop(document.getElementById(S.kids?"kLike":"bLike")); }
+  save(); updateLike();
+}
+function pop(el){ if(!el) return; el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+function thumbSVG(pcs){
+  if(!pcs.length) return "";
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9;
+  pcs.forEach(p=>{ if(!types[p.type]) return; pieceSamples(p,25).forEach(q=>{ x0=Math.min(x0,q.x);x1=Math.max(x1,q.x);y0=Math.min(y0,q.y);y1=Math.max(y1,q.y); }); });
+  const m=40, w=x1-x0+2*m, h=y1-y0+2*m;
+  const body=pcs.slice().sort((a,b)=>(a.level||0)-(b.level||0)).map(p=>{ const t=types[p.type]; if(!t) return "";
+    return `<path d="${t.band}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${(p.rot/D2R).toFixed(2)}) scale(1 ${p.mirror?-1:1})" fill="${(p.level||0)>0||t.ramp?"#e9c48f":"#d9ad74"}" stroke="#9c7442" stroke-width="${Math.max(w,h)/220}"/>`; }).join("");
+  return `<svg viewBox="${x0-m} ${y0-m} ${w} ${h}" preserveAspectRatio="xMidYMid meet">${body}</svg>`;
+}
+function openGallery(){
+  const M=document.getElementById("galModal"), G=document.getElementById("galGrid"), list=S.saved||[];
+  G.className=S.kids?"kgal":"agal";
+  G.innerHTML = !list.length ? `<p class="galempty">${S.kids?"🤍 → ❤️":"No saved tracks yet. Tap <b>♡ Save</b> on a track you like — a random one or one you built."}</p>`
+    : list.map(t=>{ const d=new Date(t.at);
+      return S.kids ? `<button class="gcard" data-open="${t.id}">${thumbSVG(t.pieces)}</button>`
+      : `<div class="gcard" data-id="${t.id}"><button class="gthumb" data-open="${t.id}">${thumbSVG(t.pieces)}</button>
+          <input class="gname" data-name="${t.id}" value="${esc(t.name)}" aria-label="Name">
+          <div class="gmeta">${t.pieces.length} pieces · ${d.toLocaleDateString()}</div>
+          <div class="gbtns"><button class="primary" data-open="${t.id}">Open</button><button class="danger" data-del="${t.id}">Delete</button></div></div>`; }).join("");
+  M.classList.add("show");
+}
+{ const M=document.getElementById("galModal"), G=document.getElementById("galGrid");
+  const close=()=>M.classList.remove("show");
+  document.getElementById("galClose").onclick=close; M.addEventListener("click",e=>{ if(e.target===M) close(); });
+  G.addEventListener("click",e=>{
+    const o=e.target.closest("[data-open]"), d=e.target.closest("[data-del]");
+    if(o){ const t=(S.saved||[]).find(q=>String(q.id)===o.dataset.open); if(!t) return;
+      snapshot(); const mx=Math.max(0,...t.pieces.map(p=>p.id||0)); S.nextId=Math.max(S.nextId,mx+1);
+      S.pieces=JSON.parse(JSON.stringify(t.pieces)); sel=null; active=null; save(); refresh(); fit(); close(); toast(S.kids?"🚂":`Opened “${t.name}”`); }
+    if(d){ if(d.dataset.armed){ S.saved=(S.saved||[]).filter(q=>String(q.id)!==d.dataset.del); save(); openGallery(); updateLike(); }
+      else { d.dataset.armed=1; d.textContent="Sure?"; setTimeout(()=>{ if(d.isConnected){ delete d.dataset.armed; d.textContent="Delete"; } },2500); } }
+  });
+  G.addEventListener("change",e=>{ const n=e.target.closest("[data-name]"); if(!n) return; const t=(S.saved||[]).find(q=>String(q.id)===n.dataset.name);
+    if(t){ t.name=n.value.trim()||t.name; save(); } });
+}
+document.getElementById("bLike").onclick=toggleLike;
+document.getElementById("bGal").onclick=openGallery;
+
+/* ---------- kids: picture buttons + shake for a new track ---------- */
+function kidsNew(){
+  const d=document.getElementById("kDice"); d.classList.remove("roll"); void d.offsetWidth; d.classList.add("roll");
+  if(navigator.vibrate) try{ navigator.vibrate(40); }catch(e){}
+  setTimeout(()=>{ if(!(typeList.some(t=>(S.inv[t.id]||0)>0) && runGenerator(true))) demo(); },60);
+}
+const shake={on:false,last:0,peaks:[]};
+function onMotion(e){
+  const a=e.accelerationIncludingGravity; if(!a||a.x==null) return;
+  const now=Date.now(), m=Math.hypot(a.x,a.y,a.z);
+  if(Math.abs(m-9.81)>11){ shake.peaks=shake.peaks.filter(t=>now-t<900); shake.peaks.push(now);
+    if(shake.peaks.length>=3 && now-shake.last>2500 && S.kids && S.shake!==false && !document.querySelector(".modal.show") && !document.getElementById("v3d").classList.contains("show")){
+      shake.last=now; shake.peaks=[]; kidsNew(); } }
+}
+function enableShake(){   // iOS asks for permission, and only during a tap
+  if(shake.on || S.shake===false || !window.DeviceMotionEvent) return;
+  const D=window.DeviceMotionEvent;
+  if(typeof D.requestPermission==="function") D.requestPermission().then(r=>{ if(r==="granted" && !shake.on){ addEventListener("devicemotion",onMotion); shake.on=true; } }).catch(()=>{});
+  else { addEventListener("devicemotion",onMotion); shake.on=true; }
+}
+document.addEventListener("click",()=>{ if(S.kids) enableShake(); });
+document.getElementById("kDice").onclick=kidsNew;
+document.getElementById("kUndo").onclick=()=>document.getElementById("bUndo").click();
+document.getElementById("kPieces").onclick=()=>document.getElementById("bSide").click();
+document.getElementById("kLike").onclick=toggleLike;
+document.getElementById("kGal").onclick=openGallery;
+document.getElementById("k3d").onclick=()=>document.getElementById("b3d").click();
 
 /* ---------- Pointer interaction (mouse, pen and touch; two fingers pinch-zoom and pan) ---------- */
 function svgPt(e){ const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
@@ -1671,6 +1810,10 @@ document.getElementById("inv").addEventListener("change",e=>{
   if(t.id==="sTolP"){ S.tolPos=Math.max(0.5,+t.value||3); refresh(); }
   if(t.id==="sTolA"){ S.tolAng=Math.max(0.5,+t.value||3); refresh(); }
   if(t.id==="sRise"){ S.rise=Math.max(20,+t.value||64); refresh(); }
+  if(["sGW","sGD","sGE","sGBr","sGShow"].includes(t.id)){ const v=id=>document.getElementById(id);
+    S.gen={w:Math.max(40,+v("sGW").value||200), d:Math.max(40,+v("sGD").value||150), ends:Math.min(8,Math.max(0,Math.round(+v("sGE").value||0))), bridges:v("sGBr").checked, show:v("sGShow").checked};
+    if(S.floor && t.id!=="sGE" && t.id!=="sGBr") S.floor={w:S.gen.w*10,d:S.gen.d*10}; save(); renderFloor(); }
+  if(t.id==="sShake"){ S.shake=t.checked; save(); }
   if(t.id==="sThick"){ S.thick=Math.max(5,+t.value||12); refresh(); }
   if(t.id==="sTrain"){ S.trainH=Math.max(10,+t.value||45); refresh(); }
 });
@@ -1700,7 +1843,7 @@ document.getElementById("bZout").onclick=()=>zoom(1.3);
 document.getElementById("bDemo").onclick=()=>{ if(S.kids && typeList.some(t=>(S.inv[t.id]||0)>0) && runGenerator(true)) return; demo(); };
 function setKids(on){
   S.kids=!!on; document.body.classList.toggle("kids",S.kids); wasClosed=null;
-  if(S.kids){ S.sideHidden=false; document.getElementById("app").classList.remove("noside"); document.getElementById("pinfo").classList.remove("show"); groupMode=false; }
+  if(S.kids){ S.sideHidden=true; document.getElementById("app").classList.add("noside"); enableShake(); document.getElementById("pinfo").classList.remove("show"); groupMode=false; }
   save(); renderInv(); refresh(false); setTimeout(()=>refresh(false),60);
   toast(S.kids?"Kids mode — have fun! 🚂":"Back to the full planner");
 }
@@ -1724,7 +1867,7 @@ document.getElementById("bHelp").onclick=()=>setHelp(helpEl.style.display==="non
 const isPhone=()=>matchMedia("(max-width:700px), (max-height:520px)").matches;
 { const M=document.getElementById("moreMenu"), B=document.getElementById("bMore");
   B.onclick=e=>{ e.stopPropagation(); M.classList.toggle("show"); };
-  M.addEventListener("click",e=>{ const b=e.target.closest("button[data-for]"); if(!b) return; M.classList.remove("show"); document.getElementById(b.dataset.for).click(); });
+  M.addEventListener("click",e=>{ if(e.target.closest("button") && !e.target.closest("#bClear")) M.classList.remove("show"); });
   document.addEventListener("pointerdown",e=>{ if(M.classList.contains("show") && !M.contains(e.target) && e.target!==B) M.classList.remove("show"); });
   document.getElementById("bSheetX").onclick=()=>document.getElementById("bSide").click(); }
 /* on a phone the piece sheet covers the lower part of the plan: keep the piece you just added above it */
