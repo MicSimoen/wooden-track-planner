@@ -1380,15 +1380,19 @@ function genFill(O,rem,target,tol=1.2){
    The two straight slots are solved so the eight closes exactly; one carries the bridge section over the other. */
 function genEight(O,avail){
   if(!O.macros.length) return null;
-  const A=270, a=A*D2R, rem={...avail};
-  // each lobe: curves (any mix you own) turning 270°, split in two halves of 135° — the middle gets a straight stretch
+  // lobes turning A: 270° gives a 90° crossing, 225° and 315° give 45° crossings (one leaning each way)
+  const A=GEN.wantA||pick([270,225,315]), a=A*D2R, rem={...avail};
+  // lobe A: curves (any mix you own) split in two parts, with a straight stretch in between (heading hA, solved below).
+  // At 270° both lobes are split at 135°, so both middles point the same way and share that stretch.
+  // the middle stretch must not run parallel to either crossing track (headings 0 and A)
+  const hA = A===270 ? 135 : pick([45,90,135,180,225,270].filter(h=>h<A-30 && h%180!==0 && (A-h)%180!==0));
   const lefts=O.plain.filter(r=>r.turn>0.01), rightOf=c=>O.plain.find(r=>r.id===c.id && r.ci===c.ci && r.mirror!==c.mirror);
-  const half=()=>{ const H=[]; let t=0, g=0; const pref=Math.random()<0.6?pick(lefts.filter(c=>(rem[c.id]||0)>0)):null;
-    while(t<135-0.01 && g++<20){ let o=lefts.filter(c=>(rem[c.id]||0)>0 && t+c.turn<=135+0.01); if(pref){ const o2=o.filter(c=>c.id===pref.id); if(o2.length) o=o2; }
+  const half=(goal)=>{ const H=[]; let t=0, g=0; if(goal<0.01) return H; const pref=Math.random()<0.6?pick(lefts.filter(c=>(rem[c.id]||0)>0)):null;
+    while(t<goal-0.01 && g++<24){ let o=lefts.filter(c=>(rem[c.id]||0)>0 && t+c.turn<=goal+0.01); if(pref){ const o2=o.filter(c=>c.id===pref.id); if(o2.length) o=o2; }
       if(!o.length) return null; const c=pick(o); rem[c.id]--; H.push(c); t+=c.turn; }
-    return Math.abs(t-135)<0.01 ? H : null; };
-  const A1=half(), A2=half(); if(!A1||!A2) return null;
-  const B1=half(), B2=half(); if(!B1||!B2) return null;
+    return Math.abs(t-goal)<0.01 ? H : null; };
+  const A1=half(hA), A2=half(A-hA); if(!A1||!A2) return null;
+  const B1=half(A===270?135:A), B2=half(A===270?135:0); if(!B1||!B2) return null;
   const toR=H=>H.map(rightOf); if([...B1,...B2].some(c=>!rightOf(c))) return null;
   const lobeA0=[...A1,...A2], lobeB0=[...toR(B1),...toR(B2)];
   const macro=pick(O.macros.filter(M=>Object.entries(M.need).every(([id,n])=>(rem[id]||0)>=n))); if(!macro) return null;
@@ -1398,7 +1402,7 @@ function genEight(O,avail){
   const DA=disp(lobeA0), DB=disp(lobeB0), rb=compose({x:0,y:0,a},DB);
   const D0={x:DA.x+rb.x, y:DA.y+rb.y};
   const bridgeIn=Math.random()<0.5?1:2;
-  const u0={x:1,y:0}, uA={x:Math.cos(a),y:Math.sin(a)}, uM={x:Math.cos(a/2),y:Math.sin(a/2)};
+  const u0={x:1,y:0}, uA={x:Math.cos(a),y:Math.sin(a)}, uM={x:Math.cos(hA*D2R),y:Math.sin(hA*D2R)};
   const ub=bridgeIn===1?u0:uA, uf=bridgeIn===1?uA:u0, det=uf.x*uM.y-uf.y*uM.x; if(Math.abs(det)<1e-6) return null;
   // try every small set of straights next to the bridge; keep one where the other two stretches can be filled too
   const sts=O.straights.filter(r=>(rem[r.id]||0)>0), combos=[[]];
@@ -1417,7 +1421,7 @@ function genEight(O,avail){
   }
   if(!extra) return null;
   const Lf=ff.reduce((q,r)=>q+r.len,0);
-  const fmA=[], fmB=[]; shuffle(fm.slice()).forEach((r,i)=>(i%2?fmB:fmA).push(r));
+  const fmA=[], fmB=[]; shuffle(fm.slice()).forEach((r,i)=>(i%2&&A===270?fmB:fmA).push(r));
   const LA=[...A1,...fmA,...A2], LB=[...toR(B1),...fmB,...toR(B2)];
   const L1=bridgeIn===1?Lb:Lf, L2=bridgeIn===1?Lf:Lb;
   // put the deck over the crossing
@@ -1429,14 +1433,15 @@ function genEight(O,avail){
   const want=sCross-(macro.deckFrom+macro.deckTo)/2;
   let before=[], acc=0, bestD=Math.abs(want); const order=shuffle(extra.slice());
   for(let i=0;i<=order.length;i++){ const d=Math.abs(want-acc); if(d<bestD){ bestD=d; before=order.slice(0,i); } if(i<order.length) acc+=order[i].len; }
-  if(bestD>(macro.deckTo-macro.deckFrom)/2-30) return null;
+  const sinX=Math.abs(Math.sin(a)); if(sinX<0.3) return null;
+  if(bestD>(macro.deckTo-macro.deckFrom)/2-(HALF/sinX+12)) return null;
   const after=order.filter(r=>!before.includes(r));
   const slotB=[...before,macro,...after], slotF=shuffle(ff.slice());
   const seq = bridgeIn===1 ? [...slotB,...LA,...slotF,...LB] : [...slotF,...LA,...slotB,...LB];
   const grid=genGrid(), rem2={...avail}; let T={x:0,y:0,a:0,g:"M",lv:0};
   for(const tk of seq){ const r2=genPut(grid,rem2,tk,T); if(!r2) return null; T=r2.T; }
   if(Math.hypot(T.x,T.y)>9 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;   // a few mm: closed by the joints' play
-  return {pieces:grid.pcs, ends:0, capped:0, nsw:0, loop:true, bridges:1, eight:true};
+  return {pieces:grid.pcs, ends:0, capped:0, nsw:0, loop:true, bridges:1, eight:true, cross:Math.round(Math.min(A%180,180-A%180))};
 }
 
 function genLine(O,avail){   // no loop possible: a line with both ends finished
@@ -1471,8 +1476,10 @@ function genFit(L,W,D){
 function generateLayout(W,D,maxEnds,ms=900,bridges=true){
   const avail={}; typeList.forEach(t=>avail[t.id]=S.inv[t.id]||0);
   const O=genOptions(); if(bridges) O.macros=genMacros(avail); O.passes=genPasses(O,avail);
-  let best=null, tries=0, valid=0; const t0=performance.now(), wantEight=O.macros.length>0 && Math.random()<0.65, wantPass=!wantEight||Math.random()<0.5;
+  let best=null, tries=0, valid=0; const wantX=pick([90,90,45]); GEN.wantA = wantX===90 ? 270 : pick([225,315]);
+  const t0=performance.now(), wantEight=O.macros.length>0 && Math.random()<0.65, wantPass=!wantEight||Math.random()<0.5;
   while(performance.now()-t0<ms){ tries++;
+    if(performance.now()-t0>ms*0.6 && !(best&&best.eight)) GEN.wantA=0;
     let L=null;
     const k=Math.random()<0.7?2:4;
     if(O.macros.length && Math.random()<(wantEight?0.6:0.25)) L=genEight(O,avail);
@@ -1481,9 +1488,10 @@ function generateLayout(W,D,maxEnds,ms=900,bridges=true){
     if(!L || L.ends>maxEnds) continue;
     if(!genFit(L,W,D)) continue;
     valid++;
-    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw+(L.eight?(wantEight?40:-6):0)+(L.eight?0:1.5*(L.bridges||0))+(L.passes?(wantPass?25:4):0);
+    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw+(L.eight?(wantEight?(L.cross===wantX?40:25):-6):0)+(L.eight?0:1.5*(L.bridges||0))+(L.passes?(wantPass?25:4):0);
     if(!best||sc>best.sc){ best=L; best.sc=sc; }
   }
+  GEN.wantA=0;
   if(best) best.stats={tries,valid,bridgeOK:O.macros.length>0};
   GEN.bridgeOK=O.macros.length>0;
   return best;
@@ -1497,7 +1505,7 @@ function runGenerator(fromKids){
   S.floor={w:g.w*10,d:g.d*10}; sel=null; active=null; save(); refresh();
   for(let i=0;i<6;i++){ const gp=GAPS.find(q=>q.fx&&q.fx.ok); if(!gp) break; closeWithPlay(gp.A.p.id+":"+gp.A.ci, gp.B.p.id+":"+gp.B.ci); refresh(); }
   fit();
-  const msg=`${L.pieces.length} pieces${L.eight?", a figure eight over a bridge":L.loop?", one loop":""}${!L.eight&&L.bridges?` with ${L.bridges} bridge${L.bridges>1?"s":""}`:""}${L.passes?`${L.bridges&&!L.eight?" and":" with"} a passing loop`:""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
+  const msg=`${L.pieces.length} pieces${L.eight?`, a figure eight over a bridge (crossing at ${L.cross===90?"90°":L.cross+"°"})`:L.loop?", one loop":""}${!L.eight&&L.bridges?` with ${L.bridges} bridge${L.bridges>1?"s":""}`:""}${L.passes?`${L.bridges&&!L.eight?" and":" with"} a passing loop`:""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
   let why="";
   if(g.bridges!==false && !GEN.bridgeOK){
     const has=id=>(S.inv[id]||0)>0, ramps=typeList.filter(t=>t.ramp&&has(t.id)), decks=typeList.filter(t=>t.deck&&has(t.id));
