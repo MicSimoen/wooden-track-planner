@@ -62,7 +62,7 @@
   .help kbd{border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 4px;font-size:11px;background:#fff;color:var(--ink)}
   #toast{position:absolute;top:56px;left:50%;transform:translateX(-50%);background:#2b2620;color:#fff;padding:6px 12px;border-radius:7px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
   #toast.show{opacity:.92}
-  .modal{position:absolute;inset:0;background:rgba(40,30,20,.35);display:none;align-items:center;justify-content:center;z-index:5}
+  .modal{position:absolute;inset:0;background:rgba(40,30,20,.35);display:none;align-items:center;justify-content:center;z-index:20}
   .modal.show{display:flex}
   .modal .card{background:var(--panel);border-radius:12px;padding:16px;width:min(560px,92%);box-shadow:0 10px 40px rgba(0,0,0,.2)}
   .modal h3{margin:0 0 8px}
@@ -142,6 +142,7 @@
   input, textarea{ -webkit-user-select:text; user-select:text }
   button{ touch-action:manipulation; min-height:36px }
   html,body{ overscroll-behavior:none }
+  html,body{ position:fixed; inset:0; width:100%; overflow:hidden }   /* iOS: the keyboard must not scroll the toolbar off the screen */
   #app.noside{ grid-template-columns:1fr }
   #app.noside aside{ display:none }
   .scanbtn{ width:100%; margin-top:8px; background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600 }
@@ -238,6 +239,14 @@
   body.kids #bbNext{ min-width:110px !important; min-height:96px !important; font-size:52px !important; border-radius:30px }
   .notphone{ } @media (max-width:700px), (max-height:520px){ .toolbar .notphone{ display:none !important } }
   #bTrain.on, .kbar #kTrain.on{ outline:4px solid #2f9e44 }
+  #bSpeed{ display:none; position:absolute; z-index:6; right:14px; bottom:calc(84px + env(safe-area-inset-bottom)); width:64px; height:64px; border-radius:32px;
+           font-size:34px; padding:0; background:#fff; border:2px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.18) }
+  body.trainOn #bSpeed{ display:block }
+  #bHop{ display:none; position:absolute; z-index:6; right:14px; bottom:calc(158px + env(safe-area-inset-bottom)); width:64px; height:64px; border-radius:32px;
+         font-size:32px; padding:0; background:#fff; border:2px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.18) }
+  body.trainOn #bHop{ display:block } body.kids #bHop{ bottom:calc(244px + env(safe-area-inset-bottom)); width:80px; height:80px; border-radius:40px; font-size:40px } body.kids #bSpeed{ bottom:calc(150px + env(safe-area-inset-bottom)); width:80px; height:80px; border-radius:40px; font-size:44px }
+  body.in3d #kUndo, body.in3d .kbar, body.in3d #bGrown, body.in3d #bSpeed, body.in3d .status{ display:none !important }
+  #b3dSpeed{ display:none; font-size:22px } #v3d.riding #b3dSpeed{ display:inline-flex }
   /* kids dock */
   .kbar{ position:absolute; left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:5;
          display:flex; align-items:center; gap:14px; padding:10px 16px; background:rgba(255,255,255,.88); border-radius:60px;
@@ -258,7 +267,7 @@
   body.kids #toast{ top:auto; bottom:calc(150px + env(safe-area-inset-bottom)); font-size:26px }
   body.kids #b3dClose{ font-size:28px; min-height:64px; padding:6px 22px; border-radius:22px }
   body.kids .v3bar button{ min-height:56px; font-size:18px }
-  #moreMenu{ display:none; position:absolute; top:58px; right:8px; z-index:6; background:var(--panel); border:1px solid var(--line); border-radius:14px;
+  #moreMenu{ display:none; position:absolute; top:58px; right:8px; z-index:15; background:var(--panel); border:1px solid var(--line); border-radius:14px;
              box-shadow:0 10px 30px rgba(0,0,0,.18); padding:6px; gap:2px; min-width:210px }
   #moreMenu button{ text-align:left; font-size:16px; min-height:46px; border:0; background:transparent; box-shadow:none; border-radius:9px }
   #moreMenu button:active{ background:#f1e9dc }
@@ -412,6 +421,8 @@
       <button id="k3d" aria-label="See it in 3D">👀</button>
     </div>
     <button id="kUndo" class="kidonly" aria-label="Oops, undo">↶</button>
+    <button id="bSpeed" class="spdbtn" aria-label="Faster">🐇</button>
+    <button id="bHop" aria-label="Ride on the train">🎥</button>
     <div id="buildBar">
       <button id="bbBack" aria-label="Back">◀</button>
       <div class="bbInfo"><div class="bbIcon"></div><div><div class="bbTxt"></div><div class="bbProg"><i></i></div></div></div>
@@ -447,6 +458,7 @@
         <label class="chk adult"><input type="checkbox" id="c3Lab" checked> Clearance labels</label>
         <span class="sp"></span>
         <button id="b3dRide" class="ride">🚂<span class="lbl"> Ride along</span></button>
+        <button id="b3dSpeed" class="spdbtn" title="Faster / slower">🐇</button>
         <button id="b3dTop">Top</button><button id="b3dSide">Side</button><button id="b3dIso">3/4</button>
       </div>
       <div class="v3help adult">Drag to orbit · right-drag / two fingers to pan · wheel to zoom. Blue haze = room your tallest train needs (set in Settings) · red marks = not enough room.</div>
@@ -1379,7 +1391,7 @@ function genLoop(O,k,avail,maxEnds,Xin){
       tk=O.plain.find(q=>(rem[q.id]||0)>0 && Math.hypot(q.rel.x-tok.rel.x,q.rel.y-tok.rel.y)<1 && Math.abs(normA(q.rel.a-tok.rel.a))<0.01);
       if(!tk) return null;
     }
-    if((tk.seq||tk.local) && (r>0 || Object.entries(tk.need).some(([id,n])=>(rem[id]||0)<n))){
+    if((tk.seq||tk.local) && ((r>0 && !O.allCopies) || Object.entries(tk.need).some(([id,n])=>(rem[id]||0)<n))){
       const f=genFill(O,rem,tk.len); if(!f) return null;
       for(const st of f){ const r3=genPut(grid,rem,st,T); if(!r3) return null; T=r3.T; }
       continue;
@@ -1657,8 +1669,7 @@ function updateLike(){
 function toggleLike(){
   if(!S.pieces.length){ toast(S.kids?"🎲 first!":"Nothing to save yet — build or make a track first"); return; }
   S.saved=S.saved||[]; const cur=savedNow();
-  if(cur){ if(S.kids){ pop(document.getElementById("kLike")); return; }   // little ones can't un-like by accident
-    S.saved=S.saved.filter(t=>t!==cur); toast(`Removed “${cur.name}” from My tracks`); }
+  if(cur){ S.saved=S.saved.filter(t=>t!==cur); toast(S.kids?"🤍":`Removed “${cur.name}” from My tracks`); sfx("unlike"); pop(document.getElementById(S.kids?"kLike":"bLike")); }
   else { const name=`${GEN.lastPieces===layoutKey(S.pieces)&&GEN.kind?GEN.kind:"Track"} ${S.saved.length+1}`;
     S.saved.unshift({id:Date.now(), name, at:Date.now(), key:layoutKey(S.pieces), pieces:JSON.parse(JSON.stringify(S.pieces))});
     toast(S.kids?"❤️":`Saved as “${name}” in My tracks`); sfx("like"); pop(document.getElementById(S.kids?"kLike":"bLike")); }
@@ -1685,7 +1696,8 @@ function openGallery(){
           <input class="gname" data-name="${t.id}" value="${esc(t.name)}" aria-label="Name">
           <div class="gmeta">${t.pieces.length} pieces · ${d.toLocaleDateString()}</div>
           <div class="gbtns"><button class="primary" data-open="${t.id}">Open</button><button data-share="${t.id}" title="Share">🔗</button><button class="danger" data-del="${t.id}">Delete</button></div></div>`; }).join("");
-  if(S.kids){ const tl=tplList().filter(x=>x.ok); if(tl.length) G.innerHTML+=`<div class="kgsep">⭐</div>`+tl.map(x=>`<button class="gcard star" data-tpl="${TPLCACHE.list.indexOf(x)}">${thumbSVG(x.pieces)}</button>`).join("");
+  if(S.kids){ if(!TPLCACHE||TPLCACHE.sig!==tplSig()) tplCompute().then(l=>{ if(l && M.classList.contains("show") && M.dataset.mode==="saved") openGallery(); });
+    const tl=tplList().filter(x=>x.ok); if(tl.length) G.innerHTML+=`<div class="kgsep">⭐</div>`+tl.map(x=>`<button class="gcard star" data-tpl="${TPLCACHE.list.indexOf(x)}">${thumbSVG(x.pieces)}</button>`).join("");
     if(list.length||tl.length) G.querySelectorAll(".galempty").forEach(e=>e.remove()); }
   M.classList.add("show");
 }
@@ -1736,31 +1748,52 @@ document.getElementById("kLike").onclick=toggleLike;
 document.getElementById("kGal").onclick=openGallery;
 document.getElementById("k3d").onclick=()=>document.getElementById("b3d").click();
 
-/* ---------- Sounds for kids mode: made on the fly with Web Audio (no files to download) ---------- */
-const SND={ctx:null};
-function actx(){ try{ if(!SND.ctx){ const A=window.AudioContext||window.webkitAudioContext; if(!A) return null; SND.ctx=new A(); }
+/* ---------- Sounds for kids mode: made on the fly with Web Audio (no files to download) ----------
+   Soft and warm on purpose: a breathy three-note steam whistle, steam chuffs, wooden clacks, xylophone chimes. */
+const SND={ctx:null, out:null};
+function actx(){ try{ if(!SND.ctx){ const A=window.AudioContext||window.webkitAudioContext; if(!A) return null; SND.ctx=new A();
+    const comp=SND.ctx.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=4; const g=SND.ctx.createGain(); g.gain.value=0.7;
+    comp.connect(g).connect(SND.ctx.destination); SND.out=comp; }
   if(SND.ctx.state==="suspended") SND.ctx.resume(); return SND.ctx; }catch(e){ return null; } }
-function tone(c,f0,f1,t0,dur,type="sine",vol=0.18){
-  const o=c.createOscillator(), g=c.createGain(); o.type=type; o.frequency.setValueAtTime(f0,c.currentTime+t0);
-  if(f1!==f0) o.frequency.exponentialRampToValueAtTime(f1,c.currentTime+t0+dur);
-  g.gain.setValueAtTime(0.0001,c.currentTime+t0); g.gain.exponentialRampToValueAtTime(vol,c.currentTime+t0+0.015);
-  g.gain.exponentialRampToValueAtTime(0.0001,c.currentTime+t0+dur); o.connect(g).connect(c.destination); o.start(c.currentTime+t0); o.stop(c.currentTime+t0+dur+0.02);
+function env(c,g,t0,a,d,peak){ g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(peak,t0+a); g.gain.exponentialRampToValueAtTime(0.0001,t0+a+d); }
+function noiseBuf(c,dur){ const b=c.createBuffer(1,Math.ceil(c.sampleRate*dur),c.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
+/* a mallet note: a sine plus a soft upper partial, quick decay (xylophone / glockenspiel) */
+function mallet(c,f,t,vol=0.25,dec=0.45){ [[1,1],[3.9,0.18]].forEach(([m,v])=>{ const o=c.createOscillator(), g=c.createGain(); o.frequency.value=f*m; o.type="sine";
+  env(c,g,t,0.004,dec/(m>1?3:1),vol*v); o.connect(g).connect(SND.out); o.start(t); o.stop(t+dec+0.05); }); }
+/* one steam puff: band-passed noise with a soft "ch" attack */
+function chuff(c,t,vol=0.3,freq=700,dur=0.17){ const n=c.createBufferSource(); n.buffer=noiseBuf(c,dur+0.05);
+  const f=c.createBiquadFilter(); f.type="bandpass"; f.frequency.setValueAtTime(freq*1.6,t); f.frequency.exponentialRampToValueAtTime(freq*0.7,t+dur); f.Q.value=0.9;
+  const g=c.createGain(); env(c,g,t,0.012,dur,vol); n.connect(f).connect(g).connect(SND.out); n.start(t); n.stop(t+dur+0.05); }
+/* steam whistle: three detuned voices forming a soft chord, pitch sighs up at the start, breath noise on top */
+function whistle(c,t,dur=0.9,vol=0.22){
+  [523.25,659.25,783.99].forEach((f,i)=>{ const o=c.createOscillator(), lp=c.createBiquadFilter(), g=c.createGain(), lfo=c.createOscillator(), lg=c.createGain();
+    o.type="triangle"; o.frequency.setValueAtTime(f*0.94,t); o.frequency.exponentialRampToValueAtTime(f,t+0.12);
+    lfo.frequency.value=5.5+i*0.4; lg.gain.value=f*0.006; lfo.connect(lg).connect(o.frequency);
+    lp.type="lowpass"; lp.frequency.value=2400; g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol/3,t+0.08);
+    g.gain.setValueAtTime(vol/3,t+dur-0.18); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(lp).connect(g).connect(SND.out); o.start(t); o.stop(t+dur+0.05); lfo.start(t); lfo.stop(t+dur+0.05); });
+  const n=c.createBufferSource(); n.buffer=noiseBuf(c,dur); const bp=c.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=1800; bp.Q.value=1.4;
+  const g=c.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(vol*0.25,t+0.06); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  n.connect(bp).connect(g).connect(SND.out); n.start(t); n.stop(t+dur);
 }
-function puff(c,t0,dur,vol=0.22){   // a burst of filtered noise: one "choo"
-  const n=c.createBufferSource(), b=c.createBuffer(1,Math.ceil(c.sampleRate*dur),c.sampleRate), d=b.getChannelData(0);
-  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
-  const f=c.createBiquadFilter(); f.type="bandpass"; f.frequency.value=900; f.Q.value=0.8; const g=c.createGain(); g.gain.value=vol;
-  n.buffer=b; n.connect(f).connect(g).connect(c.destination); n.start(c.currentTime+t0);
-}
+/* wooden "tock": a short resonant knock */
+function tock(c,t,f=900,vol=0.3){ const o=c.createOscillator(), g=c.createGain(); o.type="sine"; o.frequency.setValueAtTime(f,t); o.frequency.exponentialRampToValueAtTime(f*0.6,t+0.06);
+  env(c,g,t,0.002,0.07,vol); o.connect(g).connect(SND.out); o.start(t); o.stop(t+0.1);
+  const n=c.createBufferSource(); n.buffer=noiseBuf(c,0.03); const hp=c.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=2500; const g2=c.createGain(); env(c,g2,t,0.001,0.02,vol*0.4);
+  n.connect(hp).connect(g2).connect(SND.out); n.start(t); }
 function sfx(name){
-  if(!S.kids || S.sound===false) return; const c=actx(); if(!c) return;
-  if(name==="pop") tone(c,520,880,0,0.12,"triangle",0.2);
-  else if(name==="click") tone(c,1400,900,0,0.05,"square",0.08);
-  else if(name==="roll"){ for(let i=0;i<6;i++) tone(c,300+Math.random()*500,200,i*0.06,0.05,"triangle",0.12); }
-  else if(name==="whistle"){ tone(c,880,880,0,0.35,"sine",0.12); tone(c,1108,1108,0,0.35,"sine",0.1); tone(c,880,880,0.45,0.55,"sine",0.12); tone(c,1108,1108,0.45,0.55,"sine",0.1); }
-  else if(name==="choo"){ for(let i=0;i<4;i++) puff(c,i*0.22,0.16); tone(c,880,880,0.95,0.4,"sine",0.1); tone(c,1108,1108,0.95,0.4,"sine",0.08); }
-  else if(name==="tada"){ [523,659,784,1047].forEach((f,i)=>tone(c,f,f,i*0.11,i===3?0.5:0.16,"triangle",0.18)); }
-  else if(name==="like"){ tone(c,660,660,0,0.1,"sine",0.15); tone(c,990,990,0.1,0.22,"sine",0.15); }
+  if(!S.kids || S.sound===false) return; const c=actx(); if(!c) return; const t=c.currentTime+0.02;
+  if(name==="pop"){ const o=c.createOscillator(), g=c.createGain(); o.type="sine"; o.frequency.setValueAtTime(380,t); o.frequency.exponentialRampToValueAtTime(760,t+0.08);
+    env(c,g,t,0.008,0.14,0.28); o.connect(g).connect(SND.out); o.start(t); o.stop(t+0.2); tock(c,t,1200,0.08); }          // a soft "bloop" as a piece snaps on
+  else if(name==="click") tock(c,t,700,0.35);                                                                               // switch lever
+  else if(name==="roll"){ for(let i=0;i<7;i++) tock(c,t+i*0.07+Math.random()*0.03,700+Math.random()*700,0.22); }           // wooden dice clacking
+  else if(name==="whistle") whistle(c,t);
+  else if(name==="choo"){ for(let i=0;i<6;i++) chuff(c,t+i*0.24-(i*i*0.006),0.32,650); whistle(c,t+1.35,0.7,0.18); }        // puffs speeding up, then a toot
+  else if(name==="chuff") chuff(c,t,0.13,620,0.13);
+  else if(name==="bell"){ mallet(c,1318.5,t,0.16,0.6); }
+  else if(name==="tada"){ [523.25,659.25,783.99,1046.5].forEach((f,i)=>mallet(c,f,t+i*0.12,0.26,i===3?0.9:0.4)); mallet(c,1318.5,t+0.48,0.12,0.9); }
+  else if(name==="like"){ mallet(c,783.99,t,0.24); mallet(c,1174.66,t+0.12,0.24,0.6); }
+  else if(name==="unlike"){ mallet(c,880,t,0.2); mallet(c,587.33,t+0.12,0.2,0.5); }
 }
 
 /* ---------- Trains: follow the track lane by lane (used by the 2D train and the 3D ride) ----------
@@ -1802,7 +1835,11 @@ function trainStep(st,ds){
   }
   return st;
 }
-const TR={on:false, st:null, hist:[], last:0, raf:0, speed:110};
+const TR={on:false, st:null, hist:[], last:0, raf:0};
+const SPEEDS=[{e:"🐢",v2:170,v3:240},{e:"🐇",v2:330,v3:450},{e:"🚀",v2:600,v3:800}];
+const spd=()=>SPEEDS[(S.speed??1)%SPEEDS.length];
+function speedUp(){ S.speed=((S.speed??1)+1)%SPEEDS.length; save(); updSpeed(); sfx("click"); }
+function updSpeed(){ document.querySelectorAll(".spdbtn").forEach(b=>b.textContent=spd().e); }
 function trainSVG(x,y,a,kind){
   const d=(a/D2R).toFixed(1);
   if(kind==="engine") return `<g transform="translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${d})"><rect x="-26" y="-14" width="52" height="28" rx="7" fill="#e03131" stroke="#7a1414" stroke-width="2"/>
@@ -1825,16 +1862,23 @@ function trainTick(ts){
   if(!TR.on) return;
   const dt=Math.min(0.06,(ts-(TR.last||ts))/1000); TR.last=ts;
   if(!document.getElementById("v3d").classList.contains("show")){
-    TR.st=trainStep(TR.st,TR.speed*dt); if(!TR.st){ trainOff(); return; }
+    const bn=TR.st.bounced||0; TR.st=trainStep(TR.st,spd().v2*dt); if(!TR.st){ trainOff(); return; }
+    if((TR.st.bounced||0)>bn) sfx("bell");
+    TR.dist=(TR.dist||0)+spd().v2*dt; if(TR.dist>140){ TR.dist=0; sfx("chuff"); }
     const P=trainPose(TR.st); TR.hist.push(P); if(TR.hist.length>120) TR.hist.shift();
     drawTrain();
   }
   TR.raf=requestAnimationFrame(trainTick);
 }
-function trainOn(){
-  computeLinks(); const st=trainStart(); if(!st){ toast(S.kids?"🎲":"Build or make a track first"); return; }
-  TR.st=st; TR.hist=[]; for(let i=0;i<30;i++){ trainStep(TR.st,4); TR.hist.push(trainPose(TR.st)); }
-  TR.on=true; TR.last=0; document.body.classList.add("trainOn"); TR.raf=requestAnimationFrame(trainTick);
+function trainOn(stIn){
+  computeLinks(); const st=stIn||trainStart(); if(!st){ toast(S.kids?"🎲":"Build or make a track first"); return; }
+  TR.st=st; TR.hist=[];
+  if(stIn){ // continue from where the ride left off: build the wagons' trail behind the engine
+    const back={...st, dir:-st.dir, s:Math.max(0,laneLen(types[byId(st.pid).type].lanes[st.li])-st.s)}; const pts=[];
+    for(let i=0;i<30;i++){ trainStep(back,4); const q=trainPose(back); if(q) pts.push(q); } TR.hist=pts.reverse(); TR.hist.push(trainPose(st));
+  } else for(let i=0;i<30;i++){ trainStep(TR.st,4); TR.hist.push(trainPose(TR.st)); }
+  cancelAnimationFrame(TR.raf); TR.on=true; TR.last=0; document.body.classList.add("trainOn"); TR.raf=requestAnimationFrame(trainTick);
+  if(stIn) return;
   sfx("choo"); if(!S.kids && S.pieces.some(isSwitch)) toast("Tap a switch to change where the train goes",2600);
 }
 function trainOff(){ TR.on=false; cancelAnimationFrame(TR.raf); document.body.classList.remove("trainOn"); drawTrain(); }
@@ -1862,43 +1906,82 @@ const TPL=[
   {name:"Oval with a passing loop", grp:"Loops with sidings", k:2, x:"S PASS C C C C"},
   {name:"Oval with a station siding", grp:"Loops with sidings", k:2, x:"S S SW C C C C", ends:1},
   {name:"Oval with two sidings", grp:"Loops with sidings", k:2, x:"S SW S C C C C", ends:2},
+  {name:"Oval with two passing loops", grp:"Loops with sidings", k:2, x:"S PASS C C C C", all:true},
+  {name:"Oval with a passing loop and a station", grp:"Loops with sidings", k:2, x:"PASS SW C C C C", ends:1},
   {name:"Oval over a bridge", grp:"Bridges", k:2, x:"S BRIDGE C C C C"},
+  {name:"Long oval over a bridge", grp:"Bridges", k:2, x:"L BRIDGE C C C C"},
+  {name:"Peanut over a bridge", grp:"Bridges", k:2, x:"BRIDGE C C C C- C- C C C"},
+  {name:"Dog bone over a bridge", grp:"Bridges", k:2, x:"S BRIDGE C- C C C C C C C-"},
+  {name:"Square with a bridge", grp:"Bridges", k:4, x:"BRIDGE C C"},
+  {name:"Oval with two bridges", grp:"Bridges", k:2, x:"S BRIDGE C C C C", all:true},
+  {name:"Bridge and passing loop", grp:"Bridges", k:2, x:"PASS C C C C BRIDGE"},
   {name:"Figure eight over a bridge", grp:"Bridges", eight:true},
+  {name:"Figure eight, crossing at 45°", grp:"Bridges", eight:true, A:225},
 ];
-function tplBuild(tp,avail){
-  const O=genOptions(); O.macros=genMacros(avail); O.passes=genPasses(O,avail,12);
-  if(tp.eight){ for(let i=0;i<300;i++){ GEN.wantA=270; const L=genEight(O,avail); GEN.wantA=0; if(L) return L; } return null; }
+function tplOpts(avail){ const O=genOptions(); O.macros=genMacros(avail); O.passes=genPasses(O,avail,8); return O; }
+function tplBuild(tp,avail,O0){
+  const O={...(O0||tplOpts(avail))};
+  if(tp.eight){ for(let i=0;i<120;i++){ GEN.wantA=tp.A||270; const L=genEight(O,avail); GEN.wantA=0; if(L) return L; } return null; }
+  O.allCopies=!!tp.all;
   const toks=tp.x.split(" "), cnt={};
   toks.forEach(t=>{ const c=t.replace("-",""); if(TPLC[c]) cnt[c]=(cnt[c]||0)+tp.k; });
   const pickId={}; for(const c in cnt){ pickId[c]=TPLC[c].find(id=>types[id] && (avail[id]||0)>=cnt[c]) || TPLC[c].find(id=>types[id]); }
-  const X=[];
+  const passes=O.passes.length?O.passes:[null], macros=O.macros.length?O.macros:[null];
+  for(let attempt=0; attempt<10; attempt++){
+  const X=[]; let bad=false;
   for(const t of toks){
     const c=t.replace("-",""), right=t.endsWith("-");
-    if(t==="PASS"){ const m=O.passes[0]; if(!m) return null; X.push(m); continue; }
-    if(t==="BRIDGE"){ const m=O.macros[0]; if(!m) return null; X.push(m); continue; }
+    if(t==="PASS"){ const m=passes[attempt%passes.length]; if(!m){ bad=true; break; } X.push(m); continue; }
+    if(t==="BRIDGE"){ const m=macros[attempt%macros.length]; if(!m){ bad=true; break; } X.push(m); continue; }
     if(t==="SW"){ const w=O.sw.find(q=>Math.abs(q.turn)<0.01 && (avail[q.id]||0)>0) || O.sw.find(q=>Math.abs(q.turn)<0.01); if(!w) return null; X.push(w); continue; }
     const id=pickId[c], r=O.plain.find(q=>q.id===id && (c==="S"||c==="L"||c==="s"||c==="m" ? Math.abs(q.turn)<0.01 : right ? q.turn<-0.01 : q.turn>0.01));
     if(!r) return null; X.push(r);
   }
-  for(let i=0;i<20;i++){ const L=genLoop(O,tp.k,avail,tp.ends||0,X); if(L && (!tp.ends || L.nsw>0)) return L; }
+  if(bad) return null;
+  for(let i=0;i<(tp.ends?8:2);i++){ const L=genLoop(O,tp.k,avail,tp.ends||0,X);
+    if(L && (!tp.ends || L.nsw>0) && (!tp.all || (L.passes||0)+(L.bridges||0)>=tp.k)) return L; }
+  if(!tp.x.includes("PASS") && !tp.x.includes("BRIDGE")) break;
+  }
   return null;
 }
-let TPLCACHE=null;
-function tplList(){
-  const sig=JSON.stringify(S.inv)+S.gender; if(TPLCACHE&&TPLCACHE.sig===sig) return TPLCACHE.list;
-  const mine={}, lots={}; typeList.forEach(t=>{ mine[t.id]=S.inv[t.id]||0; lots[t.id]=60; });
-  const list=TPL.map(tp=>{
-    let L=tplBuild(tp,mine), ok=!!L, need=[];
-    if(!L){ L=tplBuild(tp,lots); if(L){ const u={}; L.pieces.forEach(p=>u[p.type]=(u[p.type]||0)+1);
-      need=Object.entries(u).filter(([id,n])=>n>(mine[id]||0)).map(([id,n])=>`${n-(mine[id]||0)}× ${shortName(types[id])}`); } }
-    return L?{tp,ok,need,pieces:L.pieces.map((p,i)=>({id:i+1,type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:p.level||0}))}:null;
-  }).filter(Boolean);
-  TPLCACHE={sig,list}; return list;
+let TPLCACHE=null, TPLBUSY=null;
+const tplSig=()=>JSON.stringify(S.inv)+S.gender;
+/* worked out one layout at a time, so the page stays responsive */
+function tplCompute(onStep){
+  if(TPLBUSY && TPLBUSY.sig===tplSig()) return TPLBUSY.p;
+  // "what would I need": imagine a bigger collection of the brand you mostly own (so suggestions are pieces you can actually buy to match)
+  const sig=tplSig(), mine={}, lots={}, by={}; typeList.forEach(t=>{ mine[t.id]=S.inv[t.id]||0; by[makeOf(t)]=(by[makeOf(t)]||0)+mine[t.id]; });
+  const brand=Object.entries(by).sort((a,b)=>b[1]-a[1])[0]?.[0]||"BRIO";
+  typeList.forEach(t=>{ lots[t.id] = mine[t.id]>0 ? Math.max(mine[t.id],6) : (makeOf(t)===brand && !isRetired(t) ? 4 : 0); });
+  ["E","IC45"].forEach(id=>{ if(lots[id]) lots[id]=Math.max(lots[id],16); }); ["A","D","I145","I205"].forEach(id=>{ if(lots[id]) lots[id]=Math.max(lots[id],10); });
+  const p=new Promise(done=>{
+    let Om=null, Ol=null; const list=[]; let i=0;
+    const step=()=>{
+      if(tplSig()!==sig){ TPLBUSY=null; done(null); return; }
+      if(!Om){ Om=tplOpts(mine); setTimeout(step,0); return; }
+      if(i<TPL.length){ const tp=TPL[i++];
+        let L=tplBuild(tp,mine,Om), ok=!!L, need=[];
+        if(!L){ if(!Ol) Ol=tplOpts(lots); L=tplBuild(tp,lots,Ol);
+          if(L){ const u={}; L.pieces.forEach(p=>u[p.type]=(u[p.type]||0)+1);
+            need=Object.entries(u).filter(([id,n])=>n>(mine[id]||0)).map(([id,n])=>`${n-(mine[id]||0)}× ${shortName(types[id])}`); } }
+        if(L) list.push({tp,ok,need,pieces:L.pieces.map((p,k)=>({id:k+1,type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:p.level||0}))});
+        onStep&&onStep(i,TPL.length); setTimeout(step,0); return; }
+      TPLCACHE={sig,list}; TPLBUSY=null; done(list);
+    };
+    setTimeout(step,0);
+  });
+  TPLBUSY={sig,p}; return p;
 }
+function tplList(){ return TPLCACHE&&TPLCACHE.sig===tplSig() ? TPLCACHE.list : []; }
 function openTemplates(){
-  const M=document.getElementById("galModal"), G=document.getElementById("galGrid"), list=tplList();
-  M.querySelector(".galhead h3").textContent=S.kids?"⭐":"📐 Classic layouts";
-  G.className=S.kids?"kgal":"agal";
+  const M=document.getElementById("galModal"), G=document.getElementById("galGrid");
+  M.querySelector(".galhead h3").textContent=S.kids?"⭐":"📐 Classic layouts"; G.className=S.kids?"kgal":"agal";
+  if(!(TPLCACHE && TPLCACHE.sig===tplSig())){
+    G.innerHTML=`<p class="galempty">Finding the layouts your pieces can build… <span id="tplProg"></span></p>`; M.dataset.mode="tpl"; M.classList.add("show");
+    tplCompute((i,n)=>{ const e=document.getElementById("tplProg"); if(e) e.textContent=`${i} / ${n}`; })
+      .then(l=>{ if(l && M.classList.contains("show") && M.dataset.mode==="tpl") openTemplates(); }); return;
+  }
+  const list=tplList();
   const show=S.kids?list.filter(x=>x.ok):list.slice().sort((a,b)=>(b.ok-a.ok));
   G.innerHTML=show.map((x,i)=>S.kids?`<button class="gcard" data-tpl="${list.indexOf(x)}">${thumbSVG(x.pieces)}</button>`
     : `<div class="gcard${x.ok?"":" cant"}"><button class="gthumb" data-tpl="${list.indexOf(x)}">${thumbSVG(x.pieces)}</button>
@@ -1968,6 +2051,8 @@ document.getElementById("bbX").onclick=buildStop;
 document.getElementById("bBuild").onclick=buildStart;
 document.getElementById("kBuild").onclick=buildStart;
 document.getElementById("bTrain").onclick=trainToggle;
+document.getElementById("bSpeed").onclick=speedUp;
+document.getElementById("bHop").onclick=async()=>{ const st=TR.st; if(!st) return; trainOff(); await open3D(); if(V3.ready) rideOn(st); }; document.getElementById("b3dSpeed").onclick=speedUp; updSpeed();
 document.getElementById("bTrainM").onclick=trainToggle;
 document.getElementById("kTrain").onclick=trainToggle;
 
@@ -2042,6 +2127,11 @@ async function handleShared(){
   M.classList.add("show");
 }
 addEventListener("hashchange",handleShared);
+/* a window opening always closes the ⋯ menu; when the iOS keyboard closes, put the page back where it belongs */
+new MutationObserver(()=>{ const m=document.getElementById("moreMenu"); if(m.classList.contains("show") && document.querySelector(".modal.show")) m.classList.remove("show"); })
+  .observe(document.body,{subtree:true,attributes:true,attributeFilter:["class"]});
+document.addEventListener("focusout",()=>setTimeout(()=>{ if(!document.activeElement||!/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)){ window.scrollTo(0,0); document.scrollingElement&&(document.scrollingElement.scrollTop=0); } },80));
+if(window.visualViewport) visualViewport.addEventListener("resize",()=>{ if(visualViewport.height>=innerHeight-1) window.scrollTo(0,0); });
 
 /* ---------- Pointer interaction (mouse, pen and touch; two fingers pinch-zoom and pan) ---------- */
 function svgPt(e){ const pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
@@ -2302,7 +2392,8 @@ window.addEventListener("resize",()=>refresh(false));
 const V3={ready:false, loading:false};
 function loadScript(src){ return new Promise((ok,bad)=>{ const e=document.createElement("script"); e.src=src; e.onload=ok; e.onerror=()=>bad(src); document.head.appendChild(e); }); }
 async function open3D(){
-  document.getElementById("v3d").classList.add("show");
+  document.getElementById("v3d").classList.add("show"); document.body.classList.add("in3d");
+  if(!(V3.ride&&V3.ride.on)) document.getElementById("b3dClose").innerHTML=S.kids?"⬅️":"← Back to plan";
   const msg=document.getElementById("v3dMsg");
   if(!V3.ready){
     msg.textContent="Loading 3D…";
@@ -2464,14 +2555,81 @@ function build3D(){
     el.textContent = c.kind==="overlap"?"⚠ tracks overlap": c.kind==="hit"?"⚠ collides": (okc?"":"⚠ ")+Math.round(c.gap)+" mm free";
     V3.labels.appendChild(el); V3.lab.push({el,pos:new THREE.Vector3(c.x,h2+10,c.y)});
   });
-  // floor + grid sized to the layout
-  const b=bbox()||{x0:-300,y0:-300,x1:300,y1:300}, cx=(b.x0+b.x1)/2, cz=(b.y0+b.y1)/2, sz=Math.max(b.x1-b.x0,b.y1-b.y0)+600;
-  const floor=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz),new THREE.MeshStandardMaterial({color:0xf3efe7,roughness:1}));
-  floor.rotation.x=-Math.PI/2; floor.position.set(cx,-0.5,cz); floor.receiveShadow=true; G.add(floor);
-  const grid=new THREE.GridHelper(Math.ceil(sz/100)*100,Math.ceil(sz/100),0xd2c8b6,0xe4ddd0); grid.position.set(cx,0,cz); G.add(grid);
+  // floor + grid sized to the layout (kids mode: a play room with a rug and toys around the track)
+  const b=bbox()||{x0:-300,y0:-300,x1:300,y1:300}, cx=(b.x0+b.x1)/2, cz=(b.y0+b.y1)/2;
+  const sz=Math.max(b.x1-b.x0,b.y1-b.y0)+(S.kids?1800:600);
+  if(S.kids){ kidsRoom(G,b,cx,cz,sz); V3.scene.background=new THREE.Color(0xfdf1dc); }
+  else {
+    V3.scene.background=new THREE.Color(0xeef2f6);
+    const floor=new THREE.Mesh(new THREE.PlaneGeometry(sz,sz),new THREE.MeshStandardMaterial({color:0xf3efe7,roughness:1}));
+    floor.rotation.x=-Math.PI/2; floor.position.set(cx,-0.5,cz); floor.receiveShadow=true; G.add(floor);
+    const grid=new THREE.GridHelper(Math.ceil(sz/100)*100,Math.ceil(sz/100),0xd2c8b6,0xe4ddd0); grid.position.set(cx,0,cz); G.add(grid);
+  }
   V3.center={x:cx,z:cz,size:sz};
   const s2=V3.sun.shadow.camera; s2.left=s2.bottom=-sz/2; s2.right=s2.top=sz/2; s2.far=6000; s2.updateProjectionMatrix();
   V3.sun.position.set(cx-600,1600,cz+900); V3.sun.target.position.set(cx,0,cz);
+}
+/* ---------- a children's room for the 3D view in kids mode: plank floor, rug, teddy, block castle, ball, stacking rings, blocks ---------- */
+function canvasTex(w,h,draw,rep){ const c=document.createElement("canvas"); c.width=w; c.height=h; draw(c.getContext("2d"),w,h);
+  const t=new THREE.CanvasTexture(c); if(rep){ t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(rep[0],rep[1]); } return t; }
+function kidsRoom(G,b,cx,cz,sz){
+  const M=(c,r=0.75)=>new THREE.MeshStandardMaterial({color:c,roughness:r});
+  const add=(geo,mat,x,y,z,o={})=>{ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(o.rx) m.rotation.x=o.rx; if(o.ry) m.rotation.y=o.ry; if(o.rz) m.rotation.z=o.rz;
+    if(o.s) m.scale.set(...o.s); m.castShadow=true; m.receiveShadow=true; G.add(m); return m; };
+  // plank floor
+  const planks=canvasTex(512,512,(g,w,h)=>{ const cols=["#d6a56c","#cf9c62","#dcae77","#c99558"]; for(let i=0;i<8;i++){ g.fillStyle=cols[i%4]; g.fillRect(0,i*64,w,64);
+      g.fillStyle="rgba(90,55,20,.35)"; g.fillRect(0,i*64,w,2); g.fillRect(((i*173)%w),i*64,2,64); } },[sz/1200,sz/1200]);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(sz*1.6,sz*1.6),new THREE.MeshStandardMaterial({map:planks,roughness:0.9}));
+  floor.rotation.x=-Math.PI/2; floor.position.set(cx,-1,cz); floor.receiveShadow=true; G.add(floor);
+  // round, colourful rug under the track
+  const rw=(b.x1-b.x0)+500, rh=(b.y1-b.y0)+500;
+  const rug=canvasTex(512,512,(g,w,h)=>{ ["#ffd6e7","#c5f6fa","#fff3bf","#d3f9d8","#e5dbff"].forEach((c,i)=>{ g.fillStyle=c; g.beginPath(); g.ellipse(w/2,h/2,w/2-i*44,h/2-i*44,0,0,7); g.fill(); });
+    g.fillStyle="rgba(255,255,255,.6)"; for(let i=0;i<40;i++){ const a=i/40*Math.PI*2; g.beginPath(); g.arc(w/2+Math.cos(a)*(w/2-22),h/2+Math.sin(a)*(h/2-22),6,0,7); g.fill(); } });
+  const rm=new THREE.Mesh(new THREE.PlaneGeometry(rw,rh),new THREE.MeshStandardMaterial({map:rug,roughness:1,transparent:true}));
+  rm.rotation.x=-Math.PI/2; rm.position.set(cx,-0.4,cz); rm.receiveShadow=true; G.add(rm);
+  const ox=b.x1+330, wx=b.x0-330, nz=b.y0-330, sz2=b.y1+330;
+  // teddy bear, sitting
+  { const fur=M(0xa0703f,0.95), lite=M(0xe2c19a,0.95), blk=M(0x222222,0.4), tx=ox, tz=cz, ry=-Math.PI/2;
+    const g=new THREE.Group(); G.add(g); g.position.set(tx,0,tz); g.rotation.y=ry;
+    const part=(geo,mat,x,y,z,s)=>{ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); if(s) m.scale.set(...s); m.castShadow=true; g.add(m); };
+    part(new THREE.SphereGeometry(110,24,18),fur,0,125,0,[1,1.15,0.9]);           // body
+    part(new THREE.SphereGeometry(62,24,18),lite,0,120,62,[1,1.1,0.6]);           // tummy
+    part(new THREE.SphereGeometry(80,24,18),fur,0,290,0);                         // head
+    [-1,1].forEach(sd=>{ part(new THREE.SphereGeometry(30,16,12),fur,sd*58,350,-6); part(new THREE.SphereGeometry(16,12,10),lite,sd*58,352,8);
+      part(new THREE.SphereGeometry(9,10,8),blk,sd*28,305,70);                    // eyes
+      part(new THREE.SphereGeometry(42,16,12),fur,sd*112,170,30,[1,1.4,1]);       // arms
+      part(new THREE.SphereGeometry(52,16,12),fur,sd*62,48,82,[1,0.8,1.3]);       // legs
+      part(new THREE.SphereGeometry(26,12,10),lite,sd*62,48,140,[1,1,0.4]); });   // paws
+    part(new THREE.SphereGeometry(34,16,12),lite,0,272,64,[1,0.8,0.9]); part(new THREE.SphereGeometry(11,10,8),blk,0,284,94);   // snout + nose
+    part(new THREE.TorusGeometry(40,9,10,24),M(0xe03131),0,215,8,[1,1,1]); g.children[g.children.length-1].rotation.x=Math.PI/2;  // red ribbon
+  }
+  // wooden block castle
+  { const wood=[M(0xe9c08a),M(0xd8a364),M(0xf0d2a2)], col=[M(0xe03131,0.6),M(0x1971c2,0.6),M(0xf59f00,0.6),M(0x2f9e44,0.6)];
+    const X=wx-120, Z=nz+60, u=60;
+    for(let i=0;i<4;i++) for(let j=0;j<3;j++) add(new THREE.BoxGeometry(u,u,u),wood[(i+j)%3],X+i*u,u/2,Z+j*u);
+    for(let i=0;i<4;i+=3) for(let j=0;j<3;j+=2){ add(new THREE.CylinderGeometry(34,34,150,20),wood[1],X+i*u,u+75,Z+j*u); add(new THREE.ConeGeometry(44,90,20),col[(i+j)%4],X+i*u,u+195,Z+j*u); }
+    add(new THREE.BoxGeometry(u*2,u,u),col[1],X+1.5*u,u*1.5,Z+u); add(new THREE.CylinderGeometry(u/2,u/2,u,20,1,false,0,Math.PI),wood[2],X+1.5*u,u*2.2,Z+u,{rz:Math.PI/2,ry:Math.PI/2});
+    add(new THREE.ConeGeometry(34,70,4),col[2],X+1.5*u,u*2.9,Z+u);
+  }
+  // beach ball
+  { const ball=canvasTex(256,128,(g,w,h)=>{ ["#e03131","#ffffff","#1971c2","#ffffff","#f59f00","#ffffff"].forEach((c,i)=>{ g.fillStyle=c; g.fillRect(i*w/6,0,w/6+1,h); }); });
+    add(new THREE.SphereGeometry(95,32,24),new THREE.MeshStandardMaterial({map:ball,roughness:0.45}),cx-(b.x1-b.x0)*0.15,95,sz2+40,{rz:0.4}); }
+  // stacking rings
+  { const X=wx-40, Z=sz2+40, cs=[0xe03131,0xf76707,0xfab005,0x40c057,0x228be6,0x7950f2];
+    add(new THREE.CylinderGeometry(70,80,24,28),M(0xe9c08a),X,12,Z); add(new THREE.CylinderGeometry(9,9,250,12),M(0xd8a364),X,140,Z);
+    cs.forEach((c,i)=>add(new THREE.TorusGeometry(62-i*8,17-i*1.2,14,28),M(c,0.5),X,40+i*30,Z,{rx:Math.PI/2})); }
+  // scattered building blocks
+  { const cs=[0xe03131,0x1971c2,0xf59f00,0x2f9e44,0xe9c08a,0x9c36b5]; let seed=7;
+    const r=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+    for(let i=0;i<14;i++){ const side=i%4, t=r(), s=40+r()*25;
+      const x= side===0? b.x0-140-r()*120 : side===1? b.x1+140+r()*120 : b.x0+t*(b.x1-b.x0);
+      const z= side===2? b.y0-140-r()*120 : side===3? b.y1+140+r()*120 : b.y0+t*(b.y1-b.y0);
+      add(i%5===4?new THREE.CylinderGeometry(s/2,s/2,s,16):new THREE.BoxGeometry(s,s,s),M(cs[i%cs.length],0.6),x,s/2,z,{ry:r()*3}); } }
+  // little toy car parked by the track
+  { const X=(b.x0+b.x1)/2+120, Z=nz+40, g=new THREE.Group(); G.add(g); g.position.set(X,0,Z); g.rotation.y=0.3;
+    const p=(geo,mat,x,y,z)=>{ const m=new THREE.Mesh(geo,mat); m.position.set(x,y,z); m.castShadow=true; g.add(m); return m; };
+    p(new THREE.BoxGeometry(160,45,80),M(0x1c7ed6,0.5),0,45,0); p(new THREE.BoxGeometry(80,40,72),M(0x74c0fc,0.4),-10,88,0);
+    [[-50,40],[50,40],[-50,-40],[50,-40]].forEach(([x,z])=>{ const w=p(new THREE.CylinderGeometry(22,22,16,18),M(0x222222,0.8),x,22,z); w.rotation.x=Math.PI/2; }); }
 }
 function frame3D(mode){
   if(!V3.ready) return; const c=V3.center||{x:0,z:0,size:800}, d=c.size*0.9;
@@ -2488,22 +2646,28 @@ function placeLabels(){
     el.style.display="block"; el.style.left=((v.x+1)/2*w)+"px"; el.style.top=((1-v.y)/2*h)+"px"; });
 }
 document.getElementById("b3d").onclick=open3D;
-document.getElementById("b3dClose").onclick=()=>{ rideOff(); document.getElementById("v3d").classList.remove("show"); };
+document.getElementById("b3dClose").onclick=()=>{
+  const riding=V3.ride&&V3.ride.on, st=riding?V3.ride.st:null;
+  rideOff(); document.getElementById("v3d").classList.remove("show"); document.body.classList.remove("in3d");
+  if(st) trainOn(st);   // hop down from the engine: the 2D train carries on from the same spot
+};
 /* ride along: the camera sits on the engine, at a small child's eye height above the rails, and looks ahead along the track */
-function rideOn(){
-  if(!V3.ready) return; computeLinks(); const st=trainStart(); if(!st){ toast("Nothing to ride on yet"); return; }
-  V3.ride={on:true, st, last:0, fov:V3.cam.fov}; V3.ctl.enabled=false; V3.cam.fov=72; V3.cam.updateProjectionMatrix();
+function rideOn(stIn){
+  if(!V3.ready) return; computeLinks(); const st=stIn||(TR.on&&TR.st)||trainStart(); if(!st){ toast("Nothing to ride on yet"); return; }
+  V3.ride={on:true, st, last:0, fov:V3.cam.fov}; document.getElementById("v3d").classList.add("riding"); V3.ctl.enabled=false; V3.cam.fov=72; V3.cam.updateProjectionMatrix();
   document.getElementById("b3dRide").classList.add("on"); document.getElementById("b3dRide").innerHTML='⏹<span class="lbl"> Stop</span>';
+  document.getElementById("b3dClose").innerHTML=S.kids?"🗺️":"🗺️ See from above";
   build3D(); V3.lab.forEach(l=>l.el.style.display="none"); sfx("whistle");
 }
 function rideOff(){
-  if(!V3.ride||!V3.ride.on) return; V3.ride.on=false; V3.ctl.enabled=true; V3.cam.fov=V3.ride.fov||40; V3.cam.updateProjectionMatrix();
+  if(!V3.ride||!V3.ride.on) return; V3.ride.on=false; document.getElementById("v3d").classList.remove("riding"); V3.ctl.enabled=true; V3.cam.fov=V3.ride.fov||40; V3.cam.updateProjectionMatrix();
   const b=document.getElementById("b3dRide"); b.classList.remove("on"); b.innerHTML='🚂<span class="lbl"> Ride along</span>';
+  document.getElementById("b3dClose").innerHTML=S.kids?"⬅️":"← Back to plan";
   build3D(); frame3D("iso");
 }
 function rideTick(ts){
   const R=V3.ride, dt=Math.min(0.05,(ts-(R.last||ts))/1000); R.last=ts;
-  R.st=trainStep(R.st,140*dt); if(!R.st){ rideOff(); return; }
+  R.st=trainStep(R.st,spd().v3*dt); if(!R.st){ rideOff(); return; }
   const P=trainPose(R.st), ah={...R.st}; trainStep(ah,120); const Q=trainPose(ah)||P;
   const eye=S.thick+34;
   V3.cam.position.set(P.x, P.h+eye, P.y);
@@ -3041,7 +3205,7 @@ function scAddToInv(){
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
-window.__dbg={passes:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genPasses(genOptions(),a).length; }, samples:p=>pieceSamples(p,10), wc:p=>worldConns(p), macros:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genMacros(a); }, eight:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); const O=genOptions(); O.macros=genMacros(a); let ok=0; for(let i=0;i<500;i++) if(genEight(O,a)) ok++; return ok; }};
+window.__dbg={_tp:()=>{ const mine={}, lots={}; typeList.forEach(t=>{ mine[t.id]=S.inv[t.id]||0; lots[t.id]=6; }); const r={}; let t0=performance.now(); const O=genOptions(); r.opt=performance.now()-t0; t0=performance.now(); const M=genMacros(mine); r.macMine=performance.now()-t0; t0=performance.now(); genPasses(O,mine,8); r.passMine=performance.now()-t0; t0=performance.now(); genMacros(lots); r.macLots=performance.now()-t0; t0=performance.now(); genPasses(O,lots,8); r.passLots=performance.now()-t0; const Om=tplOpts(mine); TPL.forEach(tp=>{ t0=performance.now(); tplBuild(tp,mine,Om); r[tp.name]=Math.round(performance.now()-t0); }); return r; },passes:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genPasses(genOptions(),a).length; }, samples:p=>pieceSamples(p,10), wc:p=>worldConns(p), macros:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genMacros(a); }, eight:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); const O=genOptions(); O.macros=genMacros(a); let ok=0; for(let i=0;i<500;i++) if(genEight(O,a)) ok++; return ok; }};
 window.__planner={generateLayout, runGenerator, addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
 window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
