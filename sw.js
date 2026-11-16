@@ -1,6 +1,6 @@
 // Offline cache for Wooden Track Planner.
 // Bump VERSION whenever you change index.html so iPads pick up the new version.
-const VERSION = "v15";
+const VERSION = "v16";
 const CACHE = "track-planner-" + VERSION;
 const APP = ["./", "index.html", "manifest.webmanifest",
   "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];

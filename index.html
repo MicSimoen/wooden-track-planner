@@ -186,6 +186,46 @@
     aside{border-right:0;border-bottom:1px solid var(--line);order:2}
     .help{display:none}
   }
+  /* ---- phones: full-screen plan, pieces in a bottom sheet, one-row toolbar with a ⋯ menu ---- */
+  #bMore, .sheetX{ display:none }
+  #moreMenu{ display:none; position:absolute; top:58px; right:8px; z-index:6; background:var(--panel); border:1px solid var(--line); border-radius:14px;
+             box-shadow:0 10px 30px rgba(0,0,0,.18); padding:6px; gap:2px; min-width:210px }
+  #moreMenu button{ text-align:left; font-size:16px; min-height:46px; border:0; background:transparent; box-shadow:none; border-radius:9px }
+  #moreMenu button:active{ background:#f1e9dc }
+  @media (max-width:700px), (max-height:520px){
+    #app{ grid-template-columns:1fr !important; grid-template-rows:1fr !important }
+    aside{ position:fixed; left:0; right:0; bottom:0; z-index:7; height:min(58dvh,560px); border:0; border-radius:18px 18px 0 0;
+           box-shadow:0 -10px 30px rgba(0,0,0,.18); padding-bottom:env(safe-area-inset-bottom); order:0 }
+    aside header{ position:relative; padding:16px 12px 0 }
+    aside header::before{ content:""; position:absolute; top:6px; left:50%; width:40px; height:5px; margin-left:-20px; border-radius:3px; background:#d8cdbb }
+    aside h1{ font-size:15px; margin:0 40px 6px 0 }
+    .sheetX{ display:block; position:absolute; top:8px; right:8px; width:36px; height:36px; min-height:36px; padding:0; border-radius:18px; font-size:16px }
+    .toolbar{ top:calc(8px + env(safe-area-inset-top)); left:8px; right:8px; flex-wrap:nowrap; gap:6px }
+    .toolbar .wide, body:not(.kids) .toolbar .wideA{ display:none !important }
+    .toolbar button{ padding:6px 11px; font-size:16px; min-height:42px; min-width:42px; justify-content:center }
+    .toolbar .lbl{ display:none }
+    #bMore{ display:inline-flex; font-size:22px; line-height:1 }
+    #moreMenu.show{ display:grid }
+    .status{ left:8px; right:8px; bottom:calc(8px + env(safe-area-inset-bottom)); flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none }
+    .status .pill{ font-size:12px; padding:4px 9px; white-space:nowrap; flex:none }
+    .help, .v3help{ display:none !important }
+    .v3bar{ top:calc(8px + env(safe-area-inset-top)); gap:5px } .v3bar button{ padding:6px 10px; min-height:40px }
+    .chk{ font-size:12px; padding:4px 7px }
+    .genrow{ grid-template-columns:1fr 1fr }
+    .modal .card{ width:94%; max-height:86dvh; overflow:auto; box-sizing:border-box }
+    #toast{ top:62px }
+    body.kids aside h1{ font-size:20px }
+    body.kids .toolbar{ gap:6px }
+    body.kids .toolbar button{ font-size:22px; min-height:52px; padding:6px 11px; border-radius:16px }
+    body.kids #bGrown{ font-size:18px; min-height:46px }
+    .ktiles{ grid-template-columns:repeat(auto-fill,minmax(98px,1fr)); gap:12px }
+    .ktile svg{ width:76px; height:54px }
+  }
+  @media (max-height:520px) and (min-width:701px){   /* phone on its side: the list slides in from the left */
+    aside{ top:0; right:auto; width:min(340px,46vw); height:auto; border-radius:0 18px 18px 0; padding-left:env(safe-area-inset-left) }
+    aside header::before{ display:none }
+    #app:not(.noside) .toolbar, #app:not(.noside) .status{ left:calc(min(340px,46vw) + 8px) }
+  }
   /* ---- kids mode: bigger, brighter, fewer choices ---- */
   body:not(.kids) .kidonly{ display:none !important }
   body.kids .adult{ display:none !important }
@@ -232,6 +272,7 @@
 <div id="app">
   <aside>
     <header>
+      <button id="bSheetX" class="sheetX" aria-label="Close the piece list">✕</button>
       <h1><span class="adult">Wooden Track Planner</span><span class="kidonly">🚂 My train track</span></h1>
       <nav class="tabs adult" id="tabs"><button data-tab="pieces">Pieces</button><button data-tab="inventory">Inventory</button><button data-tab="settings">Settings</button></nav>
     </header>
@@ -251,25 +292,33 @@
       <g id="layerMarks"></g>
     </svg>
     <div class="toolbar">
-      <button id="bSide" title="Show or hide the piece list">☰ Pieces</button>
-      <button id="bUndo" title="Undo (Ctrl+Z)">↶ <span class="adult">Undo</span><span class="kidonly">Oops</span></button>
+      <button id="bSide" title="Show or hide the piece list">☰<span class="lbl"> Pieces</span></button>
+      <button id="bUndo" title="Undo (Ctrl+Z)">↶<span class="adult lbl"> Undo</span><span class="kidonly lbl"> Oops</span></button>
       <button id="bRedo" class="adult" title="Redo (Ctrl+Y)">↷</button>
-      <button id="bRot" class="adult" title="Rotate 45° / cycle which end connects (R)">⟳ Rotate</button>
-      <button id="bFlip" class="adult" title="Flip curve left/right (F)">⇋ Flip</button>
-      <button id="bUp" class="adult" title="Raise one level, e.g. onto bridge supports (PageUp)">▲ Raise</button>
-      <button id="bDown" class="adult" title="Lower one level (PageDown)">▼ Lower</button>
-      <button id="bDel" class="danger adult" title="Delete (Del)">✕ Delete</button>
+      <button id="bRot" class="adult wide" title="Rotate 45° / cycle which end connects (R)">⟳ Rotate</button>
+      <button id="bFlip" class="adult wide" title="Flip curve left/right (F)">⇋ Flip</button>
+      <button id="bUp" class="adult wide" title="Raise one level, e.g. onto bridge supports (PageUp)">▲ Raise</button>
+      <button id="bDown" class="adult wide" title="Lower one level (PageDown)">▼ Lower</button>
+      <button id="bDel" class="danger adult wide" title="Delete (Del)">✕ Delete</button>
       <span class="sp"></span>
-      <button id="b3d" class="primary" title="Look at the layout in 3D"><span class="adult">3D view</span><span class="kidonly">👀 3D</span></button>
-      <button id="bFit" title="Zoom to layout"><span class="adult">Fit</span><span class="kidonly">🔍 All</span></button>
-      <button id="bZin" class="adult">＋</button><button id="bZout" class="adult">－</button>
-      <button id="bDemo"><span class="adult">Demo oval</span><span class="kidonly">🎲 Surprise!</span></button>
-      <button id="bIO" class="adult">Save / load</button>
-      <button id="bClear" class="danger adult">Clear</button>
-      <button id="bGen" class="adult" title="Make a random layout from your pieces that fits your floor">🎲 Random</button>
-      <button id="bKids" class="adult" title="Big, colourful and simple — for little builders">🧸 Kids mode</button>
-      <button id="bHelp" class="adult" title="Help">?</button>
-      <button id="bGrown" class="kidonly" title="Hold to go back to the full planner">🔒 Grown-ups</button>
+      <button id="b3d" class="primary" title="Look at the layout in 3D"><span class="adult">3D<span class="lbl"> view</span></span><span class="kidonly">👀 3D</span></button>
+      <button id="bFit" title="Zoom to layout"><span class="adult">Fit</span><span class="kidonly">🔍<span class="lbl"> All</span></span></button>
+      <button id="bZin" class="adult wide">＋</button><button id="bZout" class="adult wide">－</button>
+      <button id="bDemo" class="wideA"><span class="adult">Demo oval</span><span class="kidonly">🎲<span class="lbl"> Surprise!</span></span></button>
+      <button id="bIO" class="adult wide">Save / load</button>
+      <button id="bClear" class="danger adult wide">Clear</button>
+      <button id="bGen" class="adult wide" title="Make a random layout from your pieces that fits your floor">🎲 Random</button>
+      <button id="bKids" class="adult wide" title="Big, colourful and simple — for little builders">🧸 Kids mode</button>
+      <button id="bHelp" class="adult wide" title="Help">?</button>
+      <button id="bGrown" class="kidonly" title="Hold to go back to the full planner">🔒<span class="lbl"> Grown-ups</span></button>
+      <button id="bMore" class="adult" title="More" aria-haspopup="menu">⋯</button>
+    </div>
+    <div id="moreMenu" class="adult" role="menu">
+      <button data-for="bGen">🎲 Random track</button>
+      <button data-for="bDemo">⬭ Demo oval</button>
+      <button data-for="bIO">💾 Save / load</button>
+      <button data-for="bKids">🧸 Kids mode</button>
+      <button data-for="bClear" class="danger">✕ Clear layout</button>
     </div>
     <div class="status" id="status"></div>
     <div class="help adult" id="help">
@@ -306,13 +355,14 @@
     <div class="modal" id="genModal">
       <div class="card">
         <h3>🎲 Random track</h3>
-        <p style="margin:0 0 8px;font-size:12.5px;color:var(--muted)">Makes a layout from the pieces in your inventory that fits on your floor. Loops are built so they close exactly; switches add side tracks, each finished with a buffer stop or a ramp track if you have one. Press again for a different layout. (Bridges aren't used yet.)</p>
+        <p style="margin:0 0 8px;font-size:12.5px;color:var(--muted)">Makes a layout from the pieces in your inventory that fits on your floor. Loops are built so they close exactly; switches add side tracks, each finished with a buffer stop or a ramp track if you have one. With bridges on, it can also lift part of a loop over a bridge, or make a figure eight that crosses over itself, as long as there's room for your train underneath (Settings). Press again for a different layout.</p>
         <div class="genrow">
           <label>Floor width (cm)<input id="gW" type="number" min="40" step="10"></label>
           <label>Floor depth (cm)<input id="gD" type="number" min="40" step="10"></label>
           <label>Dead ends, at most<input id="gE" type="number" min="0" max="8" step="1"></label>
         </div>
-        <label class="chk2" style="margin-top:8px"><input type="checkbox" id="gShow"> Show the floor area on the plan</label>
+        <label class="chk2" style="margin-top:8px"><input type="checkbox" id="gBr"> Use bridges (ramps + bridge decks), incl. figure eights crossing over</label>
+        <label class="chk2" style="margin-top:6px"><input type="checkbox" id="gShow"> Show the floor area on the plan</label>
         <p id="gMsg" style="font-size:12.5px;margin:8px 0 0;min-height:1.2em"></p>
         <div class="btns"><button id="gClose">Close</button><button id="gGo" class="primary">🎲 Make a track</button></div>
       </div>
@@ -962,6 +1012,7 @@ function addPiece(typeId){
   active = nxt!==null ? {pid:p.id, ci:nxt} : null;
   if(used(typeId)>(S.inv[typeId]||0)) toast(`Heads up: you've now used more ${t.name} (${t.id}) than you own`);
   refresh();
+  if(typeof keepInView==="function") keepInView(p);
 }
 function attachmentOf(p){
   computeLinks(); const L=[];
@@ -1062,7 +1113,33 @@ function genOptions(){
       });
     });
   });
-  return {plain,grow,sw,caps};
+  const straights=plain.filter(r=>Math.abs(r.turn)<0.01 && Math.abs(r.rel.y)<0.5).map(r=>({...r,len:r.rel.x}));
+  return {plain,grow,sw,caps,straights,macros:[]};
+}
+/* bridge sections: [adapter?] ramp up · 1–2 decks · ramp down [adapter?], entered by a peg and leaving with a peg,
+   so they fit anywhere a straight would. Only combinations you own enough of are kept. */
+function genMacros(avail){
+  const ups=[],downs=[],decks=[],adapt=[], own=id=>(avail[id]||0)>0, len=t=>t.lanes[0].len;
+  typeList.forEach(t=>{
+    if(!own(t.id) || t.conns.length!==2 || t.lanes.length!==1 || t.lanes[0].k!=="s") return;
+    const C=t.conns;
+    if(t.ramp){ const lo=C.findIndex(c=>c.lv===0); ups.push({id:t.id,ci:lo,L:len(t)}); downs.push({id:t.id,ci:1-lo,L:len(t)}); }
+    else if(t.deck){ decks.push({id:t.id,ci:0,L:len(t)}); if(C[0].g!==C[1].g) decks.push({id:t.id,ci:1,L:len(t)}); }
+    else if(!t.stop && !t.carRamp && C[0].g!==C[1].g) return;
+    else if(!t.stop && !t.carRamp && C[0].g===C[1].g) adapt.push({id:t.id,ci:0,L:len(t)});
+  });
+  if(!ups.length||!decks.length) return [];
+  const out=new Map();
+  const step=(g,e)=>{ const t=types[e.id], c=t.conns[e.ci]; if(!genderOK(c.g,g)) return null; return t.conns[1-e.ci].g; };
+  for(const pre of [null,...adapt]) for(const up of ups) for(const d1 of decks) for(const d2 of [null,...decks]) for(const dn of downs) for(const post of [null,...adapt]){
+    const seq=[pre,up,d1,d2,dn,post].filter(Boolean), need={}; let g="M", ok=true;
+    for(const e of seq){ need[e.id]=(need[e.id]||0)+1; if(need[e.id]>(avail[e.id]||0)){ ok=false; break; } g=step(g,e); if(g===null){ ok=false; break; } }
+    if(!ok || (S.gender && g!=="M")) continue;
+    const key=seq.map(e=>e.id+e.ci).join(",");
+    if(!out.has(key)) out.set(key,{seq,need,len:seq.reduce((a,e)=>a+e.L,0),bridge:true,turn:0,rel:{x:seq.reduce((a,e)=>a+e.L,0),y:0,a:0},
+      deckFrom:(pre?pre.L:0)+up.L, deckTo:(pre?pre.L:0)+up.L+d1.L+(d2?d2.L:0)});
+  }
+  return [...out.values()];
 }
 const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -1087,6 +1164,10 @@ function genX(O,k,avail,maxEnds){
   const nw=Math.random()<0.45 ? 1+rnd(2) : 0;     // S-bends: one curve each way
   for(let i=0;i<nw;i++){ const opts=curves.filter(c=>can(c.id,2)); if(!opts.length) break; const c=pick(opts);
     const back=O.plain.find(r=>r.id===c.id && r.ci===c.ci && r.mirror!==c.mirror); if(!back) break; X.push(c,back); take(c,2); }
+  if(O.macros.length && Math.random()<0.5){
+    const ms=O.macros.filter(m=>Object.entries(m.need).every(([id,n])=>(use[id]||0)*k+n<=(avail[id]||0)));
+    if(ms.length) X.push(pick(ms));   // the other copies get straights of the same length
+  }
   const straights=O.plain.filter(r=>Math.abs(r.turn)<0.01);
   const ns=rnd(Math.random()<0.5?5:10);
   for(let i=0;i<ns;i++){ const opts=straights.filter(r=>can(r.id)); if(!opts.length) break; const r=pick(opts); X.push(r); take(r); }
@@ -1098,9 +1179,9 @@ function genGrid(){ const G=new Map(), pcs=[]; const key=(x,y)=>Math.floor(x/40)
       const sm=pieceSamples(p,10);
       for(const s of sm){ const gx=Math.floor(s.x/40), gy=Math.floor(s.y/40);
         for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){ const L=G.get((gx+dx)+","+(gy+dy)); if(!L) continue;
-          for(const o of L) if(!nb.has(o.i) && Math.hypot(o.x-s.x,o.y-s.y)<38) return false; } }
+          for(const o of L) if(!nb.has(o.i) && Math.hypot(o.x-s.x,o.y-s.y)<38 && Math.abs(o.h-s.h)<S.trainH+S.thick) return false; } }
       return true; },
-    add(p){ const i=pcs.length; p.wc=worldConns(p); pcs.push(p); pieceSamples(p,10).forEach(s=>{ const k=key(s.x,s.y); if(!G.has(k)) G.set(k,[]); G.get(k).push({x:s.x,y:s.y,i}); }); }
+    add(p){ const i=pcs.length; p.wc=worldConns(p); pcs.push(p); pieceSamples(p,10).forEach(s=>{ const k=key(s.x,s.y); if(!G.has(k)) G.set(k,[]); G.get(k).push({x:s.x,y:s.y,h:s.h,i}); }); }
   };
 }
 function genSpur(O,grid,rem,T,res){
@@ -1117,27 +1198,103 @@ function genSpur(O,grid,rem,T,res){
   }
   res.open++;
 }
+function genPut(grid,rem,tk,T){   // place one token (piece or bridge section) at T; returns the exit or null
+  if(tk.seq){
+    for(const id in tk.need) if((rem[id]||0)<tk.need[id]) return null;
+    const placed=[]; let cur=T;
+    for(const e of tk.seq){ const p={type:e.id,x:0,y:0,rot:0,mirror:false,level:0}; const lv=levelFor(p,e.ci,cur); if(lv===null) return null; p.level=lv; alignTo(p,e.ci,cur);
+      if(!grid.ok(p)) return null; placed.push(p); grid.add(p); cur=worldConns(p)[1-e.ci]; }
+    for(const id in tk.need) rem[id]-=tk.need[id];
+    return {T:cur, wc:null};
+  }
+  if(!((rem[tk.id]||0)>0)) return null;
+  const p={type:tk.id,x:0,y:0,rot:0,mirror:tk.mirror,level:0}; alignTo(p,tk.ci,T);
+  if(!grid.ok(p)) return null;
+  grid.add(p); rem[tk.id]--;
+  const wc=worldConns(p); return {T:wc[tk.sw?tk.through:1-tk.ci], wc};
+}
 function genLoop(O,k,avail,maxEnds){
   const X=genX(O,k,avail,maxEnds); if(!X||X.length<2) return null;
-  const rem={...avail}, grid=genGrid(), spurs=[]; let T={x:0,y:0,a:0,g:"M",lv:0}, ends=0, nsw=0;
+  const rem={...avail}, grid=genGrid(), spurs=[]; let T={x:0,y:0,a:0,g:"M",lv:0}, ends=0, nsw=0, nbr=0;
   for(let r=0;r<k;r++) for(const tok of X){
     let tk=tok;
     if(tok.sw && !(ends+tok.spurs<=maxEnds && rem[tok.id]>0)){   // over the dead-end budget: use a plain piece of the same shape
       tk=O.plain.find(q=>(rem[q.id]||0)>0 && Math.hypot(q.rel.x-tok.rel.x,q.rel.y-tok.rel.y)<1 && Math.abs(normA(q.rel.a-tok.rel.a))<0.01);
       if(!tk) return null;
     }
-    if(!((rem[tk.id]||0)>0)) return null;
-    const p={type:tk.id,x:0,y:0,rot:0,mirror:tk.mirror,level:0}; alignTo(p,tk.ci,T);
-    if(!grid.ok(p)) return null;
-    grid.add(p); rem[tk.id]--;
-    const wc=worldConns(p);
-    if(tk.sw){ ends+=tk.spurs; nsw++; wc.forEach((c,i)=>{ if(i!==tk.ci && i!==tk.through) spurs.push(c); }); T=wc[tk.through]; }
-    else T=wc[1-tk.ci];
+    if(tk.seq && (r>0 || Object.entries(tk.need).some(([id,n])=>(rem[id]||0)<n))){
+      const f=genFill(O,rem,tk.len); if(!f) return null;
+      for(const st of f){ const r3=genPut(grid,rem,st,T); if(!r3) return null; T=r3.T; }
+      continue;
+    }
+    const r2=genPut(grid,rem,tk,T); if(!r2) return null;
+    if(tk.seq) nbr++;
+    if(tk.sw){ ends+=tk.spurs; nsw++; r2.wc.forEach((c,i)=>{ if(i!==tk.ci && i!==tk.through) spurs.push(c); }); }
+    T=r2.T;
   }
-  if(Math.hypot(T.x,T.y)>1.5 || Math.abs(normA(T.a))>0.02) return null;
+  if(Math.hypot(T.x,T.y)>2.5 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;
   const res={capped:0,open:0}; spurs.forEach(c=>genSpur(O,grid,rem,c,res));
-  return {pieces:grid.pcs, ends:res.capped+res.open, capped:res.capped, nsw, loop:true};
+  return {pieces:grid.pcs, ends:res.capped+res.open, capped:res.capped, nsw, loop:true, bridges:nbr};
 }
+/* straights adding up to a length (± tol), from what's left; random order for variety */
+function genFill(O,rem,target,tol=1.2){
+  if(target<-tol) return null; if(Math.abs(target)<=tol) return [];
+  const st=shuffle(O.straights.filter(r=>(rem[r.id]||0)>0)); let best=null, nodes=0; const cnt={};
+  const dfs=(left,acc)=>{ if(best||++nodes>4000) return; if(Math.abs(left)<=tol){ best=acc.slice(); return; } if(left<0) return;
+    for(const r of st){ if((cnt[r.id]||0)>=(rem[r.id]||0)) continue; if(r.len>left+tol) continue;
+      cnt[r.id]=(cnt[r.id]||0)+1; acc.push(r); dfs(left-r.len,acc); acc.pop(); cnt[r.id]--; if(best) return; } };
+  st.sort((a,b)=>b.len-a.len+ (Math.random()-0.5)*80); dfs(target,[]); return best;
+}
+/* Figure eight with a bridge where the track crosses itself:
+   [slot 1, heading 0] lobe A (turns left by A) [slot 2, heading A] lobe B (turns right by A) → back to the start.
+   The two straight slots are solved so the eight closes exactly; one carries the bridge section over the other. */
+function genEight(O,avail){
+  if(!O.macros.length) return null;
+  const A=270, a=A*D2R, opts=O.plain.filter(r=>r.turn>0.01).map(c=>({c,m:Math.round(A/c.turn)})).filter(o=>Math.abs(o.m*o.c.turn-A)<0.01 && o.m%2===0 && o.m<=(avail[o.c.id]||0));
+  if(!opts.length) return null;
+  const {c,m}=pick(opts), rem={...avail}; rem[c.id]-=m;
+  // the second lobe may use a different curve (e.g. one big and one tight loop)
+  const o2=pick(opts.filter(o=>o.m<=(rem[o.c.id]||0))); if(!o2) return null;
+  const cr=O.plain.find(r=>r.id===o2.c.id && r.ci===o2.c.ci && r.mirror!==o2.c.mirror), m2=o2.m; if(!cr) return null; rem[cr.id]-=m2;
+  const macro=pick(O.macros.filter(M=>Object.entries(M.need).every(([id,n])=>(rem[id]||0)>=n))); if(!macro) return null;
+  for(const id in macro.need) rem[id]-=macro.need[id];
+  // lobes of plain curves; a straight stretch in the middle of each lobe (heading A/2) is solved below
+  const disp=L=>{ let P={x:0,y:0,a:0}; L.forEach(t=>P=compose(P,t.rel)); return P; };
+  const DA=disp(Array(m).fill(c)), DB=disp(Array(m2).fill(cr)), rb=compose({x:0,y:0,a},DB);
+  const D0={x:DA.x+rb.x, y:DA.y+rb.y};
+  const bridgeIn=Math.random()<0.5?1:2, extra=genFill(O,rem,[0,54,108,144,216][rnd(5)],30)||[];
+  extra.forEach(r=>rem[r.id]--);
+  const Lb=macro.len+extra.reduce((q,r)=>q+r.len,0);
+  const u0={x:1,y:0}, uA={x:Math.cos(a),y:Math.sin(a)}, uM={x:Math.cos(a/2),y:Math.sin(a/2)};
+  const ub=bridgeIn===1?u0:uA, uf=bridgeIn===1?uA:u0;
+  // Lb*ub + Lf*uf + s*uM + D0 = 0  →  solve for Lf, s
+  const rx=-(Lb*ub.x+D0.x), ry=-(Lb*ub.y+D0.y), det=uf.x*uM.y-uf.y*uM.x; if(Math.abs(det)<1e-6) return null;
+  const Lf=(rx*uM.y-ry*uM.x)/det, sM=(uf.x*ry-uf.y*rx)/det;
+  if(Lf<-1.2 || sM<-1.2) return null;
+  const ff=genFill(O,rem,Lf); if(!ff) return null; ff.forEach(r=>rem[r.id]--);
+  const fm=genFill(O,rem,sM); if(!fm) return null; fm.forEach(r=>rem[r.id]--);
+  const fmA=[], fmB=[]; shuffle(fm.slice()).forEach((r,i)=>(i%2?fmB:fmA).push(r));
+  const LA=[...Array(m/2).fill(c),...fmA,...Array(m/2).fill(c)], LB=[...Array(m2/2).fill(cr),...fmB,...Array(m2/2).fill(cr)];
+  const L1=bridgeIn===1?Lb:Lf, L2=bridgeIn===1?Lf:Lb;
+  // put the deck over the crossing
+  const DAf=disp(LA), P1={x:0,y:0}, P2={x:L1+DAf.x,y:DAf.y};
+  const [Pb,Pf]=bridgeIn===1?[P1,P2]:[P2,P1];
+  const den=ub.x*uf.y-ub.y*uf.x; if(Math.abs(den)<1e-6) return null;
+  const sCross=((Pf.x-Pb.x)*uf.y-(Pf.y-Pb.y)*uf.x)/den, fCross=((Pf.x-Pb.x)*ub.y-(Pf.y-Pb.y)*ub.x)/den;
+  if(sCross<0||sCross>Lb||fCross<0||fCross>(bridgeIn===1?L2:L1)) return null;     // the straights must really cross
+  const want=sCross-(macro.deckFrom+macro.deckTo)/2;
+  let before=[], acc=0, bestD=Math.abs(want); const order=shuffle(extra.slice());
+  for(let i=0;i<=order.length;i++){ const d=Math.abs(want-acc); if(d<bestD){ bestD=d; before=order.slice(0,i); } if(i<order.length) acc+=order[i].len; }
+  if(bestD>(macro.deckTo-macro.deckFrom)/2-30) return null;
+  const after=order.filter(r=>!before.includes(r));
+  const slotB=[...before,macro,...after], slotF=shuffle(ff.slice());
+  const seq = bridgeIn===1 ? [...slotB,...LA,...slotF,...LB] : [...slotF,...LA,...slotB,...LB];
+  const grid=genGrid(), rem2={...avail}; let T={x:0,y:0,a:0,g:"M",lv:0};
+  for(const tk of seq){ const r2=genPut(grid,rem2,tk,T); if(!r2) return null; T=r2.T; }
+  if(Math.hypot(T.x,T.y)>2.5 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;
+  return {pieces:grid.pcs, ends:0, capped:0, nsw:0, loop:true, bridges:1, eight:true};
+}
+
 function genLine(O,avail){   // no loop possible: a line with both ends finished
   const rem={...avail}, grid=genGrid(), res={capped:0,open:0};
   const st=O.plain.filter(r=>(rem[r.id]||0)>0); if(!st.length) return null;
@@ -1167,18 +1324,20 @@ function genFit(L,W,D){
   L.pieces.forEach(p=>{ const x=p.x*c-p.y*s-best.cx, y=p.x*s+p.y*c-best.cy; p.x=x; p.y=y; p.rot=normA(p.rot+best.a); delete p.wc; });
   return true;
 }
-function generateLayout(W,D,maxEnds,ms=900){
+function generateLayout(W,D,maxEnds,ms=900,bridges=true){
   const avail={}; typeList.forEach(t=>avail[t.id]=S.inv[t.id]||0);
-  const O=genOptions(); let best=null, tries=0, valid=0; const t0=performance.now();
+  const O=genOptions(); if(bridges) O.macros=genMacros(avail);
+  let best=null, tries=0, valid=0; const t0=performance.now(), wantEight=Math.random()<0.55;
   while(performance.now()-t0<ms){ tries++;
     let L=null;
     const k=Math.random()<0.7?2:4;
-    L=genLoop(O,k,avail,maxEnds);
+    if(O.macros.length && Math.random()<0.35) L=genEight(O,avail);
+    if(!L) L=genLoop(O,k,avail,maxEnds);
     if(!L && maxEnds>=2 && Math.random()<0.05) L=genLine(O,avail);
     if(!L || L.ends>maxEnds) continue;
     if(!genFit(L,W,D)) continue;
     valid++;
-    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw;
+    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw+(L.eight?(wantEight?30:-6):0)+4*(L.bridges||0);
     if(!best||sc>best.sc){ best=L; best.sc=sc; }
   }
   if(best) best.stats={tries,valid};
@@ -1187,19 +1346,19 @@ function generateLayout(W,D,maxEnds,ms=900){
 function runGenerator(fromKids){
   const g=S.gen||(S.gen={w:200,d:150,ends:2,show:true});
   if(!typeList.some(t=>(S.inv[t.id]||0)>0)){ toast("Enter your pieces in the Inventory first"); return false; }
-  const L=generateLayout(g.w*10,g.d*10,g.ends);
+  const L=generateLayout(g.w*10,g.d*10,g.ends,900,g.bridges!==false);
   if(!L){ if(!fromKids) document.getElementById("gMsg").textContent="Couldn't make a track that fits — try a bigger floor, more dead ends, or add curves to your inventory."; return false; }
-  snapshot(); S.pieces=L.pieces.map(p=>({id:S.nextId++,type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:0}));
+  snapshot(); S.pieces=L.pieces.map(p=>({id:S.nextId++,type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:p.level||0}));
   S.floor={w:g.w*10,d:g.d*10}; sel=null; active=null; save(); refresh(); fit();
-  const msg=`${L.pieces.length} pieces${L.loop?", one loop":""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
+  const msg=`${L.pieces.length} pieces${L.eight?", a figure eight over a bridge":L.loop?", one loop":""}${!L.eight&&L.bridges?` with ${L.bridges} bridge${L.bridges>1?"s":""}`:""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
   if(!fromKids) document.getElementById("gMsg").textContent=msg;
-  toast(fromKids?"Here's a new track! 🚂":msg);
+  toast(fromKids?(L.bridges?"Here's a new track — with a bridge! 🌉":"Here's a new track! 🚂"):msg);
   return true;
 }
 { const M=document.getElementById("genModal"), $=id=>document.getElementById(id);
   document.getElementById("bGen").onclick=()=>{ const g=S.gen||(S.gen={w:200,d:150,ends:2,show:true});
-    $("gW").value=g.w; $("gD").value=g.d; $("gE").value=g.ends; $("gShow").checked=!!g.show; $("gMsg").textContent=""; M.classList.add("show"); };
-  const read=()=>{ S.gen={w:Math.max(40,+$("gW").value||200), d:Math.max(40,+$("gD").value||150), ends:Math.min(8,Math.max(0,Math.round(+$("gE").value||0))), show:$("gShow").checked}; save(); };
+    $("gW").value=g.w; $("gD").value=g.d; $("gE").value=g.ends; $("gShow").checked=!!g.show; $("gBr").checked=g.bridges!==false; $("gMsg").textContent=""; M.classList.add("show"); };
+  const read=()=>{ S.gen={w:Math.max(40,+$("gW").value||200), d:Math.max(40,+$("gD").value||150), ends:Math.min(8,Math.max(0,Math.round(+$("gE").value||0))), show:$("gShow").checked, bridges:$("gBr").checked}; save(); };
   $("gGo").onclick=()=>{ read(); $("gMsg").textContent="Thinking…"; setTimeout(()=>{ if(runGenerator(false)) M.classList.remove("show"); },20); };
   $("gShow").onchange=()=>{ read(); renderFloor(); };
   $("gClose").onclick=()=>M.classList.remove("show");
@@ -1399,7 +1558,25 @@ const helpEl=document.getElementById("help");
 function setHelp(show){ S.helpHidden=!show; helpEl.style.display=show?"block":"none"; save(); }
 document.querySelectorAll(".hideHelp").forEach(x=>x.onclick=()=>setHelp(false));
 document.getElementById("bHelp").onclick=()=>setHelp(helpEl.style.display==="none");
-document.getElementById("bSide").onclick=()=>{ S.sideHidden=!S.sideHidden; document.getElementById("app").classList.toggle("noside",S.sideHidden); save(); setTimeout(()=>refresh(false),50); };
+const isPhone=()=>matchMedia("(max-width:700px), (max-height:520px)").matches;
+{ const M=document.getElementById("moreMenu"), B=document.getElementById("bMore");
+  B.onclick=e=>{ e.stopPropagation(); M.classList.toggle("show"); };
+  M.addEventListener("click",e=>{ const b=e.target.closest("button[data-for]"); if(!b) return; M.classList.remove("show"); document.getElementById(b.dataset.for).click(); });
+  document.addEventListener("pointerdown",e=>{ if(M.classList.contains("show") && !M.contains(e.target) && e.target!==B) M.classList.remove("show"); });
+  document.getElementById("bSheetX").onclick=()=>document.getElementById("bSide").click(); }
+/* on a phone the piece sheet covers the lower part of the plan: keep the piece you just added above it */
+function keepInView(p){
+  if(!isPhone() || document.getElementById("app").classList.contains("noside") || !p) return;
+  const aside=document.querySelector("aside").getBoundingClientRect(), r=svg.getBoundingClientRect(), t=types[p.type]; if(!t) return;
+  const c=worldPt(p,t.center.x,t.center.y), M=svg.getScreenCTM(); if(!M) return;
+  const k=M.a, sx=M.a*c.x+M.c*c.y+M.e, sy=M.b*c.x+M.d*c.y+M.f;
+  const sideSheet=aside.height>=r.height-10;   // landscape: panel on the left; portrait: sheet at the bottom
+  const top=r.top+70, bottom=(sideSheet?r.bottom:aside.top)-30, left=(sideSheet?aside.right:r.left)+20, right=r.right-20;
+  if(sy>=top && sy<=bottom && sx>=left && sx<=right) return;
+  const ty=(top+bottom)/2, tx=(left+right)/2;
+  view.x+= (sx-tx)/k; view.y+= (sy-ty)/k; setView(); refresh(false);
+}
+document.getElementById("bSide").onclick=()=>{ S.sideHidden=!document.getElementById("app").classList.contains("noside"); document.getElementById("app").classList.toggle("noside",S.sideHidden); save(); setTimeout(()=>refresh(false),50); };
 document.getElementById("pinfo").onclick=e=>{ const box=document.getElementById("pinfo");
   if(e.target.dataset.addinfo){ addPiece(e.target.dataset.addinfo); box.classList.remove("show"); }
   if(e.target.dataset.closeinfo!==undefined) box.classList.remove("show"); };
@@ -2159,7 +2336,7 @@ function scAddToInv(){
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
-window.__dbg={samples:p=>pieceSamples(p,10), wc:p=>worldConns(p)};
+window.__dbg={samples:p=>pieceSamples(p,10), wc:p=>worldConns(p), macros:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genMacros(a); }, eight:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); const O=genOptions(); O.macros=genMacros(a); let ok=0; for(let i=0;i<500;i++) if(genEight(O,a)) ok++; return ok; }};
 window.__planner={generateLayout, runGenerator, addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
 window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
@@ -2168,7 +2345,7 @@ load(); document.body.classList.toggle("kids",!!S.kids); rebuildTypes(); setView
 { const before=S.pieces.length; S.pieces=S.pieces.filter(p=>types[p.type]); const gone=before-S.pieces.length;
   if(gone) setTimeout(()=>toast(`${gone} piece${gone>1?"s":""} of a type that's no longer in the catalogue ${gone>1?"were":"was"} left out of your layout`),600); }
 if(S.helpHidden) helpEl.style.display="none";
-if(S.sideHidden) document.getElementById("app").classList.add("noside");
+if(S.sideHidden || (matchMedia("(max-width:700px), (max-height:520px)").matches && !S.kids)) document.getElementById("app").classList.add("noside");
 refresh();
 // offline support when hosted (GitHub Pages); skipped when opened as a local file
 if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
