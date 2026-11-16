@@ -2511,7 +2511,7 @@ function build3D(){
   const mPier=new THREE.MeshStandardMaterial({color:0x9aa3ad,roughness:0.9});
   const mEnv=new THREE.MeshBasicMaterial({color:0x4a8ad8,transparent:true,opacity:0.13,depthWrite:false,side:THREE.DoubleSide});
   const mGrooveM=new THREE.MeshStandardMaterial({color:0x9a6d40,roughness:0.9});
-  const env=document.getElementById("c3Env").checked && !(V3.ride&&V3.ride.on);
+  const env=document.getElementById("c3Env").checked && !(V3.ride&&V3.ride.on) && !S.kids;
   const base=(p)=>(lv,u)=>((p.level||0)+lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise;
   S.pieces.forEach(p=>{ const t=types[p.type]; if(!t) return; const hf=base(p);
     G.add(solidMesh(p,t,(p.level||0)*S.rise,mWood));      // every piece is one real solid: holes through, pegs attached
@@ -2545,12 +2545,12 @@ function build3D(){
   CLR.pairs.forEach(c=>{
     const okc = c.kind==="ok", col = okc?0x2e8b57:0xd23c2f;
     const h1=c.overlap?c.hLow:c.hLow, h2=c.overlap?c.hLow+S.thick+20:c.hHigh;
-    if(!c.overlap && c.gap>0){
+    if(!c.overlap && c.gap>0 && !S.kids && !(V3.ride&&V3.ride.on)){
       const pts=[new THREE.Vector3(c.x,h1,c.y),new THREE.Vector3(c.x,h2,c.y)];
       G.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col})));
     }
     const sp=new THREE.Mesh(new THREE.SphereGeometry(okc?4:7,16,12),new THREE.MeshBasicMaterial({color:col}));
-    sp.position.set(c.x,(h1+h2)/2,c.y); G.add(sp);
+    sp.position.set(c.x,(h1+h2)/2,c.y); if(!S.kids && !(V3.ride&&V3.ride.on)) G.add(sp);
     const el=document.createElement("div"); el.className="lbl3"; el.style.color=okc?"#2e8b57":"#d23c2f"; el.style.borderColor=el.style.color;
     el.textContent = c.kind==="overlap"?"⚠ tracks overlap": c.kind==="hit"?"⚠ collides": (okc?"":"⚠ ")+Math.round(c.gap)+" mm free";
     V3.labels.appendChild(el); V3.lab.push({el,pos:new THREE.Vector3(c.x,h2+10,c.y)});
@@ -2583,9 +2583,9 @@ function kidsRoom(G,b,cx,cz,sz){
   floor.rotation.x=-Math.PI/2; floor.position.set(cx,-1,cz); floor.receiveShadow=true; G.add(floor);
   // round, colourful rug under the track
   const rw=(b.x1-b.x0)+500, rh=(b.y1-b.y0)+500;
-  const rug=canvasTex(512,512,(g,w,h)=>{ ["#ffd6e7","#c5f6fa","#fff3bf","#d3f9d8","#e5dbff"].forEach((c,i)=>{ g.fillStyle=c; g.beginPath(); g.ellipse(w/2,h/2,w/2-i*44,h/2-i*44,0,0,7); g.fill(); });
-    g.fillStyle="rgba(255,255,255,.6)"; for(let i=0;i<40;i++){ const a=i/40*Math.PI*2; g.beginPath(); g.arc(w/2+Math.cos(a)*(w/2-22),h/2+Math.sin(a)*(h/2-22),6,0,7); g.fill(); } });
-  const rm=new THREE.Mesh(new THREE.PlaneGeometry(rw,rh),new THREE.MeshStandardMaterial({map:rug,roughness:1,transparent:true}));
+  const rug=canvasTex(512,512,(g,w,h)=>{ ["#e8590c","#1c7ed6","#f59f00","#2f9e44","#ae3ec9","#e64980"].forEach((c,i)=>{ g.fillStyle=c; g.beginPath(); g.ellipse(w/2,h/2,w/2-i*40,h/2-i*40,0,0,7); g.fill(); });
+    g.fillStyle="rgba(255,255,255,.85)"; for(let i=0;i<40;i++){ const a=i/40*Math.PI*2; g.beginPath(); g.arc(w/2+Math.cos(a)*(w/2-22),h/2+Math.sin(a)*(h/2-22),6,0,7); g.fill(); } });
+  const rm=new THREE.Mesh(new THREE.PlaneGeometry(rw,rh),new THREE.MeshLambertMaterial({map:rug,transparent:true,color:0xbbbbbb}));
   rm.rotation.x=-Math.PI/2; rm.position.set(cx,-0.4,cz); rm.receiveShadow=true; G.add(rm);
   const ox=b.x1+330, wx=b.x0-330, nz=b.y0-330, sz2=b.y1+330;
   // teddy bear, sitting
@@ -2640,7 +2640,7 @@ function frame3D(mode){
   V3.ctl.update();
 }
 function placeLabels(){
-  const show=document.getElementById("c3Lab").checked && !(V3.ride&&V3.ride.on), w=V3.host.clientWidth, h=V3.host.clientHeight;
+  const show=document.getElementById("c3Lab").checked && !(V3.ride&&V3.ride.on) && !S.kids, w=V3.host.clientWidth, h=V3.host.clientHeight;
   V3.lab.forEach(({el,pos})=>{ const v=pos.clone().project(V3.cam);
     if(!show||v.z>1){ el.style.display="none"; return; }
     el.style.display="block"; el.style.left=((v.x+1)/2*w)+"px"; el.style.top=((1-v.y)/2*h)+"px"; });
