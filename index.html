@@ -480,6 +480,15 @@ const BASE = [
   {grp:"Bridges & ramps", id:"B360R", name:"Reversible bridge deck", dim:"360 mm · holes at both ends (use with N1)", deck:true, lanes:[{k:"s",len:360,g:["F","F"]}]},
   {grp:"Bridges & ramps", id:"IRAMP", name:"IKEA ramp", dim:"205 mm · LB-OPRIT · ~65 mm high at top", lanes:[{k:"s",len:205,g:["F","M"],lv:[0,1]}]},
 ];
+/* BRIO switches come in both genders (like the IKEA Y pair and the Thomas wooden railway "male to female/female" and
+   "female to male/male" switches): add a version with the peg at the single end and holes on the split ends.
+   Two opposite switches make a passing loop without adapters. */
+BASE.filter(t=>t.grp==="BRIO switches").forEach(t=>{
+  const v={...t, id:t.id+"p", name:t.name+" (peg at single end)", dim:t.dim+" · peg at the single end, holes on the split ends",
+           lanes:t.lanes.map(l=>({...l,g:["M","F"]}))};
+  t.dim+=" · hole at the single end, pegs on the split ends";
+  BASE.splice(BASE.indexOf(t)+1,0,v);
+});
 const DEFAULT_INV = {D:4,A:4,A1:4,A3:0,A2:2,E:16,E1:4,LM:2,MM:1,FF:1};
 
 /* ---------- State ---------- */
@@ -944,7 +953,7 @@ function renderInv(){
     ln.textContent = n ? `(${n} confirmed piece${n>1?"s":""} remembered)` : "(nothing learned yet)"; }
 }
 /* short display name: drop make prefixes and part codes — those live in the info card */
-function shortName(t){ const n=t.name.replace(/^IKEA\s+/,"").replace(/^BRIO\s+/,"").replace(/\s+[A-Z][0-9]?\/[A-Z][0-9]?$/,"").replace(/\s+(N1|N)$/,""); return n.charAt(0).toUpperCase()+n.slice(1); }
+function shortName(t){ const n=t.name.replace(/^IKEA\s+/,"").replace(/^BRIO\s+/,"").replace(/\s+[A-Z][0-9]?\/[A-Z][0-9]?(?=\s*\(|$)/,"").replace(/\s*\(peg at single end\)$/,", peg end").replace(/\s+(N1|N)$/,""); return n.charAt(0).toUpperCase()+n.slice(1); }
 /* when grouped by type, say whose piece it is */
 const makeTag=t=> S.groupBy==="type" && makeOf(t)!=="BRIO" ? `<span class="mk ${makeOf(t)==="Custom"?"cu":"ik"}">${makeOf(t)==="Custom"?"Custom":"IKEA"}</span>` : (S.groupBy==="type"?`<span class="mk br">BRIO</span>`:"");
 /* details card for one piece (hidden from the main lists) */
