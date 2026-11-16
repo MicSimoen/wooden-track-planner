@@ -1094,7 +1094,7 @@ function demo(){
    side tracks (dead ends), which grow a few pieces and end in a buffer stop / ramp track when one is available. */
 const GEN={};
 function genOptions(){
-  const T0={x:0,y:0,a:0,g:"M",lv:0}, plain=[], grow=[], sw=[], caps=[];
+  const T0={x:0,y:0,a:0,g:"M",lv:0}, plain=[], grow=[], sw=[], sw2=[], caps=[];
   typeList.forEach(t=>{
     if(t.ramp||t.deck) return;
     const C=t.conns;
@@ -1107,14 +1107,15 @@ function genOptions(){
           const rec={id:t.id,mirror,ci,rel:ex[0],turn:ex[0].a/D2R,eg:c.g};
           if(Math.abs(ex[0].a)>1e-6||!mirror) grow.push(rec);                                 // any direction, for side tracks
           if(c.g==="F" && ex[0].g==="M" && (Math.abs(ex[0].a)>1e-6||!mirror)) plain.push(rec);  // forward pieces for loops
-        } else if(c.g==="F" && ex.every(e=>e.g==="M") && ex.every(e=>e.x>20)) {
-          ex.forEach(e=>sw.push({id:t.id,mirror,ci,through:e.i,rel:e,turn:e.a/D2R,spurs:ex.length-1,sw:true}));
+        } else if(ex.every(e=>e.x>20)) {
+          ex.forEach(e=>{ const r={id:t.id,mirror,ci,through:e.i,rel:e,turn:e.a/D2R,spurs:ex.length-1,sw:true};
+            sw2.push(r); if(c.g==="F" && ex.every(e=>e.g==="M")) sw.push(r); });
         }
       });
     });
   });
   const straights=plain.filter(r=>Math.abs(r.turn)<0.01 && Math.abs(r.rel.y)<0.5).map(r=>({...r,len:r.rel.x}));
-  return {plain,grow,sw,caps,straights,macros:[]};
+  return {plain,grow,sw,sw2,caps,straights,macros:[]};
 }
 /* bridge sections: [adapter?] ramp up · 1–2 decks · ramp down [adapter?], entered by a peg and leaving with a peg,
    so they fit anywhere a straight would. Only combinations you own enough of are kept. */
@@ -1164,6 +1165,10 @@ function genX(O,k,avail,maxEnds){
   const nw=Math.random()<0.45 ? 1+rnd(2) : 0;     // S-bends: one curve each way
   for(let i=0;i<nw;i++){ const opts=curves.filter(c=>can(c.id,2)); if(!opts.length) break; const c=pick(opts);
     const back=O.plain.find(r=>r.id===c.id && r.ci===c.ci && r.mirror!==c.mirror); if(!back) break; X.push(c,back); take(c,2); }
+  if(O.passes && O.passes.length && Math.random()<0.6){
+    const ps=O.passes.filter(m=>Object.entries(m.need).every(([id,n])=>(use[id]||0)*k+n<=(avail[id]||0)));
+    if(ps.length) X.push(pick(ps));
+  }
   if(O.macros.length && Math.random()<0.5){
     const ms=O.macros.filter(m=>Object.entries(m.need).every(([id,n])=>(use[id]||0)*k+n<=(avail[id]||0)));
     if(ms.length) X.push(pick(ms));   // the other copies get straights of the same length
@@ -1175,7 +1180,7 @@ function genX(O,k,avail,maxEnds){
 }
 function genGrid(){ const G=new Map(), pcs=[]; const key=(x,y)=>Math.floor(x/40)+","+Math.floor(y/40);
   return {pcs,
-    ok(p){ const wc=worldConns(p), nb=new Set(); pcs.forEach((q,qi)=>{ if(q.wc.some(a=>wc.some(b=>Math.hypot(a.x-b.x,a.y-b.y)<2))) nb.add(qi); });
+    ok(p){ const wc=worldConns(p), nb=new Set(); pcs.forEach((q,qi)=>{ if(q.wc.some(a=>wc.some(b=>Math.hypot(a.x-b.x,a.y-b.y)<8))) nb.add(qi); });
       const sm=pieceSamples(p,10);
       for(const s of sm){ const gx=Math.floor(s.x/40), gy=Math.floor(s.y/40);
         for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++){ const L=G.get((gx+dx)+","+(gy+dy)); if(!L) continue;
@@ -1199,6 +1204,15 @@ function genSpur(O,grid,rem,T,res){
   res.open++;
 }
 function genPut(grid,rem,tk,T){   // place one token (piece or bridge section) at T; returns the exit or null
+  if(tk.local){
+    if(!genderOK("F",T.g)) return null;
+    for(const id in tk.need) if((rem[id]||0)<tk.need[id]) return null;
+    const c=Math.cos(T.a), s=Math.sin(T.a);
+    const ps=tk.local.map(q=>({type:q.type,mirror:q.mirror,level:T.lv||0,x:T.x+c*q.x-s*q.y,y:T.y+s*q.x+c*q.y,rot:normA(q.rot+T.a)}));
+    for(const p of ps){ if(!grid.ok(p)) return null; grid.add(p); }
+    for(const id in tk.need) rem[id]-=tk.need[id];
+    return {T:{x:T.x+c*tk.rel.x,y:T.y+s*tk.rel.x,a:T.a,g:tk.rel.g,lv:T.lv||0}, wc:null};
+  }
   if(tk.seq){
     for(const id in tk.need) if((rem[id]||0)<tk.need[id]) return null;
     const placed=[]; let cur=T;
@@ -1215,26 +1229,120 @@ function genPut(grid,rem,tk,T){   // place one token (piece or bridge section) a
 }
 function genLoop(O,k,avail,maxEnds){
   const X=genX(O,k,avail,maxEnds); if(!X||X.length<2) return null;
-  const rem={...avail}, grid=genGrid(), spurs=[]; let T={x:0,y:0,a:0,g:"M",lv:0}, ends=0, nsw=0, nbr=0;
+  const rem={...avail}, grid=genGrid(), spurs=[]; let T={x:0,y:0,a:0,g:"M",lv:0}, ends=0, nsw=0, nbr=0, npass=0;
   for(let r=0;r<k;r++) for(const tok of X){
     let tk=tok;
     if(tok.sw && !(ends+tok.spurs<=maxEnds && rem[tok.id]>0)){   // over the dead-end budget: use a plain piece of the same shape
       tk=O.plain.find(q=>(rem[q.id]||0)>0 && Math.hypot(q.rel.x-tok.rel.x,q.rel.y-tok.rel.y)<1 && Math.abs(normA(q.rel.a-tok.rel.a))<0.01);
       if(!tk) return null;
     }
-    if(tk.seq && (r>0 || Object.entries(tk.need).some(([id,n])=>(rem[id]||0)<n))){
+    if((tk.seq||tk.local) && (r>0 || Object.entries(tk.need).some(([id,n])=>(rem[id]||0)<n))){
       const f=genFill(O,rem,tk.len); if(!f) return null;
       for(const st of f){ const r3=genPut(grid,rem,st,T); if(!r3) return null; T=r3.T; }
       continue;
     }
     const r2=genPut(grid,rem,tk,T); if(!r2) return null;
-    if(tk.seq) nbr++;
+    if(tk.seq) nbr++; if(tk.local) npass++;
     if(tk.sw){ ends+=tk.spurs; nsw++; r2.wc.forEach((c,i)=>{ if(i!==tk.ci && i!==tk.through) spurs.push(c); }); }
     T=r2.T;
   }
   if(Math.hypot(T.x,T.y)>2.5 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;
   const res={capped:0,open:0}; spurs.forEach(c=>genSpur(O,grid,rem,c,res));
-  return {pieces:grid.pcs, ends:res.capped+res.open, capped:res.capped, nsw, loop:true, bridges:nbr};
+  return {pieces:grid.pcs, ends:res.capped+res.open, capped:res.capped, nsw, loop:true, bridges:nbr, passes:npass};
+}
+/* Passing loops ("alternative path"): switch S1 splits the track, the branch curves out, runs parallel and curves back into
+   a second switch S2 laid the other way round, which joins it to the main line again. Male/female mismatches are fixed with
+   adapters (two-hole / two-peg minis) when you have them. Built in a local frame (entry at the origin, heading +x). */
+function genFillG(lin,rem,target,g,endOK,tol=1.2){   // straights (any direction) from gender g, total length ± tol, ending in a gender endOK accepts
+  if(target<-tol) return null;
+  let best=null, nodes=0; const cnt={}, st=shuffle(lin.slice());
+  const dfs=(left,g,acc)=>{ if(best||++nodes>3000) return; if(Math.abs(left)<=tol && endOK(g)){ best=acc.slice(); return; } if(left<-tol) return;
+    for(const r of st){ if((cnt[r.id]||0)>=(rem[r.id]||0) || !genderOK(r.eg,g) || r.rel.x>left+tol) continue;
+      cnt[r.id]=(cnt[r.id]||0)+1; acc.push(r); dfs(left-r.rel.x,r.rel.g,acc); acc.pop(); cnt[r.id]--; if(best) return; } };
+  dfs(target,g,[]); return best;
+}
+function genPassFinish(lin,rem,avail,L,E,put){
+  if(S.gender && E.g!=="M"){ const fl=lin.find(r=>(rem[r.id]||0)>0 && genderOK(r.eg,E.g) && r.rel.g==="M"); if(!fl) return null;
+    rem[fl.id]--; const p=put(fl.id,fl.mirror,fl.ci,E); L.push(p); E=worldConns(p)[1-fl.ci]; }
+  if(Math.abs(E.y)>1 || Math.abs(normA(E.a))>0.01) return null;
+  const need={}; L.forEach(p=>need[p.type]=(need[p.type]||0)+1);
+  if(Object.entries(need).some(([id,n])=>n>(avail[id]||0))) return null;
+  return {local:L.map(p=>({type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:0})),need,len:E.x,rel:{x:E.x,y:0,a:0,g:E.g},turn:0,pass:true};
+}
+function genPassParallel(O,lin,rem,avail,P1,thr,br,s2,put){
+  for(const m2 of shuffle([false,true])){
+    const q2=O.sw2.find(q=>q.id===s2.id && q.mirror===m2 && Math.abs(q.turn)<0.01 && q.ci===s2.ci); if(!q2) continue;
+    const P2=put(q2.id,q2.mirror,q2.through,thr), w2=worldConns(P2), bj=w2.findIndex((c,i)=>i!==q2.ci && i!==q2.through), tgt=w2[bj];
+    if(Math.abs(tgt.y-br.y)>0.8 || Math.abs(normA(tgt.a-Math.PI-br.a))>0.01) continue;
+    const delta=tgt.x-br.x;                                   // branch gap when the main line has no straights
+    const fm=genFillG(lin,rem,[54,108,144,216,288][rnd(5)],thr.g,g=>genderOK(types[q2.id].conns[q2.through].g,g),40); if(!fm) continue;
+    const r2={...rem}; fm.forEach(r=>r2[r.id]--); if((r2[q2.id]||0)<1) continue; r2[q2.id]--;
+    const Lm=fm.reduce((a,r)=>a+r.rel.x,0);
+    const fb=genFillG(lin,r2,Lm+delta,br.g,g=>genderOK(tgt.g,g),6); if(!fb) continue; fb.forEach(r=>r2[r.id]--);
+    const L=[P1]; let T=br; for(const r of fb){ const p=put(r.id,r.mirror,r.ci,T); L.push(p); T=worldConns(p)[1-r.ci]; }
+    const bEnd=T; T=thr; for(const r of fm){ const p=put(r.id,r.mirror,r.ci,T); L.push(p); T=worldConns(p)[1-r.ci]; }
+    const S2p=put(q2.id,q2.mirror,q2.through,T); L.push(S2p); const w3=worldConns(S2p);
+    if(Math.hypot(w3[bj].x-bEnd.x,w3[bj].y-bEnd.y)>6.5 || !genderOK(w3[bj].g,bEnd.g)) continue;
+    const res=genPassFinish(lin,r2,avail,L,w3[q2.ci],put); if(res) return res;
+  }
+  return null;
+}
+function genPasses(O,avail,want=24){
+  const lin=O.grow.filter(r=>Math.abs(r.turn)<0.01 && Math.abs(r.rel.y)<0.5 && !types[r.id].lanes.some(l=>l.k!=="s"));
+  const curves=O.grow.filter(r=>Math.abs(r.turn)>0.01);
+  const S1s=O.sw.filter(s=>Math.abs(s.turn)<0.01 && Math.abs(s.rel.y)<0.5 && s.spurs===1 && (avail[s.id]||0)>0);
+  const T0={x:0,y:0,a:0,g:"M",lv:0}, out=[]; let guard=0;
+  const put=(id,mirror,ci,T)=>{ const p={type:id,x:0,y:0,rot:0,mirror,level:0}; alignTo(p,ci,T); return p; };
+  while(out.length<want && guard++<want*30 && S1s.length){
+    const s1=pick(S1s), rem={...avail}; if((rem[s1.id]||0)<1) continue; rem[s1.id]--;
+    const pcs=[], P1=put(s1.id,s1.mirror,s1.ci,T0); pcs.push(P1);
+    const w1=worldConns(P1), bi=w1.findIndex((c,i)=>i!==s1.ci && i!==s1.through), thr=w1[s1.through], br=w1[bi];
+    // S2: any switch type you own, entered backwards through its straight lane
+    const s2=pick(O.sw2.filter(q=>Math.abs(q.turn)<0.01 && q.spurs===1 && (rem[q.id]||0)>0)); if(!s2) continue;
+    if(Math.abs(br.a)<0.01){ const r=genPassParallel(O,lin,rem,avail,P1,thr,br,s2,put); if(r) out.push(r); continue; }
+    // branch: a curve back to parallel, straights, a curve in again
+    const cb=pick(curves.filter(c=>(rem[c.id]||0)>0 && Math.abs(c.rel.a+br.a)<0.01 && genderOK(c.eg,br.g))); if(!cb) continue;
+    rem[cb.id]--; const B1=put(cb.id,cb.mirror,cb.ci,br); const bOut=worldConns(B1)[1-cb.ci];
+    // where must S2 sit? try both mirrors of S2; the main line length follows from the branch length
+    let done=false;
+    for(const m2 of shuffle([false,true])){
+      const q2=O.sw2.find(q=>q.id===s2.id && q.mirror===m2 && Math.abs(q.turn)<0.01 && q.ci===s2.ci); if(!q2) continue;
+      // S2 reversed, placed with its straight exit facing the main line end at x=Lm (we place it at x=0 first, then shift)
+      const P2=put(q2.id,q2.mirror,q2.through,{x:thr.x,y:thr.y,a:thr.a,g:thr.g,lv:0}), w2=worldConns(P2);
+      const bj=w2.findIndex((c,i)=>i!==q2.ci && i!==q2.through), tgt=w2[bj], com=w2[q2.ci];
+      // the in-curve placed backwards from S2's branch connector must arrive parallel to the branch straight
+      for(const c2 of shuffle(curves.filter(c=>(rem[c.id]||0)>0 && Math.abs(Math.abs(c.turn)-Math.abs(cb.turn))<0.01))){
+        const rev=types[c2.id].conns.length===2 ? 1-c2.ci : null; if(rev===null) continue;
+        if(!genderOK(types[c2.id].conns[c2.ci].g, tgt.g)) continue;
+        const Q=put(c2.id,c2.mirror,c2.ci,tgt); const qOut=worldConns(Q)[1-c2.ci];
+        if(Math.abs(normA(qOut.a-Math.PI-bOut.a))>0.01 || Math.abs(qOut.y-bOut.y)>0.8) continue;
+        // lengths: branch straights Lb between bOut and qOut (when S2 at x0), main straights Lm between thr and S2
+        const delta=qOut.x-bOut.x;                    // with Lm=0: gap along the branch = delta + Lm
+        const LbT=[0,54,108,144,216,288][rnd(6)];
+        const fb=genFillG(lin,rem,LbT,bOut.g,g=>genderOK(qOut.g,g),40); if(!fb) continue;
+        const Lb=fb.reduce((a,r)=>a+r.rel.x,0); fb.forEach(r=>rem[r.id]--);
+        const fm=genFillG(lin,rem,Lb-delta,thr.g,g=>genderOK(types[q2.id].conns[q2.through].g,g),6);
+        if(!fm){ fb.forEach(r=>rem[r.id]++); continue; }
+        fm.forEach(r=>rem[r.id]--);
+        if((rem[q2.id]||0)<1 || (rem[c2.id]||0)<1){ continue; }
+        rem[q2.id]--; rem[c2.id]--;
+        const Lm=fm.reduce((a,r)=>a+r.rel.x,0);
+        // build for real
+        const L=[P1,B1]; let T=bOut;
+        for(const r of fb){ const p=put(r.id,r.mirror,r.ci,T); L.push(p); T=worldConns(p)[1-r.ci]; }
+        const bEnd=T;
+        T=thr; for(const r of fm){ const p=put(r.id,r.mirror,r.ci,T); L.push(p); T=worldConns(p)[1-r.ci]; }
+        const S2p=put(q2.id,q2.mirror,q2.through,T); L.push(S2p); const w3=worldConns(S2p);
+        const Qp=put(c2.id,c2.mirror,c2.ci,w3[bj]); L.push(Qp); const qFree=worldConns(Qp)[1-c2.ci];
+        // the small gap left between the branch straights and the in-curve is closed by the joints' play afterwards
+        if(Math.hypot(qFree.x-bEnd.x,qFree.y-bEnd.y)>6.5 || Math.abs(normA(qFree.a-bEnd.a-Math.PI))>0.01 || !genderOK(qFree.g,bEnd.g)) continue;
+        const res=genPassFinish(lin,rem,avail,L,w3[q2.ci],put); if(!res) continue;
+        out.push(res); done=true; break;
+      }
+      if(done) break;
+    }
+  }
+  return out;
 }
 /* straights adding up to a length (± tol), from what's left; random order for variety */
 function genFill(O,rem,target,tol=1.2){
@@ -1326,8 +1434,8 @@ function genFit(L,W,D){
 }
 function generateLayout(W,D,maxEnds,ms=900,bridges=true){
   const avail={}; typeList.forEach(t=>avail[t.id]=S.inv[t.id]||0);
-  const O=genOptions(); if(bridges) O.macros=genMacros(avail);
-  let best=null, tries=0, valid=0; const t0=performance.now(), wantEight=Math.random()<0.55;
+  const O=genOptions(); if(bridges) O.macros=genMacros(avail); O.passes=genPasses(O,avail);
+  let best=null, tries=0, valid=0; const t0=performance.now(), wantEight=Math.random()<0.45, wantPass=!wantEight||Math.random()<0.5;
   while(performance.now()-t0<ms){ tries++;
     let L=null;
     const k=Math.random()<0.7?2:4;
@@ -1337,7 +1445,7 @@ function generateLayout(W,D,maxEnds,ms=900,bridges=true){
     if(!L || L.ends>maxEnds) continue;
     if(!genFit(L,W,D)) continue;
     valid++;
-    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw+(L.eight?(wantEight?30:-6):0)+4*(L.bridges||0);
+    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw+(L.eight?(wantEight?30:-6):0)+4*(L.bridges||0)+(L.passes?(wantPass?25:4):0);
     if(!best||sc>best.sc){ best=L; best.sc=sc; }
   }
   if(best) best.stats={tries,valid};
@@ -1349,10 +1457,12 @@ function runGenerator(fromKids){
   const L=generateLayout(g.w*10,g.d*10,g.ends,900,g.bridges!==false);
   if(!L){ if(!fromKids) document.getElementById("gMsg").textContent="Couldn't make a track that fits — try a bigger floor, more dead ends, or add curves to your inventory."; return false; }
   snapshot(); S.pieces=L.pieces.map(p=>({id:S.nextId++,type:p.type,x:p.x,y:p.y,rot:p.rot,mirror:p.mirror,level:p.level||0}));
-  S.floor={w:g.w*10,d:g.d*10}; sel=null; active=null; save(); refresh(); fit();
-  const msg=`${L.pieces.length} pieces${L.eight?", a figure eight over a bridge":L.loop?", one loop":""}${!L.eight&&L.bridges?` with ${L.bridges} bridge${L.bridges>1?"s":""}`:""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
+  S.floor={w:g.w*10,d:g.d*10}; sel=null; active=null; save(); refresh();
+  for(let i=0;i<6;i++){ const gp=GAPS.find(q=>q.fx&&q.fx.ok); if(!gp) break; closeWithPlay(gp.A.p.id+":"+gp.A.ci, gp.B.p.id+":"+gp.B.ci); refresh(); }
+  fit();
+  const msg=`${L.pieces.length} pieces${L.eight?", a figure eight over a bridge":L.loop?", one loop":""}${!L.eight&&L.bridges?` with ${L.bridges} bridge${L.bridges>1?"s":""}`:""}${L.passes?`${L.bridges&&!L.eight?" and":" with"} a passing loop`:""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
   if(!fromKids) document.getElementById("gMsg").textContent=msg;
-  toast(fromKids?(L.bridges?"Here's a new track — with a bridge! 🌉":"Here's a new track! 🚂"):msg);
+  toast(fromKids?(L.passes?"Here's a new track — with two ways to go! 🔀":L.bridges?"Here's a new track — with a bridge! 🌉":"Here's a new track! 🚂"):msg);
   return true;
 }
 { const M=document.getElementById("genModal"), $=id=>document.getElementById(id);
@@ -2336,7 +2446,7 @@ function scAddToInv(){
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
-window.__dbg={samples:p=>pieceSamples(p,10), wc:p=>worldConns(p), macros:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genMacros(a); }, eight:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); const O=genOptions(); O.macros=genMacros(a); let ok=0; for(let i=0;i<500;i++) if(genEight(O,a)) ok++; return ok; }};
+window.__dbg={passes:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genPasses(genOptions(),a).length; }, samples:p=>pieceSamples(p,10), wc:p=>worldConns(p), macros:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genMacros(a); }, eight:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); const O=genOptions(); O.macros=genMacros(a); let ok=0; for(let i=0;i<500;i++) if(genEight(O,a)) ok++; return ok; }};
 window.__planner={generateLayout, runGenerator, addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
 window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
 
