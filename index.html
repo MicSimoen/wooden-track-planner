@@ -1130,26 +1130,39 @@ function genOptions(){
    so they fit anywhere a straight would. Only combinations you own enough of are kept. */
 function genMacros(avail){
   const ups=[],downs=[],decks=[],adapt=[], own=id=>(avail[id]||0)>0, len=t=>t.lanes[0].len;
+  const step=(g,e)=>{ const t=types[e.id], c=t.conns[e.ci]; if(!genderOK(c.g,g)) return null; return t.conns[1-e.ci].g; };
   typeList.forEach(t=>{
     if(!own(t.id) || t.conns.length!==2 || t.lanes.length!==1 || t.lanes[0].k!=="s") return;
     const C=t.conns;
     if(t.ramp){ const lo=C.findIndex(c=>c.lv===0); ups.push({id:t.id,ci:lo,L:len(t)}); downs.push({id:t.id,ci:1-lo,L:len(t)}); }
     else if(t.deck){ decks.push({id:t.id,ci:0,L:len(t)}); if(C[0].g!==C[1].g) decks.push({id:t.id,ci:1,L:len(t)}); }
-    else if(!t.stop && !t.carRamp && C[0].g!==C[1].g) return;
     else if(!t.stop && !t.carRamp && C[0].g===C[1].g) adapt.push({id:t.id,ci:0,L:len(t)});
   });
   if(!ups.length||!decks.length) return [];
   const out=new Map();
-  const step=(g,e)=>{ const t=types[e.id], c=t.conns[e.ci]; if(!genderOK(c.g,g)) return null; return t.conns[1-e.ci].g; };
-  for(const pre of [null,...adapt]) for(const up of ups) for(const d1 of decks) for(const d2 of [null,...decks]) for(const dn of downs) for(const post of [null,...adapt]){
-    const seq=[pre,up,d1,d2,dn,post].filter(Boolean), need={}; let g="M", ok=true;
-    for(const e of seq){ need[e.id]=(need[e.id]||0)+1; if(need[e.id]>(avail[e.id]||0)){ ok=false; break; } g=step(g,e); if(g===null){ ok=false; break; } }
-    if(!ok || (S.gender && g!=="M")) continue;
-    const key=seq.map(e=>e.id+e.ci).join(",");
-    if(!out.has(key)) out.set(key,{seq,need,len:seq.reduce((a,e)=>a+e.L,0),bridge:true,turn:0,rel:{x:seq.reduce((a,e)=>a+e.L,0),y:0,a:0},
-      deckFrom:(pre?pre.L:0)+up.L, deckTo:(pre?pre.L:0)+up.L+d1.L+(d2?d2.L:0)});
-  }
-  return [...out.values()];
+  // grammar: [adapter] up [adapter] deck [adapter] [deck [adapter]] down [adapter] — adapters fix peg/hole mismatches,
+  // also up on the bridge (both BRIO ramps have a peg at the top, so a plain deck between two ramps never fits)
+  const pats=[["pre","up","mid","deck","mid","down","post"],["pre","up","mid","deck","mid","deck","mid","down","post"]];
+  const opt={pre:[null,...adapt],mid:[null,...adapt],post:[null,...adapt],up:ups,deck:decks,down:downs};
+  const need={}, seq=[];
+  const dfs=(pat,i,g)=>{
+    if(out.size>=400) return;
+    if(i===pat.length){ if(S.gender && g!=="M") return;
+      const key=seq.filter(Boolean).map(e=>e.id+e.ci).join(","); if(out.has(key)) return;
+      const sq=seq.filter(Boolean), iu=seq.findIndex(e=>e&&ups.includes(e)), id=seq.findIndex(e=>e&&downs.includes(e));
+      const len=sq.reduce((a,e)=>a+e.L,0), pos=k=>seq.slice(0,k).reduce((a,e)=>a+(e?e.L:0),0);
+      out.set(key,{seq:sq,need:{...need},len,bridge:true,turn:0,rel:{x:len,y:0,a:0},deckFrom:pos(iu+1),deckTo:pos(id),adapters:sq.filter(e=>adapt.includes(e)).length});
+      return; }
+    for(const e of opt[pat[i]]){
+      if(!e){ seq.push(null); dfs(pat,i+1,g); seq.pop(); continue; }
+      if(((need[e.id]||0)+1)>(avail[e.id]||0)) continue;
+      const g2=step(g,e); if(g2===null) continue;
+      need[e.id]=(need[e.id]||0)+1; seq.push(e); dfs(pat,i+1,g2); seq.pop(); need[e.id]--; if(!need[e.id]) delete need[e.id];
+    }
+  };
+  pats.forEach(pt=>dfs(pt,0,"M"));
+  // fewest adapters first
+  return [...out.values()].sort((a,b)=>a.adapters-b.adapters).slice(0,60);
 }
 const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -1367,31 +1380,45 @@ function genFill(O,rem,target,tol=1.2){
    The two straight slots are solved so the eight closes exactly; one carries the bridge section over the other. */
 function genEight(O,avail){
   if(!O.macros.length) return null;
-  const A=270, a=A*D2R, opts=O.plain.filter(r=>r.turn>0.01).map(c=>({c,m:Math.round(A/c.turn)})).filter(o=>Math.abs(o.m*o.c.turn-A)<0.01 && o.m%2===0 && o.m<=(avail[o.c.id]||0));
-  if(!opts.length) return null;
-  const {c,m}=pick(opts), rem={...avail}; rem[c.id]-=m;
-  // the second lobe may use a different curve (e.g. one big and one tight loop)
-  const o2=pick(opts.filter(o=>o.m<=(rem[o.c.id]||0))); if(!o2) return null;
-  const cr=O.plain.find(r=>r.id===o2.c.id && r.ci===o2.c.ci && r.mirror!==o2.c.mirror), m2=o2.m; if(!cr) return null; rem[cr.id]-=m2;
+  const A=270, a=A*D2R, rem={...avail};
+  // each lobe: curves (any mix you own) turning 270°, split in two halves of 135° — the middle gets a straight stretch
+  const lefts=O.plain.filter(r=>r.turn>0.01), rightOf=c=>O.plain.find(r=>r.id===c.id && r.ci===c.ci && r.mirror!==c.mirror);
+  const half=()=>{ const H=[]; let t=0, g=0; const pref=Math.random()<0.6?pick(lefts.filter(c=>(rem[c.id]||0)>0)):null;
+    while(t<135-0.01 && g++<20){ let o=lefts.filter(c=>(rem[c.id]||0)>0 && t+c.turn<=135+0.01); if(pref){ const o2=o.filter(c=>c.id===pref.id); if(o2.length) o=o2; }
+      if(!o.length) return null; const c=pick(o); rem[c.id]--; H.push(c); t+=c.turn; }
+    return Math.abs(t-135)<0.01 ? H : null; };
+  const A1=half(), A2=half(); if(!A1||!A2) return null;
+  const B1=half(), B2=half(); if(!B1||!B2) return null;
+  const toR=H=>H.map(rightOf); if([...B1,...B2].some(c=>!rightOf(c))) return null;
+  const lobeA0=[...A1,...A2], lobeB0=[...toR(B1),...toR(B2)];
   const macro=pick(O.macros.filter(M=>Object.entries(M.need).every(([id,n])=>(rem[id]||0)>=n))); if(!macro) return null;
   for(const id in macro.need) rem[id]-=macro.need[id];
   // lobes of plain curves; a straight stretch in the middle of each lobe (heading A/2) is solved below
   const disp=L=>{ let P={x:0,y:0,a:0}; L.forEach(t=>P=compose(P,t.rel)); return P; };
-  const DA=disp(Array(m).fill(c)), DB=disp(Array(m2).fill(cr)), rb=compose({x:0,y:0,a},DB);
+  const DA=disp(lobeA0), DB=disp(lobeB0), rb=compose({x:0,y:0,a},DB);
   const D0={x:DA.x+rb.x, y:DA.y+rb.y};
-  const bridgeIn=Math.random()<0.5?1:2, extra=genFill(O,rem,[0,54,108,144,216][rnd(5)],30)||[];
-  extra.forEach(r=>rem[r.id]--);
-  const Lb=macro.len+extra.reduce((q,r)=>q+r.len,0);
+  const bridgeIn=Math.random()<0.5?1:2;
   const u0={x:1,y:0}, uA={x:Math.cos(a),y:Math.sin(a)}, uM={x:Math.cos(a/2),y:Math.sin(a/2)};
-  const ub=bridgeIn===1?u0:uA, uf=bridgeIn===1?uA:u0;
-  // Lb*ub + Lf*uf + s*uM + D0 = 0  →  solve for Lf, s
-  const rx=-(Lb*ub.x+D0.x), ry=-(Lb*ub.y+D0.y), det=uf.x*uM.y-uf.y*uM.x; if(Math.abs(det)<1e-6) return null;
-  const Lf=(rx*uM.y-ry*uM.x)/det, sM=(uf.x*ry-uf.y*rx)/det;
-  if(Lf<-1.2 || sM<-1.2) return null;
-  const ff=genFill(O,rem,Lf); if(!ff) return null; ff.forEach(r=>rem[r.id]--);
-  const fm=genFill(O,rem,sM); if(!fm) return null; fm.forEach(r=>rem[r.id]--);
+  const ub=bridgeIn===1?u0:uA, uf=bridgeIn===1?uA:u0, det=uf.x*uM.y-uf.y*uM.x; if(Math.abs(det)<1e-6) return null;
+  // try every small set of straights next to the bridge; keep one where the other two stretches can be filled too
+  const sts=O.straights.filter(r=>(rem[r.id]||0)>0), combos=[[]];
+  for(let n=1;n<=3;n++){ const prev=combos.filter(c=>c.length===n-1);
+    prev.forEach(c=>sts.forEach(r=>{ if(c.length && sts.indexOf(r)<sts.indexOf(c[c.length-1])) return;
+      if(c.filter(q=>q.id===r.id).length<(rem[r.id]||0)) combos.push([...c,r]); })); }
+  let extra=null, ff=null, fm=null, Lb=0;
+  for(const ex of shuffle(combos)){
+    const r1={...rem}; ex.forEach(r=>r1[r.id]--);
+    const lb=macro.len+ex.reduce((q,r)=>q+r.len,0);
+    const rx=-(lb*ub.x+D0.x), ry=-(lb*ub.y+D0.y), Lf=(rx*uM.y-ry*uM.x)/det, sM=(uf.x*ry-uf.y*rx)/det;   // Lb*ub + Lf*uf + s*uM + D0 = 0
+    if(Lf<-1.2 || sM<-1.2) continue;
+    const f1=genFill(O,r1,Lf,6); if(!f1) continue; f1.forEach(r=>r1[r.id]--);
+    const f2=genFill(O,r1,sM,6); if(!f2) continue; f2.forEach(r=>r1[r.id]--);
+    extra=ex; ff=f1; fm=f2; Lb=lb; Object.assign(rem,r1); break;
+  }
+  if(!extra) return null;
+  const Lf=ff.reduce((q,r)=>q+r.len,0);
   const fmA=[], fmB=[]; shuffle(fm.slice()).forEach((r,i)=>(i%2?fmB:fmA).push(r));
-  const LA=[...Array(m/2).fill(c),...fmA,...Array(m/2).fill(c)], LB=[...Array(m2/2).fill(cr),...fmB,...Array(m2/2).fill(cr)];
+  const LA=[...A1,...fmA,...A2], LB=[...toR(B1),...fmB,...toR(B2)];
   const L1=bridgeIn===1?Lb:Lf, L2=bridgeIn===1?Lf:Lb;
   // put the deck over the crossing
   const DAf=disp(LA), P1={x:0,y:0}, P2={x:L1+DAf.x,y:DAf.y};
@@ -1408,7 +1435,7 @@ function genEight(O,avail){
   const seq = bridgeIn===1 ? [...slotB,...LA,...slotF,...LB] : [...slotF,...LA,...slotB,...LB];
   const grid=genGrid(), rem2={...avail}; let T={x:0,y:0,a:0,g:"M",lv:0};
   for(const tk of seq){ const r2=genPut(grid,rem2,tk,T); if(!r2) return null; T=r2.T; }
-  if(Math.hypot(T.x,T.y)>2.5 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;
+  if(Math.hypot(T.x,T.y)>9 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;   // a few mm: closed by the joints' play
   return {pieces:grid.pcs, ends:0, capped:0, nsw:0, loop:true, bridges:1, eight:true};
 }
 
@@ -1444,20 +1471,21 @@ function genFit(L,W,D){
 function generateLayout(W,D,maxEnds,ms=900,bridges=true){
   const avail={}; typeList.forEach(t=>avail[t.id]=S.inv[t.id]||0);
   const O=genOptions(); if(bridges) O.macros=genMacros(avail); O.passes=genPasses(O,avail);
-  let best=null, tries=0, valid=0; const t0=performance.now(), wantEight=Math.random()<0.45, wantPass=!wantEight||Math.random()<0.5;
+  let best=null, tries=0, valid=0; const t0=performance.now(), wantEight=O.macros.length>0 && Math.random()<0.65, wantPass=!wantEight||Math.random()<0.5;
   while(performance.now()-t0<ms){ tries++;
     let L=null;
     const k=Math.random()<0.7?2:4;
-    if(O.macros.length && Math.random()<0.35) L=genEight(O,avail);
+    if(O.macros.length && Math.random()<(wantEight?0.6:0.25)) L=genEight(O,avail);
     if(!L) L=genLoop(O,k,avail,maxEnds);
     if(!L && maxEnds>=2 && Math.random()<0.05) L=genLine(O,avail);
     if(!L || L.ends>maxEnds) continue;
     if(!genFit(L,W,D)) continue;
     valid++;
-    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw+(L.eight?(wantEight?30:-6):0)+4*(L.bridges||0)+(L.passes?(wantPass?25:4):0);
+    const sc=(L.loop?20:0)+L.pieces.length*(0.8+0.4*Math.random())+2*L.capped+1.5*L.nsw+(L.eight?(wantEight?40:-6):0)+(L.eight?0:1.5*(L.bridges||0))+(L.passes?(wantPass?25:4):0);
     if(!best||sc>best.sc){ best=L; best.sc=sc; }
   }
-  if(best) best.stats={tries,valid};
+  if(best) best.stats={tries,valid,bridgeOK:O.macros.length>0};
+  GEN.bridgeOK=O.macros.length>0;
   return best;
 }
 function runGenerator(fromKids){
@@ -1470,7 +1498,15 @@ function runGenerator(fromKids){
   for(let i=0;i<6;i++){ const gp=GAPS.find(q=>q.fx&&q.fx.ok); if(!gp) break; closeWithPlay(gp.A.p.id+":"+gp.A.ci, gp.B.p.id+":"+gp.B.ci); refresh(); }
   fit();
   const msg=`${L.pieces.length} pieces${L.eight?", a figure eight over a bridge":L.loop?", one loop":""}${!L.eight&&L.bridges?` with ${L.bridges} bridge${L.bridges>1?"s":""}`:""}${L.passes?`${L.bridges&&!L.eight?" and":" with"} a passing loop`:""}${L.ends?` · ${L.ends} dead end${L.ends>1?"s":""}${L.capped<L.ends?` (${L.ends-L.capped} without a stop)`:""}`:""}`;
-  if(!fromKids) document.getElementById("gMsg").textContent=msg;
+  let why="";
+  if(g.bridges!==false && !GEN.bridgeOK){
+    const has=id=>(S.inv[id]||0)>0, ramps=typeList.filter(t=>t.ramp&&has(t.id)), decks=typeList.filter(t=>t.deck&&has(t.id));
+    why = !ramps.length ? " · No bridges: add ramps (N, N1 or IKEA) to your inventory."
+        : ramps.reduce((a,t)=>a+(S.inv[t.id]||0),0)<2 ? " · No bridges: a bridge needs two ramps."
+        : !decks.length ? " · No bridges: add a bridge deck to your inventory."
+        : " · No bridges: the ramp tops both have pegs — add a two-hole mini (C2 / IKEA female–female) or the reversible deck B360R, plus a two-peg mini.";
+  } else if(g.bridges!==false && GEN.bridgeOK && !L.eight && !L.bridges) why=" · Press again for a bridge — or allow a bigger floor (a figure eight needs about 150 × 150 cm).";
+  if(!fromKids) document.getElementById("gMsg").textContent=msg+why;
   toast(fromKids?(L.passes?"Here's a new track — with two ways to go! 🔀":L.bridges?"Here's a new track — with a bridge! 🌉":"Here's a new track! 🚂"):msg);
   return true;
 }
