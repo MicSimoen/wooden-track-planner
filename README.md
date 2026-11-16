@@ -10,6 +10,12 @@ Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own
 - **Random track**: makes a layout from your inventory that fits a floor size you give, with at most the number of dead ends you allow (finished with buffer stops or ramp tracks when you have them); with bridges on it can lift part of a loop over a bridge or build a figure eight that crosses over itself, checking there's room for your train underneath
 - **Kids mode** (ages 3+): one row of big picture buttons — ↶ oops, 🧩 pieces, 🎲 new track, ❤️ keep it, 🖼️ my tracks, 👀 3D; shake the iPad/phone for a new track; hold 🔒 for 2 s to leave
 - **My tracks**: ♡ Save keeps the current layout (random or built), 📚 My tracks shows them as pictures to open, rename or delete
+- **Run a train** 🚂: a little train drives along your track; tap a switch to send it the other way; it reverses at buffer stops
+- **Ride along** in 3D: first-person view from the engine, over bridges and through passing loops
+- **Build it step by step** 👷: pieces light up one at a time in building order, with a big ✓ for the next one (great with kids)
+- **Classic layouts** 📐: circle, oval, peanut, dog bone, sidings, bridges — built from whichever brand you own, showing what you'd still need
+- **Share** 🔗 a track or your whole inventory as a link, through the share sheet, or as a QR code
+- **Sounds** in kids mode (whistle, choo-choo), can be switched off
 - **Play area** (⋯ → Play area & settings): floor size, dead ends and bridges for 🎲 Random, set once
 - **Scan your inventory with the camera**: photograph your pieces next to a sheet of A4 paper, tap its corners, and the app measures and recognises each piece (you check and correct before adding)
 - Made for iPad and iPhone: on a phone the plan fills the screen, the pieces open as a bottom sheet and extra tools sit under ⋯; pinch to zoom, big buttons, a floating toolbar next to the selected piece, +/− steppers
