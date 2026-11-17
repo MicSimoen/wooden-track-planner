@@ -246,7 +246,10 @@
          font-size:32px; padding:0; background:#fff; border:2px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.18) }
   body.trainOn #bHop{ display:block } body.kids #bHop{ bottom:calc(244px + env(safe-area-inset-bottom)); width:80px; height:80px; border-radius:40px; font-size:40px } body.kids #bSpeed{ bottom:calc(150px + env(safe-area-inset-bottom)); width:80px; height:80px; border-radius:40px; font-size:44px }
   body.in3d #kUndo, body.in3d .kbar, body.in3d #bGrown, body.in3d #bSpeed, body.in3d .status{ display:none !important }
-  #b3dSpeed{ display:none; font-size:22px } #v3d.riding #b3dSpeed{ display:inline-flex }
+  #b3dSpeed, #b3dRev{ display:none; font-size:22px } #v3d.riding #b3dSpeed, #v3d.riding #b3dRev{ display:inline-flex }
+  #bRev{ display:none; position:absolute; z-index:6; right:14px; bottom:calc(232px + env(safe-area-inset-bottom)); width:64px; height:64px; border-radius:32px;
+         font-size:30px; font-weight:800; padding:0; background:#fff; border:2px solid var(--line); box-shadow:0 4px 14px rgba(0,0,0,.18) }
+  body.trainOn #bRev{ display:block } body.kids #bRev{ bottom:calc(338px + env(safe-area-inset-bottom)); width:80px; height:80px; border-radius:40px; font-size:38px }
   /* kids dock */
   .kbar{ position:absolute; left:50%; bottom:calc(18px + env(safe-area-inset-bottom)); transform:translateX(-50%); z-index:5;
          display:flex; align-items:center; gap:14px; padding:10px 16px; background:rgba(255,255,255,.88); border-radius:60px;
@@ -301,6 +304,9 @@
     .kbar{ gap:5px; padding:6px 7px } .kbar button{ width:42px; height:42px; font-size:21px }
     .kbar .kbig{ width:62px; height:62px; font-size:36px; margin:-10px 2px 0 }
     #kUndo{ width:46px; height:46px; font-size:24px }
+    #bSpeed, #bHop, #bRev, body.kids #bSpeed, body.kids #bHop, body.kids #bRev{ width:56px; height:56px; border-radius:28px; font-size:28px; right:10px }
+    #bSpeed, body.kids #bSpeed{ bottom:calc(98px + env(safe-area-inset-bottom)) } #bHop, body.kids #bHop{ bottom:calc(162px + env(safe-area-inset-bottom)) }
+    #bRev, body.kids #bRev{ bottom:calc(226px + env(safe-area-inset-bottom)) }
     body.kids .bbIcon svg{ width:76px; height:54px } body.kids #buildBar{ gap:10px; padding:10px 12px }
     body.kids #buildBar button{ min-width:52px; min-height:52px } body.kids #bbNext{ min-width:84px !important; min-height:76px !important; font-size:40px !important }
     .bbIcon svg{ width:64px; height:46px } .bbTxt{ max-width:36vw; font-size:13px } .bbProg{ width:110px }
@@ -423,6 +429,7 @@
     <button id="kUndo" class="kidonly" aria-label="Oops, undo">↶</button>
     <button id="bSpeed" class="spdbtn" aria-label="Faster">🐇</button>
     <button id="bHop" aria-label="Ride on the train">🎥</button>
+    <button id="bRev" aria-label="Turn the train round">⇄</button>
     <div id="buildBar">
       <button id="bbBack" aria-label="Back">◀</button>
       <div class="bbInfo"><div class="bbIcon"></div><div><div class="bbTxt"></div><div class="bbProg"><i></i></div></div></div>
@@ -459,6 +466,7 @@
         <span class="sp"></span>
         <button id="b3dRide" class="ride">🚂<span class="lbl"> Ride along</span></button>
         <button id="b3dSpeed" class="spdbtn" title="Faster / slower">🐇</button>
+        <button id="b3dRev" title="Turn the train round">⇄</button>
         <button id="b3dTop">Top</button><button id="b3dSide">Side</button><button id="b3dIso">3/4</button>
       </div>
       <div class="v3help adult">Drag to orbit · right-drag / two fingers to pan · wheel to zoom. Blue haze = room your tallest train needs (set in Settings) · red marks = not enough room.</div>
@@ -1874,13 +1882,25 @@ function trainTick(ts){
   }
   TR.raf=requestAnimationFrame(trainTick);
 }
+/* the wagons' trail behind the engine, traced backwards along the track from where the engine is */
+function trailBehind(st){
+  const back={...st, dir:-st.dir, s:Math.max(0,laneLen(types[byId(st.pid).type].lanes[st.li])-st.s)}; const pts=[];
+  for(let i=0;i<30;i++){ trainStep(back,4); const q=trainPose(back); if(q) pts.push(q); }
+  return [...pts.reverse(), trainPose(st)];
+}
+/* turn the train round: same spot, opposite direction (the 2D train and the ride share it) */
+function reverseTrain(){
+  const st=(V3.ride&&V3.ride.on)?V3.ride.st:(TR.on?TR.st:null); if(!st) return;
+  const p=byId(st.pid); if(!p) return;
+  st.dir=-st.dir; st.s=Math.max(0,laneLen(types[p.type].lanes[st.li])-st.s);
+  if(TR.on && TR.st===st) { TR.hist=trailBehind(st); drawTrain(); }
+  sfx("whistle"); pop(document.getElementById((V3.ride&&V3.ride.on)?"b3dRev":"bRev"));
+}
 function trainOn(stIn){
   computeLinks(); const st=stIn||trainStart(); if(!st){ toast(S.kids?"🎲":"Build or make a track first"); return; }
   TR.st=st; TR.hist=[];
-  if(stIn){ // continue from where the ride left off: build the wagons' trail behind the engine
-    const back={...st, dir:-st.dir, s:Math.max(0,laneLen(types[byId(st.pid).type].lanes[st.li])-st.s)}; const pts=[];
-    for(let i=0;i<30;i++){ trainStep(back,4); const q=trainPose(back); if(q) pts.push(q); } TR.hist=pts.reverse(); TR.hist.push(trainPose(st));
-  } else for(let i=0;i<30;i++){ trainStep(TR.st,4); TR.hist.push(trainPose(TR.st)); }
+  if(stIn) TR.hist=trailBehind(st);   // continue from where the ride left off
+  else for(let i=0;i<30;i++){ trainStep(TR.st,4); TR.hist.push(trainPose(TR.st)); }
   cancelAnimationFrame(TR.raf); TR.on=true; TR.last=0; document.body.classList.add("trainOn"); TR.raf=requestAnimationFrame(trainTick);
   if(stIn) return;
   sfx("choo"); if(!S.kids && S.pieces.some(isSwitch)) toast("Tap a switch to change where the train goes",2600);
@@ -2047,6 +2067,7 @@ document.getElementById("bBuild").onclick=buildStart;
 document.getElementById("kBuild").onclick=buildStart;
 document.getElementById("bTrain").onclick=trainToggle;
 document.getElementById("bSpeed").onclick=speedUp;
+document.getElementById("bRev").onclick=reverseTrain; document.getElementById("b3dRev").onclick=reverseTrain;
 document.getElementById("bHop").onclick=async()=>{ const st=TR.st; if(!st) return; trainOff(); await open3D(); if(V3.ready) rideOn(st); }; document.getElementById("b3dSpeed").onclick=speedUp; updSpeed();
 document.getElementById("bTrainM").onclick=trainToggle;
 document.getElementById("kTrain").onclick=trainToggle;
