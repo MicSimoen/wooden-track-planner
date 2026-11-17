@@ -1392,7 +1392,7 @@ function genLoop(O,k,avail,maxEnds,Xin){
       if(!tk) return null;
     }
     if((tk.seq||tk.local) && ((r>0 && !O.allCopies) || Object.entries(tk.need).some(([id,n])=>(rem[id]||0)<n))){
-      const f=genFill(O,rem,tk.len); if(!f) return null;
+      const f=genFill(O,rem,tk.len,2.5); if(!f) return null;
       for(const st of f){ const r3=genPut(grid,rem,st,T); if(!r3) return null; T=r3.T; }
       continue;
     }
@@ -1401,7 +1401,7 @@ function genLoop(O,k,avail,maxEnds,Xin){
     if(tk.sw){ ends+=tk.spurs; nsw++; r2.wc.forEach((c,i)=>{ if(i!==tk.ci && i!==tk.through) spurs.push(c); }); }
     T=r2.T;
   }
-  if(Math.hypot(T.x,T.y)>2.5 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;
+  if(Math.hypot(T.x,T.y)>4 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;   // a few mm: closed by the joints' play
   const res={capped:0,open:0}; spurs.forEach(c=>genSpur(O,grid,rem,c,res));
   return {pieces:grid.pcs, ends:res.capped+res.open, capped:res.capped, nsw, loop:true, bridges:nbr, passes:npass};
 }
@@ -1520,12 +1520,15 @@ function genEight(O,avail){
   // the middle stretch must not run parallel to either crossing track (headings 0 and A)
   const hA = A===270 ? 135 : pick([45,90,135,180,225,270].filter(h=>h<A-30 && h%180!==0 && (A-h)%180!==0));
   const lefts=O.plain.filter(r=>r.turn>0.01), rightOf=c=>O.plain.find(r=>r.id===c.id && r.ci===c.ci && r.mirror!==c.mirror);
-  const half=(goal)=>{ const H=[]; let t=0, g=0; if(goal<0.01) return H; const pref=Math.random()<0.6?pick(lefts.filter(c=>(rem[c.id]||0)>0)):null;
+  const half=(goal,only)=>{ const H=[]; let t=0, g=0; if(goal<0.01) return H;
+    const pref=only?lefts.find(c=>c.id===only):(Math.random()<0.6?pick(lefts.filter(c=>(rem[c.id]||0)>0)):null); if(only&&!pref) return null;
     while(t<goal-0.01 && g++<24){ let o=lefts.filter(c=>(rem[c.id]||0)>0 && t+c.turn<=goal+0.01); if(pref){ const o2=o.filter(c=>c.id===pref.id); if(o2.length) o=o2; }
       if(!o.length) return null; const c=pick(o); rem[c.id]--; H.push(c); t+=c.turn; }
     return Math.abs(t-goal)<0.01 ? H : null; };
-  const A1=half(hA), A2=half(A-hA); if(!A1||!A2) return null;
-  const B1=half(A===270?135:A), B2=half(A===270?135:0); if(!B1||!B2) return null;
+  const lob=GEN.eightLobes||[];
+  const A1=half(hA,lob[0]), A2=half(A-hA,lob[0]); if(!A1||!A2) return null;
+  const B1=half(A===270?135:A,lob[1]), B2=half(A===270?135:0,lob[1]); if(!B1||!B2) return null;
+  if(lob[0] && [...A1,...A2].some(c=>c.id!==lob[0])) return null; if(lob[1] && [...B1,...B2].some(c=>c.id!==lob[1])) return null;
   const toR=H=>H.map(rightOf); if([...B1,...B2].some(c=>!rightOf(c))) return null;
   const lobeA0=[...A1,...A2], lobeB0=[...toR(B1),...toR(B2)];
   const macro=pick(O.macros.filter(M=>Object.entries(M.need).every(([id,n])=>(rem[id]||0)>=n))); if(!macro) return null;
@@ -1543,7 +1546,8 @@ function genEight(O,avail){
     prev.forEach(c=>sts.forEach(r=>{ if(c.length && sts.indexOf(r)<sts.indexOf(c[c.length-1])) return;
       if(c.filter(q=>q.id===r.id).length<(rem[r.id]||0)) combos.push([...c,r]); })); }
   let extra=null, ff=null, fm=null, Lb=0;
-  for(const ex of shuffle(combos)){
+  const exList=GEN.eightLong ? shuffle(combos.filter(c=>c.reduce((a,r)=>a+r.len,0)>=280)) : shuffle(combos);
+  for(const ex of exList){
     const r1={...rem}; ex.forEach(r=>r1[r.id]--);
     const lb=macro.len+ex.reduce((q,r)=>q+r.len,0);
     const rx=-(lb*ub.x+D0.x), ry=-(lb*ub.y+D0.y), Lf=(rx*uM.y-ry*uM.x)/det, sM=(uf.x*ry-uf.y*rx)/det;   // Lb*ub + Lf*uf + s*uM + D0 = 0
@@ -1894,34 +1898,25 @@ svg.addEventListener("pointerdown",e=>{
    Each loop is a sequence X that turns 360°/k, laid k times, so it closes exactly with BRIO or IKEA pieces. */
 const TPLC={C:["E","IC45"], c:["E1"], S:["A","I145"], L:["D","I205","I240"], s:["A1","I100"], m:["A2","I50"]};
 const TPL=[
-  {name:"Circle", grp:"Basic loops", k:2, x:"C C C C"},
-  {name:"Small circle", grp:"Basic loops", k:2, x:"c c c c"},
-  {name:"Oval", grp:"Basic loops", k:2, x:"S S C C C C"},
-  {name:"Long oval", grp:"Basic loops", k:2, x:"L L S C C C C"},
-  {name:"Rounded square", grp:"Basic loops", k:4, x:"S C C"},
-  {name:"Big square", grp:"Basic loops", k:4, x:"L S C C"},
-  {name:"Wiggly oval", grp:"Basic loops", k:2, x:"S C C C- C C S C"},
-  {name:"Peanut", grp:"Basic loops", k:2, x:"C C C C- C- C C C"},
-  {name:"Dog bone", grp:"Basic loops", k:2, x:"S S C- C C C C C C C-"},
-  {name:"Oval with a passing loop", grp:"Loops with sidings", k:2, x:"S PASS C C C C"},
-  {name:"Oval with a station siding", grp:"Loops with sidings", k:2, x:"S S SW C C C C", ends:1},
-  {name:"Oval with two sidings", grp:"Loops with sidings", k:2, x:"S SW S C C C C", ends:2},
-  {name:"Oval with two passing loops", grp:"Loops with sidings", k:2, x:"S PASS C C C C", all:true},
-  {name:"Oval with a passing loop and a station", grp:"Loops with sidings", k:2, x:"PASS SW C C C C", ends:1},
-  {name:"Oval over a bridge", grp:"Bridges", k:2, x:"S BRIDGE C C C C"},
-  {name:"Long oval over a bridge", grp:"Bridges", k:2, x:"L BRIDGE C C C C"},
-  {name:"Peanut over a bridge", grp:"Bridges", k:2, x:"BRIDGE C C C C- C- C C C"},
-  {name:"Dog bone over a bridge", grp:"Bridges", k:2, x:"S BRIDGE C- C C C C C C C-"},
-  {name:"Square with a bridge", grp:"Bridges", k:4, x:"BRIDGE C C"},
-  {name:"Oval with two bridges", grp:"Bridges", k:2, x:"S BRIDGE C C C C", all:true},
-  {name:"Bridge and passing loop", grp:"Bridges", k:2, x:"PASS C C C C BRIDGE"},
-  {name:"Figure eight over a bridge", grp:"Bridges", eight:true},
-  {name:"Figure eight, crossing at 45°", grp:"Bridges", eight:true, A:225},
+  {name:"Oval", grp:"Loops", k:2, x:"S S C C C C"},
+  {name:"Big square", grp:"Loops", k:4, x:"L S C C"},
+  {name:"Peanut", grp:"Loops", k:2, x:"C C C C- C- C C C"},
+  {name:"Dog bone", grp:"Loops", k:2, x:"S S C- C C C C C C C-"},
+  {name:"Oval with a passing loop", grp:"Sidings", k:2, x:"S PASS C C C C"},
+  {name:"Oval with a station siding", grp:"Sidings", k:2, x:"S S SW C C C C", ends:1},
+  {name:"Figure eight over a bridge", grp:"Bridge over the track", eight:true},
+  {name:"Figure eight, crossing at 45°", grp:"Bridge over the track", eight:true, A:225},
+  {name:"Figure eight, big and small loop", grp:"Bridge over the track", eight:true, lobes:["E","E1"], alt:[["IC45","IC22"]]},
+  {name:"Long figure eight", grp:"Bridge over the track", eight:true, long:true},
 ];
 function tplOpts(avail){ const O=genOptions(); O.macros=genMacros(avail); O.passes=genPasses(O,avail,8); return O; }
 function tplBuild(tp,avail,O0){
   const O={...(O0||tplOpts(avail))};
-  if(tp.eight){ for(let i=0;i<120;i++){ GEN.wantA=tp.A||270; const L=genEight(O,avail); GEN.wantA=0; if(L) return L; } return null; }
+  if(tp.eight){
+    const lobeSets=tp.lobes?[tp.lobes,...(tp.alt||[])].filter(l=>l.every(id=>types[id])):[null];
+    for(let i=0;i<400;i++){ GEN.wantA=tp.A||270; GEN.eightLong=!!tp.long; GEN.eightLobes=lobeSets[i%lobeSets.length];
+      let L=null; try{ L=genEight(O,avail); } finally{ GEN.wantA=0; GEN.eightLong=false; GEN.eightLobes=null; } if(L) return L; }
+    return null; }
   O.allCopies=!!tp.all;
   const toks=tp.x.split(" "), cnt={};
   toks.forEach(t=>{ const c=t.replace("-",""); if(TPLC[c]) cnt[c]=(cnt[c]||0)+tp.k; });
