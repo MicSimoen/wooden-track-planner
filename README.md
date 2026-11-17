@@ -12,7 +12,7 @@ Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own
 - **My tracks**: ♡ Save keeps the current layout (random or built), 📚 My tracks shows them as pictures to open, rename or delete
 - **Run a train** 🚂: a little train drives along your track; tap a switch to send it the other way; it reverses at buffer stops
 - **Ride along** in 3D: first-person view from the engine, over bridges and through passing loops; 🎥 hops from the 2D train onto the engine and 🗺️ back, ⇄ turns the train round, 🐢🐇🚀 sets the speed
-- **Build it step by step** 👷: pieces light up one at a time in building order, with a big ✓ for the next one (great with kids)
+- **Build it step by step** 👷: pieces light up one at a time in building order, with a big ✓ for the next one (great with kids); a 3/4 view of the next piece, its length, which end of a ramp goes up (▲ on the plan) and 📏 actual size to lay the real piece on the screen (fine-tune with a bank card)
 - **Classic layouts** 📐: circle, oval, peanut, dog bone, sidings, bridges — built from whichever brand you own, showing what you'd still need
 - **Share** 🔗 a track or your whole inventory as a link, through the share sheet, or as a QR code
 - **Sounds** in kids mode (whistle, choo-choo), can be switched off

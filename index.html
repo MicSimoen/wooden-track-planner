@@ -228,14 +228,20 @@
   body.building #buildBar{ display:flex }
   body.building .toolbar, body.building .kbar, body.building #kUndo, body.building #selbar, body.building .status{ display:none !important }
   body.building #layerPieces .piece{ pointer-events:none }
-  .bbInfo{ display:flex; align-items:center; gap:10px; min-width:0 } .bbIcon svg{ width:84px; height:60px; display:block }
+  .bbInfo{ display:flex; align-items:center; gap:10px; min-width:0 } .bbIcon svg{ width:120px; height:84px; display:block }
+  .bbDim{ font-size:13px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42vw }
+  .card.sizecard{ width:96vw; max-width:none; height:88vh; display:flex; flex-direction:column }
+  #szBox{ flex:1; overflow:auto; display:flex; background:#fbf7f0; border-radius:12px; position:relative }
+  #szBox svg{ flex:none; overflow:visible; margin:auto }   /* margin:auto centres it but still lets a long piece scroll from its first end */ .szcal{ display:flex; align-items:center; gap:8px; margin-top:8px; flex-wrap:wrap }
+  .szcal button{ min-width:48px; min-height:44px; font-size:20px }
+  .uparrow{ animation:bpulse 1.1s ease-in-out infinite }
   .bbTxt{ font-weight:700; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:42vw }
   .bbProg{ height:8px; width:160px; max-width:40vw; border-radius:4px; background:#eee3d3; margin-top:6px; overflow:hidden } .bbProg i{ display:block; height:100%; background:#2f9e44; width:0 }
   #buildBar button{ min-width:48px; min-height:48px; font-size:20px; border-radius:14px }
   #bbNext{ min-width:72px !important; font-size:30px !important; background:#2f9e44; border-color:#2f9e44 }
   .bnow{ animation:bpulse 1.1s ease-in-out infinite } @keyframes bpulse{ 50%{ stroke-opacity:.25 } }
   body.kids #buildBar{ padding:14px 16px; gap:16px; border-radius:30px } body.kids .bbTxt{ display:none }
-  body.kids .bbIcon svg{ width:120px; height:86px } body.kids #buildBar button{ min-width:64px; min-height:64px; font-size:28px; border-radius:22px }
+  body.kids .bbIcon svg{ width:150px; height:105px } body.kids .bbDim{ display:none } body.kids #buildBar button{ min-width:64px; min-height:64px; font-size:28px; border-radius:22px }
   body.kids #bbNext{ min-width:110px !important; min-height:96px !important; font-size:52px !important; border-radius:30px }
   .notphone{ } @media (max-width:700px), (max-height:520px){ .toolbar .notphone{ display:none !important } }
   #bTrain.on, .kbar #kTrain.on{ outline:4px solid #2f9e44 }
@@ -307,9 +313,9 @@
     #bSpeed, #bHop, #bRev, body.kids #bSpeed, body.kids #bHop, body.kids #bRev{ width:56px; height:56px; border-radius:28px; font-size:28px; right:10px }
     #bSpeed, body.kids #bSpeed{ bottom:calc(98px + env(safe-area-inset-bottom)) } #bHop, body.kids #bHop{ bottom:calc(162px + env(safe-area-inset-bottom)) }
     #bRev, body.kids #bRev{ bottom:calc(226px + env(safe-area-inset-bottom)) }
-    body.kids .bbIcon svg{ width:76px; height:54px } body.kids #buildBar{ gap:10px; padding:10px 12px }
+    body.kids .bbIcon svg{ width:96px; height:68px } .bbIcon svg{ width:84px; height:60px } body.kids #buildBar{ gap:10px; padding:10px 12px }
     body.kids #buildBar button{ min-width:52px; min-height:52px } body.kids #bbNext{ min-width:84px !important; min-height:76px !important; font-size:40px !important }
-    .bbIcon svg{ width:64px; height:46px } .bbTxt{ max-width:36vw; font-size:13px } .bbProg{ width:110px }
+    .bbTxt{ max-width:36vw; font-size:13px } .bbProg{ width:110px } .bbDim{ max-width:36vw; font-size:12px }
     body.kids .status{ max-width:calc(100% - 130px) } body.kids .status .pill{ font-size:14px; padding:6px 12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
     body.kids #toast{ bottom:calc(110px + env(safe-area-inset-bottom)); font-size:20px }
     .agal{ grid-template-columns:repeat(2,1fr) } .kgal{ grid-template-columns:repeat(2,1fr); gap:12px } .kgal .gcard{ height:130px }
@@ -432,7 +438,8 @@
     <button id="bRev" aria-label="Turn the train round">⇄</button>
     <div id="buildBar">
       <button id="bbBack" aria-label="Back">◀</button>
-      <div class="bbInfo"><div class="bbIcon"></div><div><div class="bbTxt"></div><div class="bbProg"><i></i></div></div></div>
+      <div class="bbInfo"><div class="bbIcon"></div><div><div class="bbTxt"></div><div class="bbDim"></div><div class="bbProg"><i></i></div></div></div>
+      <button id="bbSize" aria-label="Show it at actual size">📏</button>
       <button id="bbNext" class="primary" aria-label="Done, next piece">✓</button>
       <button id="bbX" aria-label="Stop building">✕</button>
     </div>
@@ -486,6 +493,15 @@
         <h3 id="impTitle"></h3>
         <div id="impBody"></div>
         <div class="btns" id="impBtns"></div>
+      </div>
+    </div>
+    <div class="modal" id="sizeModal">
+      <div class="card sizecard">
+        <div class="galhead"><h3 id="szTitle">📏 Actual size</h3><button id="szClose" aria-label="Close">✕</button></div>
+        <p class="hint2" id="szHint">Lay your piece on the screen — it should cover this one exactly.</p>
+        <div id="szBox"></div>
+        <div class="szcal"><span class="hint2">Doesn't match? Put a bank card on the 💳 outline and adjust:</span>
+          <button id="szCard">💳</button><button id="szMinus">−</button><button id="szPlus">＋</button></div>
       </div>
     </div>
     <div class="modal" id="galModal">
@@ -1553,6 +1569,12 @@ function genEight(O,avail){
   for(let n=1;n<=3;n++){ const prev=combos.filter(c=>c.length===n-1);
     prev.forEach(c=>sts.forEach(r=>{ if(c.length && sts.indexOf(r)<sts.indexOf(c[c.length-1])) return;
       if(c.filter(q=>q.id===r.id).length<(rem[r.id]||0)) combos.push([...c,r]); })); }
+  // showcases: a passing loop on the floor straight, and/or a station siding off the middle of a loop
+  let passTok=null, swTok=null;
+  if(GEN.eightPass){ passTok=pick((O.passes||[]).filter(m=>Object.entries(m.need).every(([id,n])=>(rem[id]||0)>=n))); if(!passTok) return null;
+    for(const id in passTok.need) rem[id]-=passTok.need[id]; }
+  if(GEN.eightSpur){ const w=pick(O.sw.filter(q=>Math.abs(q.turn)<0.01 && Math.abs(q.rel.y)<0.5 && (rem[q.id]||0)>0)); if(!w) return null; rem[w.id]--; swTok={...w,len:w.rel.x}; }
+  const pLen=passTok?passTok.len:0, sLen=swTok?swTok.len:0;
   let extra=null, ff=null, fm=null, Lb=0;
   const exList=GEN.eightLong ? shuffle(combos.filter(c=>c.reduce((a,r)=>a+r.len,0)>=280)) : shuffle(combos);
   for(const ex of exList){
@@ -1560,13 +1582,17 @@ function genEight(O,avail){
     const lb=macro.len+ex.reduce((q,r)=>q+r.len,0);
     const rx=-(lb*ub.x+D0.x), ry=-(lb*ub.y+D0.y), Lf=(rx*uM.y-ry*uM.x)/det, sM=(uf.x*ry-uf.y*rx)/det;   // Lb*ub + Lf*uf + s*uM + D0 = 0
     if(Lf<-1.2 || sM<-1.2) continue;
-    const f1=genFill(O,r1,Lf,6); if(!f1) continue; f1.forEach(r=>r1[r.id]--);
-    const f2=genFill(O,r1,sM,6); if(!f2) continue; f2.forEach(r=>r1[r.id]--);
+    const f1=genFill(O,r1,Lf-pLen,6); if(!f1) continue; f1.forEach(r=>r1[r.id]--);
+    const f2=genFill(O,r1,sM-sLen,6); if(!f2) continue; f2.forEach(r=>r1[r.id]--);
+    if(passTok){ if(Math.random()<0.5) f1.push(passTok); else f1.unshift(passTok); }
+    if(swTok) f2.push(swTok);
     extra=ex; ff=f1; fm=f2; Lb=lb; Object.assign(rem,r1); break;
   }
   if(!extra) return null;
   const Lf=ff.reduce((q,r)=>q+r.len,0);
   const fmA=[], fmB=[]; shuffle(fm.slice()).forEach((r,i)=>(i%2&&A===270?fmB:fmA).push(r));
+  // the station switch faces outwards so its siding leaves the loop: put it where the lobe turns away from the crossing
+
   const LA=[...A1,...fmA,...A2], LB=[...toR(B1),...fmB,...toR(B2)];
   const L1=bridgeIn===1?Lb:Lf, L2=bridgeIn===1?Lf:Lb;
   // put the deck over the crossing
@@ -1581,12 +1607,14 @@ function genEight(O,avail){
   const sinX=Math.abs(Math.sin(a)); if(sinX<0.3) return null;
   if(bestD>(macro.deckTo-macro.deckFrom)/2-(HALF/sinX+12)) return null;
   const after=order.filter(r=>!before.includes(r));
-  const slotB=[...before,macro,...after], slotF=shuffle(ff.slice());
+  const slotB=[...before,macro,...after], slotF=passTok ? ff.slice() : shuffle(ff.slice());
   const seq = bridgeIn===1 ? [...slotB,...LA,...slotF,...LB] : [...slotF,...LA,...slotB,...LB];
-  const grid=genGrid(), rem2={...avail}; let T={x:0,y:0,a:0,g:"M",lv:0};
-  for(const tk of seq){ const r2=genPut(grid,rem2,tk,T); if(!r2) return null; T=r2.T; }
+  const grid=genGrid(), rem2={...avail}, spurs=[]; let T={x:0,y:0,a:0,g:"M",lv:0};
+  for(const tk of seq){ const r2=genPut(grid,rem2,tk,T); if(!r2) return null;
+    if(tk.sw) r2.wc.forEach((c,i)=>{ if(i!==tk.ci && i!==tk.through) spurs.push(c); }); T=r2.T; }
   if(Math.hypot(T.x,T.y)>9 || Math.abs(normA(T.a))>0.02 || T.lv!==0) return null;   // a few mm: closed by the joints' play
-  return {pieces:grid.pcs, ends:0, capped:0, nsw:0, loop:true, bridges:1, eight:true, cross:Math.round(Math.min(A%180,180-A%180))};
+  const res={capped:0,open:0}; spurs.forEach(c=>genSpur(O,grid,rem2,c,res));
+  return {pieces:grid.pcs, ends:res.capped+res.open, capped:res.capped, nsw:spurs.length, passes:passTok?1:0, loop:true, bridges:1, eight:true, cross:Math.round(Math.min(A%180,180-A%180))};
 }
 
 function genLine(O,avail){   // no loop possible: a line with both ends finished
@@ -1627,7 +1655,10 @@ function generateLayout(W,D,maxEnds,ms=900,bridges=true){
     if(performance.now()-t0>ms*0.6 && !(best&&best.eight)) GEN.wantA=0;
     let L=null;
     const k=Math.random()<0.7?2:4;
-    if(O.macros.length && Math.random()<(wantEight?0.6:0.25)) L=genEight(O,avail);
+    if(O.macros.length && Math.random()<(wantEight?0.6:0.25)){
+      GEN.eightPass = O.passes.length>0 && Math.random()<0.35; GEN.eightSpur = maxEnds>0 && Math.random()<0.3;
+      try{ L=genEight(O,avail); } finally{ GEN.eightPass=false; GEN.eightSpur=false; }
+      if(L && L.ends>maxEnds) L=null; }
     if(!L) L=genLoop(O,k,avail,maxEnds);
     if(!L && maxEnds>=2 && Math.random()<0.05) L=genLine(O,avail);
     if(!L || L.ends>maxEnds) continue;
@@ -1762,11 +1793,20 @@ document.getElementById("k3d").onclick=()=>document.getElementById("b3d").click(
 
 /* ---------- Sounds for kids mode: made on the fly with Web Audio (no files to download) ----------
    Soft and warm on purpose: a breathy three-note steam whistle, steam chuffs, wooden clacks, xylophone chimes. */
-const SND={ctx:null, out:null};
+const SND={ctx:null, out:null, unlocked:false};
+/* iOS: play through the silent switch like a media app (iOS 17+), and wake the audio up during the first tap */
+try{ if(navigator.audioSession) navigator.audioSession.type="playback"; }catch(e){}
+function unlockAudio(){
+  if(SND.unlocked || !S.kids || S.sound===false) return; const c=actx(); if(!c) return;
+  try{ const b=c.createBuffer(1,1,22050), n=c.createBufferSource(); n.buffer=b; n.connect(c.destination); n.start(0); }catch(e){}
+  if(c.state==="running") SND.unlocked=true; else c.resume().then(()=>{ SND.unlocked=c.state==="running"; }).catch(()=>{});
+}
+["touchend","pointerup","click","keydown"].forEach(t=>document.addEventListener(t,unlockAudio,{capture:true,passive:true}));
+document.addEventListener("visibilitychange",()=>{ if(document.hidden) SND.unlocked=false; });   // after the app was in the background, the next tap wakes the sound again
 function actx(){ try{ if(!SND.ctx){ const A=window.AudioContext||window.webkitAudioContext; if(!A) return null; SND.ctx=new A();
     const comp=SND.ctx.createDynamicsCompressor(); comp.threshold.value=-18; comp.ratio.value=4; const g=SND.ctx.createGain(); g.gain.value=0.7;
     comp.connect(g).connect(SND.ctx.destination); SND.out=comp; }
-  if(SND.ctx.state==="suspended") SND.ctx.resume(); return SND.ctx; }catch(e){ return null; } }
+  if(SND.ctx.state!=="running") SND.ctx.resume().catch(()=>{}); return SND.ctx; }catch(e){ return null; } }
 function env(c,g,t0,a,d,peak){ g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(peak,t0+a); g.gain.exponentialRampToValueAtTime(0.0001,t0+a+d); }
 function noiseBuf(c,dur){ const b=c.createBuffer(1,Math.ceil(c.sampleRate*dur),c.sampleRate), d=b.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1; return b; }
 /* a mallet note: a sine plus a soft upper partial, quick decay (xylophone / glockenspiel) */
@@ -1928,14 +1968,16 @@ const TPL=[
   {name:"Figure eight, crossing at 45°", grp:"Bridge over the track", eight:true, A:225},
   {name:"Figure eight, big and small loop", grp:"Bridge over the track", eight:true, lobes:["E","E1"], alt:[["IC45","IC22"]]},
   {name:"Long figure eight", grp:"Bridge over the track", eight:true, long:true},
+  {name:"Showcase: figure eight with a passing loop", grp:"Showcases", eight:true, pass:true, long:true},
+  {name:"Showcase: grand figure eight — passing loop, station siding and bridge", grp:"Showcases", eight:true, pass:true, spur:true, long:true},
 ];
 function tplOpts(avail){ const O=genOptions(); O.macros=genMacros(avail); O.passes=genPasses(O,avail,8); return O; }
 function tplBuild(tp,avail,O0){
   const O={...(O0||tplOpts(avail))};
   if(tp.eight){
     const lobeSets=tp.lobes?[tp.lobes,...(tp.alt||[])].filter(l=>l.every(id=>types[id])):[null];
-    for(let i=0;i<400;i++){ GEN.wantA=tp.A||270; GEN.eightLong=!!tp.long; GEN.eightLobes=lobeSets[i%lobeSets.length];
-      let L=null; try{ L=genEight(O,avail); } finally{ GEN.wantA=0; GEN.eightLong=false; GEN.eightLobes=null; } if(L) return L; }
+    for(let i=0;i<(tp.pass?900:400);i++){ GEN.wantA=tp.A||270; GEN.eightLong=!!tp.long; GEN.eightLobes=lobeSets[i%lobeSets.length]; GEN.eightPass=!!tp.pass; GEN.eightSpur=!!tp.spur;
+      let L=null; try{ L=genEight(O,avail); } finally{ GEN.wantA=0; GEN.eightLong=false; GEN.eightLobes=null; GEN.eightPass=false; GEN.eightSpur=false; } if(L) return L; }
     return null; }
   O.allCopies=!!tp.all;
   const toks=tp.x.split(" "), cnt={};
@@ -2028,6 +2070,76 @@ function buildOrder(){
   walk(start); ps.forEach(p=>{ if(!seen.has(p.id)) walk(p); });
   return out;
 }
+/* a 3/4 (isometric) picture of a piece, turned the way it lies on the plan: thickness, slope, pegs and holes */
+function isoSVG(p){
+  const t=types[p.type], my=p.mirror?-1:1, ca=Math.cos(p.rot), sa=Math.sin(p.rot), H=HALF, th=S.thick;
+  const w=(x,y)=>({x:x*ca-y*my*sa, y:x*sa+y*my*ca});                     // local → plan orientation
+  const P=(x,y,z)=>{ const q=w(x,y); return [ (q.x-q.y)*0.866, (q.x+q.y)*0.5 - z ]; };
+  const faces=[], tops=[], marks=[];
+  const lvz=(l,u)=>{ const lv=l.lv||[0,0]; return (lv[0]+(lv[1]-lv[0])*rampProf(u))*S.rise + (t.carRamp? -th*0.85*Math.min(1,Math.max(0,(u*laneLen(l)-8)/(laneLen(l)-8))) : 0); };
+  const pstr=pts=>pts.map(q=>q[0].toFixed(1)+","+q[1].toFixed(1)).join(" ");
+  t.lanes.forEach(l=>{
+    const N=l.k==="s"&&!l.lv&&!t.carRamp?1:20, Ls=[],Rs=[],Lb=[],Rb=[], zs=[];
+    for(let i=0;i<=N;i++){ const u=i/N, a=lanePose(l,u,H), b=lanePose(l,u,-H), z=lvz(l,u), zb=(l.lv?lvz(l,u):0);
+      Ls.push(P(a.x,a.y,z+th)); Rs.push(P(b.x,b.y,z+th)); Lb.push(P(a.x,a.y,zb)); Rb.push(P(b.x,b.y,zb)); zs.push(z); }
+    const depth=pts=>pts.reduce((s,q)=>s+q[1],0)/pts.length;
+    faces.push({d:depth(Lb),svg:`<polygon points="${pstr([...Ls,...Lb.slice().reverse()])}" fill="#b98550" stroke="#8a5e31" stroke-width="1"/>`});
+    faces.push({d:depth(Rb),svg:`<polygon points="${pstr([...Rs,...Rb.slice().reverse()])}" fill="#c9965e" stroke="#8a5e31" stroke-width="1"/>`});
+    [0,N].forEach(i=>faces.push({d:(Lb[i][1]+Rb[i][1])/2,svg:`<polygon points="${pstr([Ls[i],Rs[i],Rb[i],Lb[i]])}" fill="#a87442" stroke="#8a5e31" stroke-width="1"/>`}));
+    const gr=[GROOVE,-GROOVE].map(o=>{ const pts=[]; for(let i=0;i<=N;i++){ const u=i/N, q=lanePose(l,u,o); pts.push(P(q.x,q.y,lvz(l,u)+th+0.3)); } return `<polyline points="${pstr(pts)}" fill="none" stroke="#9a6a38" stroke-width="3" stroke-linecap="round" opacity=".75"/>`; }).join("");
+    tops.push({d:Math.max(...zs),svg:`<polygon points="${pstr([...Ls,...Rs.slice().reverse()])}" fill="#e6bd85" stroke="#8a5e31" stroke-width="1.2"/>${gr}`});
+  });
+  // pegs (knobs) and holes, on the top surface at each end
+  t.conns.forEach(c=>{
+    const ln=t.lanes.find(l=>[0,1].some(e=>{ const q=lanePose(l,e,0); return Math.hypot(q.x-c.x,q.y-c.y)<1; }))||t.lanes[0];
+    const e=(()=>{ const q=lanePose(ln,0,0); return Math.hypot(q.x-c.x,q.y-c.y)<1?0:1; })(), z=lvz(ln,e)+th;
+    const circ=(cx,cy,r,zz)=>{ const pts=[]; for(let i=0;i<20;i++){ const a=i/20*Math.PI*2; pts.push(P(cx+Math.cos(a)*r,cy+Math.sin(a)*r,zz)); } return pstr(pts); };
+    if(c.g==="M"){ const kx=c.x+Math.cos(c.a)*11.75, ky=c.y+Math.sin(c.a)*11.75;
+      marks.push(`<polygon points="${circ(kx,ky,5.75,z-th)}" fill="#a87442"/><polygon points="${pstr([P(c.x-Math.sin(c.a)*3.5,c.y+Math.cos(c.a)*3.5,z),P(kx-Math.sin(c.a)*3.5,ky+Math.cos(c.a)*3.5,z),P(kx+Math.sin(c.a)*3.5,ky-Math.cos(c.a)*3.5,z),P(c.x+Math.sin(c.a)*3.5,c.y-Math.cos(c.a)*3.5,z)])}" fill="#e6bd85" stroke="#8a5e31"/><polygon points="${circ(kx,ky,5.75,z)}" fill="#e6bd85" stroke="#8a5e31"/>`); }
+    else { const hx=c.x-Math.cos(c.a)*6.75, hy=c.y-Math.sin(c.a)*6.75; marks.push(`<polygon points="${circ(hx,hy,6.75,z+0.4)}" fill="#5c3b1c" opacity=".85"/>`); }
+  });
+  if(t.barrier) marks.push(""); // buffer stops: the wooden block is enough at this size
+  const all=[...faces.sort((a,b)=>a.d-b.d).map(f=>f.svg), ...tops.sort((a,b)=>a.d-b.d).map(f=>f.svg), ...marks].join("");
+  // frame: project the outline extremes
+  const xs=[],ys=[]; t.pts.forEach(q=>{ [0,th,(t.ramp?S.rise+th:th)].forEach(z=>{ const r=P(q.x,q.y,z); xs.push(r[0]); ys.push(r[1]); }); });
+  t.conns.forEach(c=>{ const r=P(c.x+Math.cos(c.a)*18,c.y+Math.sin(c.a)*18,th); xs.push(r[0]); ys.push(r[1]); });
+  const x0=Math.min(...xs)-8, y0=Math.min(...ys)-8, W=Math.max(...xs)-x0+8, Hh=Math.max(...ys)-y0+8, sz=Math.max(W,Hh*10/7);
+  return `<svg viewBox="${(x0-(sz-W)/2).toFixed(1)} ${(y0-(sz*0.7-Hh)/2).toFixed(1)} ${sz.toFixed(1)} ${(sz*0.7).toFixed(1)}">${all}</svg>`;
+}
+/* real-world size of a piece, in words */
+function sizeText(t){
+  const l=t.lanes[0], d=(t.dim||"").split("·")[0].trim();
+  if(t.lanes.length===1 && l.k==="s") return `${Math.round(l.len)} mm long`;
+  if(t.lanes.length===1 && l.k==="a") return `curve ${l.deg}°, radius ${l.r} mm`;
+  return d;
+}
+/* CSS pixels per millimetre on this screen: a good guess for iPhone / iPad, fine-tuned with a bank card */
+function pxPerMm(){
+  if(S.pxmm) return S.pxmm;
+  const m=Math.min(screen.width,screen.height);
+  return m<=500 ? 163/25.4 : (m<=760 ? 163/25.4 : 132/25.4);
+}
+function openActualSize(p){
+  const t=types[p.type], M=document.getElementById("sizeModal"), box=document.getElementById("szBox");
+  document.getElementById("szTitle").textContent=`📏 ${S.kids?"":shortName(t)+" · "}${sizeText(t)}`;
+  const draw=()=>{ const k=pxPerMm(), svgTxt=iconSVG(t), vb=svgTxt.match(/viewBox="([^"]+)"/)[1].split(" ").map(Number);
+    const wpx=vb[2]*k, hpx=vb[3]*k, avW=box.clientWidth-20, avH=box.clientHeight-20;
+    const turn = wpx>avW && hpx<wpx && wpx<=avH;    // long piece on a tall screen: stand it up
+    let html=svgTxt.replace("<svg ",`<svg style="width:${wpx.toFixed(1)}px;height:${hpx.toFixed(1)}px;${turn?"transform:rotate(90deg)":""}" `);
+    if(M.dataset.card){ const cw=85.6*k, ch=53.98*k;
+      html+=`<div style="position:absolute;left:12px;top:12px;width:${cw.toFixed(1)}px;height:${ch.toFixed(1)}px;border:3px dashed #1971c2;border-radius:${(3.2*k).toFixed(1)}px;pointer-events:none"></div>`; }
+    box.innerHTML=html;
+    document.getElementById("szHint").textContent = wpx>avW && !turn ? "It's longer than the screen — scroll to see the rest. Lay your piece on the screen to compare." : "Lay your piece on the screen — it should cover this one exactly.";
+  };
+  M.classList.add("show"); M._draw=draw; requestAnimationFrame(draw);
+}
+{ const M=document.getElementById("sizeModal");
+  document.getElementById("szClose").onclick=()=>M.classList.remove("show"); M.addEventListener("click",e=>{ if(e.target===M) M.classList.remove("show"); });
+  const adj=f=>{ S.pxmm=pxPerMm()*f; save(); M._draw&&M._draw(); };
+  document.getElementById("szMinus").onclick=()=>adj(1/1.02); document.getElementById("szPlus").onclick=()=>adj(1.02);
+  document.getElementById("szCard").onclick=()=>{ if(M.dataset.card) delete M.dataset.card; else M.dataset.card=1; M._draw&&M._draw(); };
+  document.getElementById("bbSize").onclick=()=>{ const p=byId(BLD.order[BLD.k]); if(p) openActualSize(p); };
+}
 function buildPaint(){
   const L=document.getElementById("layerBuild");
   if(!BLD.on){ L.innerHTML=""; LP.querySelectorAll("[data-id]").forEach(e=>e.style.opacity=""); return; }
@@ -2035,9 +2147,21 @@ function buildPaint(){
   LP.querySelectorAll("[data-id]").forEach(e=>{ const i=idx.get(+e.dataset.id); e.style.opacity = i===undefined?"":i<=BLD.k?"1":"0.16"; });
   const p=byId(BLD.order[BLD.k]); if(!p){ L.innerHTML=""; return; } const t=types[p.type];
   const tf=`translate(${p.x.toFixed(2)} ${p.y.toFixed(2)}) rotate(${(p.rot/D2R).toFixed(3)}) scale(1 ${p.mirror?-1:1})`;
-  L.innerHTML=`<path d="${t.band}" transform="${tf}" fill="rgba(255,95,162,.18)" stroke="#ff5fa2" stroke-width="7" class="bnow" stroke-linejoin="round"/>`;
+  let up="";
+  if(t.ramp){ // which way is up: an arrow along the ramp, from the low end to the high end
+    const l=t.lanes[0], lv=l.lv||[0,1], a0=lv[0]<lv[1]?0.2:0.8, a1=1-a0, q0=lanePose(l,a0,0), q1=lanePose(l,a1,0);
+    const w0=worldPt(p,q0.x,q0.y), w1=worldPt(p,q1.x,q1.y), ang=Math.atan2(w1.y-w0.y,w1.x-w0.x)/D2R;
+    up=`<g class="uparrow"><line x1="${w0.x.toFixed(1)}" y1="${w0.y.toFixed(1)}" x2="${w1.x.toFixed(1)}" y2="${w1.y.toFixed(1)}" stroke="#fff" stroke-width="9" stroke-linecap="round"/>
+      <path d="M0 0 L-22 -14 L-22 14 Z" transform="translate(${w1.x.toFixed(1)} ${w1.y.toFixed(1)}) rotate(${ang.toFixed(1)})" fill="#fff" stroke="#c2255c" stroke-width="3"/>
+      <text x="${((w0.x+w1.x)/2).toFixed(1)}" y="${((w0.y+w1.y)/2-16).toFixed(1)}" font-size="22" font-weight="800" fill="#c2255c" text-anchor="middle" stroke="#fff" stroke-width="5" paint-order="stroke">▲ up</text></g>`;
+  }
+  L.innerHTML=`<path d="${t.band}" transform="${tf}" fill="rgba(255,95,162,.18)" stroke="#ff5fa2" stroke-width="7" class="bnow" stroke-linejoin="round"/>${up}`;
   const bar=document.getElementById("buildBar");
-  bar.querySelector(".bbIcon").innerHTML=iconSVG(t);
+  bar.querySelector(".bbIcon").innerHTML=isoSVG(p);
+  let rampTxt="";
+  if(t.ramp){ const l=t.lanes[0], lv=l.lv||[0,1], hiE=lv[1]>lv[0]?1:0, q=lanePose(l,hiE,0), c=t.conns.find(c=>Math.hypot(c.x-q.x,c.y-q.y)<1);
+    rampTxt=` · high end has the ${c&&c.g==="M"?"peg":"hole"} (▲ on the plan)`; }
+  bar.querySelector(".bbDim").textContent=`${sizeText(t)}${(p.level||0)>0&&!t.ramp?" · on the bridge supports":""}${rampTxt}`;
   bar.querySelector(".bbTxt").textContent=`${BLD.k+1} / ${BLD.order.length} · ${shortName(t)}${(p.level||0)>0?" (on the bridge)":""}${p.mirror&&t.lanes.some(l=>l.k==="a")?" — turned over":""}`;
   bar.querySelector(".bbProg i").style.width=(100*BLD.k/Math.max(1,BLD.order.length-1)).toFixed(1)+"%";
   document.getElementById("bbBack").disabled=BLD.k===0;
@@ -2163,6 +2287,9 @@ function startPinch(){
 }
 svg.addEventListener("pointerdown",e=>{
   const fx=e.target.closest(".flexfix"); if(fx){ closeWithPlay(fx.dataset.a,fx.dataset.b); return; }
+  // a new gesture starts with its "primary" pointer: forget fingers whose lift-off we never heard about (iOS can swallow it),
+  // otherwise every later touch looks like a pinch and pieces can no longer be selected or moved
+  if(e.isPrimary || e.pointerType==="mouse"){ fingers.clear(); pinch=null; }
   fingers.set(e.pointerId,{x:e.clientX,y:e.clientY});
   try{ svg.setPointerCapture(e.pointerId); }catch(_){}
   if(fingers.size>=2){ startPinch(); return; }
@@ -2234,6 +2361,11 @@ function endDrag(e){
   drag=null;
 }
 svg.addEventListener("pointerup",endDrag); svg.addEventListener("pointercancel",endDrag);
+svg.addEventListener("lostpointercapture",e=>{ if(fingers.has(e.pointerId)) endDrag(e); });
+// a finger lifted somewhere else (over the toolbar, a window that just opened, …) still counts as lifted
+["pointerup","pointercancel"].forEach(t=>window.addEventListener(t,e=>{ if(fingers.has(e.pointerId)) endDrag(e); }));
+addEventListener("blur",()=>{ fingers.clear(); pinch=null; if(drag){ svg.classList.remove("panning"); drag=null; } });
+document.addEventListener("visibilitychange",()=>{ if(document.hidden){ fingers.clear(); pinch=null; drag=null; } });
 svg.addEventListener("wheel",e=>{ e.preventDefault(); const m=svgPt(e); zoom(Math.exp(e.deltaY*0.0015),m.x,m.y); },{passive:false});
 // Safari's own pinch gestures would zoom the whole page
 ["gesturestart","gesturechange"].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
