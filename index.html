@@ -1290,7 +1290,7 @@ function genOptions(){
 }
 /* bridge sections: [adapter?] ramp up · 1–2 decks · ramp down [adapter?], entered by a peg and leaving with a peg,
    so they fit anywhere a straight would. Only combinations you own enough of are kept. */
-function genMacros(avail){
+function genMacros(avail,maxDecks=2){
   const ups=[],downs=[],decks=[],adapt=[], own=id=>(avail[id]||0)>0, len=t=>t.lanes[0].len;
   const step=(g,e)=>{ const t=types[e.id], c=t.conns[e.ci]; if(!genderOK(c.g,g)) return null; return t.conns[1-e.ci].g; };
   typeList.forEach(t=>{
@@ -1304,11 +1304,11 @@ function genMacros(avail){
   const out=new Map();
   // grammar: [adapter] up [adapter] deck [adapter] [deck [adapter]] down [adapter] — adapters fix peg/hole mismatches,
   // also up on the bridge (both BRIO ramps have a peg at the top, so a plain deck between two ramps never fits)
-  const pats=[["pre","up","mid","deck","mid","down","post"],["pre","up","mid","deck","mid","deck","mid","down","post"]];
+  const pats=[]; for(let d=1;d<=maxDecks;d++) pats.push(["pre","up","mid",...Array.from({length:d},()=>["deck","mid"]).flat(),"down","post"]);
   const opt={pre:[null,...adapt],mid:[null,...adapt],post:[null,...adapt],up:ups,deck:decks,down:downs};
   const need={}, seq=[];
   const dfs=(pat,i,g)=>{
-    if(out.size>=400) return;
+    if(out.size>=(maxDecks>2?1500:400)) return;
     if(i===pat.length){ if(S.gender && g!=="M") return;
       const key=seq.filter(Boolean).map(e=>e.id+e.ci).join(","); if(out.has(key)) return;
       const sq=seq.filter(Boolean), iu=seq.findIndex(e=>e&&ups.includes(e)), id=seq.findIndex(e=>e&&downs.includes(e));
@@ -1324,7 +1324,7 @@ function genMacros(avail){
   };
   pats.forEach(pt=>dfs(pt,0,"M"));
   // fewest adapters first
-  return [...out.values()].sort((a,b)=>a.adapters-b.adapters).slice(0,60);
+  return [...out.values()].sort((a,b)=>a.adapters-b.adapters).slice(0,maxDecks>2?1500:60);
 }
 const rnd=n=>Math.floor(Math.random()*n), pick=a=>a[rnd(a.length)];
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
@@ -3365,7 +3365,13 @@ function scAddToInv(){
    strokes through switches (the straightest pair continues) and crossings, then each stroke is followed with real pieces
    (see skSearch). Two modes: only the pieces you own, or any pieces of the brands you pick (plus what you'd need). */
 const SK={img:null, src:null, corners:[], sens:5, mode:"inv", brands:{BRIO:true,IKEA:true,Custom:true}, retired:false,
-          size:0, auto:true, bridges:true, G:null, flip:{}};
+          size:0, auto:true, bridges:true, G:null, flip:{}, follow:"straight"};
+/* how closely to follow the drawing. Hand-drawn lines wobble, so by default nearly straight stretches become exactly
+   straight (tol: allowed wobble, as a share of the stretch's length, at least minTol mm), wobbles smaller than `dead` mm
+   don't count, curves cost extra and left-right reversals the drawing doesn't have are penalised. */
+const SK_FOLLOW={straight:{tol:0.03,minTol:18,dead:22,pc:22000,pr:70000,wRms:200,wWig:6000},
+                 balanced:{tol:0.015,minTol:9,dead:10,pc:8000,pr:25000,wRms:400,wWig:2500},
+                 exact:{tol:0,minTol:0,dead:0,pc:0,pr:0,wRms:600,wWig:1000}};
 
 /* ink = noticeably darker than the paper around it (local mean over a big box, from an integral image) */
 function skInk(cv,sens){
@@ -3400,17 +3406,30 @@ function skInk(cv,sens){
   const outer=new Set(); for(let x=0;x<w;x++){ outer.add(hc.lab[x]); outer.add(hc.lab[(h-1)*w+x]); } for(let y=0;y<h;y++){ outer.add(hc.lab[y*w]); outer.add(hc.lab[y*w+w-1]); }
   const fill=new Set(); hc.comps.forEach(c=>{ if(c.n<holeMax && !outer.has(c.id)) fill.add(c.id); });
   for(let i=0;i<n;i++) if(fill.has(hc.lab[i])) m[i]=1;
-  return {m,w,h};
+  return {m,w,h,d};
 }
 
 /* skeleton → graph. Pixels are classed by their crossing number (0→1 changes around the 8 neighbours):
    1 = line end, 2 = on a line, ≥3 = junction. Touching end/junction pixels form one node. */
-function skGraph(sk,w,h){
+function skGraph(sk,w,h,thick=3){
   const n=w*h, OFF=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]], at=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&sk[y*w+x]===1;
-  const cn=new Int8Array(n).fill(-1);
+  const cn=new Int8Array(n).fill(-1), nb=new Int8Array(n);
   for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x; if(!sk[i]) continue; let t=0,b=0;
     for(let k=0;k<8;k++){ const a=at(x+OFF[k][0],y+OFF[k][1]), c=at(x+OFF[(k+1)%8][0],y+OFF[(k+1)%8][1]); if(a) b++; if(!a&&c) t++; }
-    cn[i]= b===0 ? 0 : (t===0 ? 3 : t); }
+    nb[i]=b; cn[i]= b===0 ? 0 : (t===0 ? 3 : t); }
+  // Junctions: where thick lines meet, thinning leaves small clumps whose pixels can look like plain line pixels to the
+  // neighbour test. So also count how many times a small circle around a pixel crosses the skeleton: 3 or more = junction.
+  // Everything within that radius of a junction belongs to it, so the lines leave it cleanly.
+  const R=Math.max(3,Math.round(thick)), M=Math.ceil(2*Math.PI*R*1.5), CX=[], CY=[];
+  for(let k=0;k<M;k++){ CX.push(Math.round(R*Math.cos(2*Math.PI*k/M))); CY.push(Math.round(R*Math.sin(2*Math.PI*k/M))); }
+  const seed=[];
+  for(let i=0;i<n;i++){ if(!sk[i]||nb[i]<3) continue; const x=i%w, y=(i/w)|0; let t=0, prev=at(x+CX[M-1],y+CY[M-1]);
+    for(let k=0;k<M;k++){ const c=at(x+CX[k],y+CY[k]); if(c&&!prev) t++; prev=c; } if(t>=3) seed.push(i); }
+  const near=new Int16Array(n).fill(-1), q=[];
+  seed.forEach(i=>{ near[i]=0; q.push(i); });
+  for(let h0=0;h0<q.length;h0++){ const i=q[h0], x=i%w, y=(i/w)|0; if(near[i]>=1) continue;   // just join the seed pixels up
+    for(const [dx,dy] of OFF){ const xx=x+dx, yy=y+dy; if(!at(xx,yy)) continue; const k=yy*w+xx; if(near[k]>=0) continue; near[k]=near[i]+1; q.push(k); } }
+  for(let i=0;i<n;i++) if(near[i]>=0 && cn[i]===2) cn[i]=3;
   const cl=new Int32Array(n), nodes=[];
   for(let i=0;i<n;i++){ if(cn[i]===2||cn[i]<1||cl[i]) continue;
     const id=nodes.length+1, st=[i]; cl[i]=id; let sx=0,sy=0,c=0, px=[];
@@ -3439,7 +3458,7 @@ function skGraph(sk,w,h){
           for(let dy=-3;dy<=3;dy++) for(let dx=-3;dx<=3;dx++){ const xx=x+dx, yy=y+dy; if(!at(xx,yy)) continue; const c2=cl[yy*w+xx];
             if(c2 && (c2!==id||pts.length>12) && dx*dx+dy*dy<bd){ bd=dx*dx+dy*dy; b=c2; } } }
         if(b){ pts.push([nodes[b-1].x,nodes[b-1].y]); edges.push({a:ni,b:b-1,pts}); }
-        else edges.push({a:ni,b:-1,pts});             // ran out (shouldn't happen): a loose end
+        else if(skLen(pts)>R+3) edges.push({a:ni,b:-1,pts});   // ran out: a loose end (a few pixels inside a junction: noise)
       } }); });
   // lines with no ends or junctions at all: closed loops
   for(let i=0;i<n;i++){ if(cn[i]!==2||vis[i]) continue; vis[i]=1; const pts=[[i%w+0.5,((i/w)|0)+0.5]]; let cur=i, prev=-1, back=false;
@@ -3458,17 +3477,33 @@ function skDir(e,end,dd){ const P=end?e.pts.slice().reverse():e.pts, o=P[0]; let
   for(let i=1;i<P.length;i++){ acc+=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]); if(acc>=dd){ q=P[i]; break; } }
   return Math.atan2(q[1]-o[1],q[0]-o[0]); }
 /* remove spurs and specks, merge junctions that thinning split in two, join lines through 2-way nodes */
-function skTidy(Gr,thick,diag){
+/* A tick: a short stub sticking out across a line and ending in mid-air (one side or both), at right angles to a line
+   that carries straight on through. Two ticks on a line mark the ends of a bridge. */
+function skIsTick(Gr,e,thick,diag){
+  const N=Gr.nodes, da=N[e.a].deg, db=N[e.b].deg; if(e.a===e.b || !((da===1&&db>=3)||(db===1&&da>=3))) return null;
+  const L=skLen(e.pts), R=Math.max(3,Math.round(thick)); if(L<Math.max(R+2*thick,0.015*diag) || L>0.08*diag) return null;   // longer than a thinning stub
+  const j=da===1?e.b:e.a, dd=Math.max(3*thick,0.03*diag), td=skDir(e,da===1?1:0,Math.min(dd,L*0.8));
+  const others=[]; Gr.edges.forEach(f=>{ if(f===e||f.dead||f.closed) return; if(f.a===j) others.push(skDir(f,0,dd)); if(f.b===j) others.push(skDir(f,1,dd)); });
+  for(let p=0;p<others.length;p++) for(let q=p+1;q<others.length;q++){
+    if(Math.abs(Math.abs(normA(others[p]-others[q]))-Math.PI)>0.5) continue;           // the line carries straight on
+    if(Math.abs(Math.cos(td-others[p]))<0.6){ return {x:N[j].x,y:N[j].y,a:others[p]}; } } // and the stub crosses it
+  return null; }
+function skTidy(Gr,thick,diag,ticks){
   const N=Gr.nodes, deg=()=>{ N.forEach(q=>q.deg=0); Gr.edges.forEach(e=>{ if(e.closed||e.dead) return; N[e.a].deg++; N[e.b].deg++; }); };
   for(let it=0; it<600; it++){ let ch=false; deg();
     for(const e of Gr.edges){ if(e.dead||e.closed) continue; const L=skLen(e.pts), da=N[e.a].deg, db=N[e.b].deg;
       if(e.a===e.b && L<Math.max(5*thick,0.04*diag)){ e.dead=true; ch=true; break; }                      // tiny loop (hole)
-      if(e.a!==e.b && ((da===1&&db>=3)||(db===1&&da>=3)) && L<Math.max(3*thick,0.035*diag)){ e.dead=true; ch=true; break; }   // spur
-      if(da===1&&db===1 && L<0.05*diag){ e.dead=true; ch=true; break; }                                      // speck
       if(e.a!==e.b && da>=3 && db>=3 && L<Math.max(2.5*thick,0.03*diag)){                                    // split junction
         const A=N[e.a], B=N[e.b]; A.x=(A.x+B.x)/2; A.y=(A.y+B.y)/2;
         Gr.edges.forEach(f=>{ if(f===e||f.dead||f.closed) return; if(f.a===e.b){ f.a=e.a; f.pts[0]=[A.x,A.y]; } if(f.b===e.b){ f.b=e.a; f.pts[f.pts.length-1]=[A.x,A.y]; } });
         e.dead=true; ch=true; break; } }
+    if(ch) continue;
+    if(ticks) for(const e of Gr.edges){ if(e.dead||e.closed) continue; const t=skIsTick(Gr,e,thick,diag); if(!t) continue;
+      e.dead=true; ch=true; if(!ticks.some(q=>Math.hypot(q.x-t.x,q.y-t.y)<Math.max(4*thick,0.02*diag))) ticks.push(t); break; }
+    if(ch) continue;
+    for(const e of Gr.edges){ if(e.dead||e.closed) continue; const L=skLen(e.pts), da=N[e.a].deg, db=N[e.b].deg;
+      if(e.a!==e.b && ((da===1&&db>=3)||(db===1&&da>=3)) && L<Math.max(3*thick,0.035*diag)){ e.dead=true; ch=true; break; }   // spur
+      if(da===1&&db===1 && L<0.05*diag){ e.dead=true; ch=true; break; } }                                    // speck
     if(ch) continue;
     for(let ni=0; ni<N.length; ni++){ if(N[ni].deg!==2) continue;
       const es=Gr.edges.filter(e=>!e.dead&&!e.closed&&(e.a===ni||e.b===ni));
@@ -3554,15 +3589,70 @@ function skStrokes(Gr,thick,diag){
     strokes.push({pts,closed,ev,ends:closed?[null,null]:[n0,n1]}); });
   return strokes;
 }
+/* stretches of a line drawn in red, orange or pink = raised track (a bridge, ramps included): [[i0,i1],…] point indices.
+   Each point takes the average colour of the ink around it; the rest of the drawing is assumed dark. */
+function skRaised(st,m,d,w,h,thick,diag){
+  const P=st.pts, n=P.length, r=Math.max(1,Math.ceil(thick*0.8)), red=new Uint8Array(n);
+  for(let i=0;i<n;i++){ const cx=Math.round(P[i][0]-0.5), cy=Math.round(P[i][1]-0.5); let R=0,G=0,B=0,c=0;
+    for(let y=cy-r;y<=cy+r;y++) for(let x=cx-r;x<=cx+r;x++){ if(x<0||y<0||x>=w||y>=h) continue; const k=y*w+x; if(!m[k]) continue; R+=d[k*4]; G+=d[k*4+1]; B+=d[k*4+2]; c++; }
+    if(!c) continue; R/=c; G/=c; B/=c;
+    red[i]= R>90 && R-G>45 && R-B>25 ? 1 : 0; }
+  // majority over a short window, then runs long enough to mean it
+  const k=Math.max(3,Math.round(thick*1.5)), sm=new Uint8Array(n);
+  for(let i=0;i<n;i++){ let a=0,b=0; for(let j=-k;j<=k;j++){ const q=st.closed?(i+j+n)%n:i+j; if(q<0||q>=n) continue; a+=red[q]; b++; } sm[i]=a*2>b?1:0; }
+  const runs=[], minLen=Math.max(5*thick,0.04*diag), cum=[0]; for(let i=1;i<n;i++) cum.push(cum[i-1]+Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]));
+  for(let i=0;i<n;){ if(!sm[i]){ i++; continue; } let j=i; while(j+1<n&&sm[j+1]) j++; if(cum[j]-cum[i]>=minLen) runs.push([i,j]); i=j+1; }
+  // a closed line whose red stretch runs over its start point
+  if(st.closed && runs.length>1 && runs[0][0]===0 && runs[runs.length-1][1]===n-1){ const a=runs.pop(); runs[0]=[a[0],runs[0][1]+n]; }
+  return runs; }
+
+/* ticks on a line, taken in pairs: the stretch between two ticks is a bridge (on a loop: the shorter way round) */
+function skTickBridges(strokes,ticks,thick,diag){
+  strokes.forEach(st=>{ const P=st.pts, n=P.length, cum=[0]; for(let i=1;i<n;i++) cum.push(cum[i-1]+Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]));
+    const on=[]; ticks.forEach(t=>{ let bd=1e18, bi=-1; for(let i=0;i<n;i++){ const d=(P[i][0]-t.x)**2+(P[i][1]-t.y)**2; if(d<bd){ bd=d; bi=i; } }
+      if(Math.sqrt(bd)<Math.max(5*thick,0.02*diag)){ on.push(bi); t.used=true; } });
+    on.sort((a,b)=>a-b); if(on.length<2) return;
+    const L=cum[n-1], len=(i,j)=>j>i?cum[j]-cum[i]:(st.closed?L-cum[i]+cum[j]:1e18);
+    let best=null;
+    for(const off of st.closed?[0,1]:[0,1]){ const pr=[]; let tot=0;
+      for(let k=off;k+1<on.length+(st.closed&&off?1:0);k+=2){ const i=on[k], j=on[(k+1)%on.length]; pr.push([i,j]); tot+=len(i,j); }
+      if(!pr.length) continue;
+      if(st.closed && on.length===2){ const a=len(on[0],on[1]), b=len(on[1],on[0]); best={pr:[a<=b?[on[0],on[1]]:[on[1],on[0]]]}; break; }
+      if(!best||pr.length>best.pr.length||(pr.length===best.pr.length&&tot<best.tot)) best={pr,tot}; }
+    if(best) best.pr.forEach(([i,j])=>st.raised.push({r:j>=i?[i,j]:[i,j+n],how:"ticks"})); });
+}
+function skSpan(s,a,b){ const n=s.pts.length; let lo=Math.min(a,b), hi=Math.max(a,b); if(s.closed && hi-lo>n/2){ const t=lo; lo=hi; hi=t+n; } return [lo,hi]; }
+/* which pass goes over at each crossing (decided here so the preview can show it and a tap can swap it):
+   a pass that is part of a bridge, else the one not drawn with a gap, else the straighter one */
+function skDecideOver(A){
+  const half=0.07*A.diag;
+  const straight=(st,i)=>{ const P=st.pts, n=P.length; let a=i, b=i, acc=0;
+    while(acc<half){ const na=st.closed?(a-1+n)%n:a-1; if(na<0||na===i) break; acc+=Math.hypot(P[a][0]-P[na][0],P[a][1]-P[na][1]); a=na; }
+    acc=0; while(acc<half){ const nb=st.closed?(b+1)%n:b+1; if(nb>=n||nb===i) break; acc+=Math.hypot(P[b][0]-P[nb][0],P[b][1]-P[nb][1]); b=nb; }
+    const ax=P[a][0], ay=P[a][1], bx=P[b][0], by=P[b][1], L=Math.hypot(bx-ax,by-ay)||1; let m=0;
+    for(let k=a;k!==b;k=st.closed?(k+1)%n:k+1){ m=Math.max(m,Math.abs((P[k][0]-ax)*(by-ay)-(P[k][1]-ay)*(bx-ax))/L); if(!st.closed&&k>=n-1) break; } return m; };
+  const inR=(st,i)=>st.raised.some(({r})=>{ const n=st.pts.length; return (i>=r[0]&&i<=r[1])||(i+n>=r[0]&&i+n<=r[1]); });
+  const byNode={}; A.strokes.forEach((st,si)=>st.ev.forEach((e,k)=>{ if(A.nodes[e.node].kind==="cross") (byNode[e.node]=byNode[e.node]||[]).push({si,k,st,e}); }));
+  A.over={};
+  Object.entries(byNode).forEach(([nd,P])=>{ if(P.length!==2) return;
+    const r0=inR(P[0].st,P[0].e.i), r1=inR(P[1].st,P[1].e.i);
+    let oi = r0&&!r1?0 : r1&&!r0?1 : P[0].e.under&&!P[1].e.under?1 : P[1].e.under&&!P[0].e.under?0 : (straight(P[0].st,P[0].e.i)<=straight(P[1].st,P[1].e.i)?0:1);
+    if(SK.flip[nd]) oi=1-oi;
+    A.over[nd]={si:P[oi].si,k:P[oi].k}; });
+}
+
 /* the whole picture → strokes, in image pixels */
 function skAnalyse(cv,sens){
-  const {m,w,h}=skInk(cv,sens); let sk=thin(m,w,h); let skN=0, inkN=0; for(let i=0;i<w*h;i++){ skN+=sk[i]; inkN+=m[i]; }
+  const {m,w,h,d}=skInk(cv,sens); let sk=thin(m,w,h); let skN=0, inkN=0; for(let i=0;i<w*h;i++){ skN+=sk[i]; inkN+=m[i]; }
   const thick=Math.max(1.5,inkN/Math.max(1,skN)); sk=prune(sk,w,h,Math.round(thick)+2);
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(let i=0;i<w*h;i++) if(sk[i]){ const x=i%w,y=(i/w)|0; x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y); }
   const diag=x1>x0?Math.hypot(x1-x0,y1-y0):Math.hypot(w,h);
-  const Gr=skGraph(sk,w,h); skTidy(Gr,thick,diag); const gaps=skBridgeGaps(Gr,thick,diag); skTidy(Gr,thick,diag);
+  const ticks=[], Gr=skGraph(sk,w,h,thick); skTidy(Gr,thick,diag,ticks); const gaps=skBridgeGaps(Gr,thick,diag); skTidy(Gr,thick,diag,ticks);
   const strokes=skStrokes(Gr,thick,diag).filter(s=>skLen(s.pts)>0.06*diag || s.closed&&skLen(s.pts)>0.15*diag);
-  return {w,h,thick,diag,nodes:Gr.nodes,strokes,gaps,mask:m};
+  strokes.forEach(st=>{ st.raised=skRaised(st,m,d,w,h,thick,diag).map(r=>({r,how:"red"})); });
+  skTickBridges(strokes,ticks,thick,diag);
+  const A={w,h,thick,diag,nodes:Gr.nodes,strokes,gaps,mask:m,ticks};
+  skDecideOver(A); return A;
 }
 
 /* ---- following the strokes with real pieces ----
@@ -3590,8 +3680,25 @@ function skPrep(Pmm,closed,smooth){
       const kk=closed?k:Math.min(k,i,n-1-i); let sx=0,sy=0;
       for(let j=-kk;j<=kk;j++){ const q=P[closed?((i+j)%n+n)%n:i+j]; sx+=q[0]; sy+=q[1]; } o.push([sx/(2*kk+1),sy/(2*kk+1)]); }
     P=o; }
-  P=skResample(P,SKSTEP,closed); if(closed) P.push([P[0][0],P[0][1]]);
+  P=skResample(P,SKSTEP,closed);
+  const F=SK_FOLLOW[SK.follow]||SK_FOLLOW.straight; if(F.tol>0) skStraighten(P,F);
+  if(closed) P.push([P[0][0],P[0][1]]);
   return skPoly(P,closed); }
+/* stretches that stay within a small band around their chord become exactly straight: the longest first */
+function skStraighten(P,F){
+  const n=P.length, minN=Math.round(200/SKSTEP), taken=new Uint8Array(n), reach=new Int32Array(n);
+  const ok=(i,j)=>{ const ax=P[i][0], ay=P[i][1], bx=P[j][0], by=P[j][1], L=Math.hypot(bx-ax,by-ay); if(L<1) return false;
+    const tol=Math.max(F.minTol,F.tol*L); for(let k=i+1;k<j;k+=2){ if(taken[k]) return false; if(Math.abs((P[k][0]-ax)*(by-ay)-(P[k][1]-ay)*(bx-ax))/L>tol) return false; } return true; };
+  for(let round=0; round<40; round++){
+    let bi=-1, bj=-1;
+    for(let i=0;i<n-minN;i+=3){ if(taken[i]) continue; let j=i+minN; if(j>=n||!ok(i,j)) continue;
+      while(j+4<n && !taken[j+4] && ok(i,j+4)) j+=4; if(bj-bi<j-i){ bi=i; bj=j; } }
+    if(bi<0) break;
+    // keep a little curve at each end so the joins into the curves stay smooth
+    const a=bi+2, b=bj-2, ax=P[a][0], ay=P[a][1], bx=P[b][0], by=P[b][1];
+    for(let k=a;k<=b;k++){ const t=(k-a)/(b-a); P[k]=[ax+(bx-ax)*t, ay+(by-ay)*t]; }
+    for(let k=bi;k<=bj;k++) taken[k]=1; }
+}
 function skPoly(P,closed){
   const n=P.length, px=new Float64Array(n), py=new Float64Array(n), ang=new Float64Array(n);
   P.forEach((q,i)=>{ px[i]=q[0]; py[i]=q[1]; });
@@ -3659,9 +3766,10 @@ function skSearch(st,o){
   let best=null, far=root, nexp=0;
   const regular=o.moves.filter(m=>!m.sw), sws=o.moves.filter(m=>m.sw);
   // bridge sections as single straight moves, offered only just before a crossing this line goes over
-  const macMoves=(o.macros||[]).slice(0,8).map(mac=>{ const L=mac.len, ns=Math.ceil(L/30), last=mac.seq[mac.seq.length-1];
+  const macMoves=(o.macros||[]).map(mac=>{ const L=mac.len, ns=Math.ceil(L/30), last=mac.seq[mac.seq.length-1];
     return {isMac:true,mac,id:null,len:L,ex:L,ey:0,ea:0,sx:Array.from({length:ns},(_,k)=>L*(k+1)/ns),sy:new Array(ns).fill(0),dw:L/ns,
-      gIn:types[mac.seq[0].id].conns[mac.seq[0].ci].g, gOut:types[last.id].conns[1-last.ci].g, straight:false, mid:(mac.deckFrom+mac.deckTo)/2, room:(mac.deckTo-mac.deckFrom)/2-HALF-12}; });
+      gIn:types[mac.seq[0].id].conns[mac.seq[0].ci].g, gOut:types[last.id].conns[1-last.ci].g, straight:false, mid:(mac.deckFrom+mac.deckTo)/2, room:(mac.deckTo-mac.deckFrom)/2-HALF-12,
+      foreign:o.foreign?o.foreign(mac):0}; });
   const fin=(z,score,gap)=>{ if(!best||score<best.score) best={z,score,gap}; };
   const final=z=>{
     if(z.ne<o.events.length) return;
@@ -3674,29 +3782,44 @@ function skSearch(st,o){
   const expand=z=>{ nexp++;
     const ev=o.events[z.ne], c=Math.cos(z.a), s=Math.sin(z.a);
     let lst=ev && z.s>=ev.s-280 ? regular.concat(ev.cands) : regular;
-    const xs=(o.cross||[]).filter(X=>!(z.done&&z.done.includes(X)) && X.s>z.s && X.s<z.s+900);
-    if(xs.length && macMoves.length) lst=lst.concat(macMoves);
+    const xs=(o.cross||[]).filter(X=>!(z.done&&z.done.includes(X)) && X.s>z.s && (X.red ? z.s>=X.sa-250 && z.s<=X.sa+150 : X.s<z.s+900));
+    if(xs.length && macMoves.length){
+      const red=xs.find(X=>X.red);
+      if(red){ if(!red.macs) red.macs=macMoves.slice().sort((p,q)=>Math.abs(p.len-red.L)+p.mac.adapters*40+p.foreign*400-Math.abs(q.len-red.L)-q.mac.adapters*40-q.foreign*400).slice(0,10); lst=lst.concat(red.macs); }
+      else lst=lst.concat(macMoves.slice(0,8)); }
     for(const m of lst){
       if(m.isMac){ if(o.lim && Object.entries(m.mac.need).some(([id,k])=>(z.used[id]||0)+k>(o.rem[id]||0))) continue; }
       else if(o.lim && (z.used[m.id]||0)>=(o.rem[m.id]||0)) continue;
       if(z.g && !genderOK(m.gIn,z.g)) continue;
       let cost=0, maxd=0;
-      for(let k=0;k<m.sx.length;k++){ proj(z.x+c*m.sx[k]-s*m.sy[k], z.y+s*m.sx[k]+c*m.sy[k], z.s,-40,m.len+160); cost+=PJ.d*m.dw; if(PJ.d>maxd) maxd=PJ.d; }
+      for(let k=0;k<m.sx.length;k++){ proj(z.x+c*m.sx[k]-s*m.sy[k], z.y+s*m.sx[k]+c*m.sy[k], z.s,-40,m.len+160);
+        const dd=Math.max(0,Math.sqrt(PJ.d)-o.dead); cost+=dd*dd*m.dw; if(PJ.d>maxd) maxd=PJ.d; }   // small wobbles don't count
       if(maxd>(z.s<(o.s0||0)+o.looseLen?o.looseD2:o.maxd2)) continue;   // a branch may stray more while it leaves its switch
       const ex=z.x+c*m.ex-s*m.ey, ey=z.y+s*m.ex+c*m.ey, ea=normA(z.a+m.ea);
       proj(ex,ey,z.s,-40,m.len+160); const s2=PJ.i*SKSTEP, herr=normA(ea-ang[PJ.i]);
       if(Math.abs(herr)>1.0) continue;
       // turn the way the drawing turns over this piece (stops left-right wiggles that use up heading)
       const i0=Math.min(n-1,Math.max(0,Math.round(z.s/SKSTEP))), dt=normA(m.ea-normA(ang[PJ.i]-ang[i0]));
-      cost+=o.wH*herr*herr*m.len + o.wT*dt*dt + o.pp + (m.adapt?o.pa:0) + (!m.adapt&&!m.isMac&&m.len<80?o.ps:0);   // mini straights only where they're needed
+      const hd=Math.max(0,Math.abs(herr)-o.deadA);
+      cost+=o.wH*hd*hd*m.len + o.wT*dt*dt + o.pp + (m.adapt?o.pa:0) + (!m.adapt&&!m.isMac&&m.len<80?o.ps:0);   // mini straights only where they're needed
+      // straight track is preferred; turning back the other way costs extra unless the drawing turns that way too
+      const turn=Math.abs(m.ea)>0.01?Math.sign(m.ea):0;
+      if(turn){ cost+=o.pc;
+        if(z.lt && turn!==z.lt){ const i1=Math.min(n-1,Math.max(0,Math.round(z.lts/SKSTEP))), dr=normA(ang[PJ.i]-ang[i1]); if(!(Math.sign(dr)===turn && Math.abs(dr)>0.25)) cost+=o.pr; } }
       if(o.over && !m.straight && !m.isMac) for(const w of o.over) if(z.s<w.b && s2>w.a) cost+=o.po;
       let doneX=null;
-      if(m.isMac){ // the deck must be over the crossing
+      if(m.isMac){ // the deck must be over the crossing; a drawn bridge should be about as long as drawn and where drawn
         let bx=null, bd=1e18; for(const X of xs){ const cx=z.x+c*m.mid, cy=z.y+s*m.mid, d=(cx-X.x)**2+(cy-X.y)**2; if(d<bd){ bd=d; bx=X; } }
         const along=(bx.x-z.x)*c+(bx.y-z.y)*s-m.mid, lat=-(bx.x-z.x)*s+(bx.y-z.y)*c;
-        if(Math.abs(along)>Math.max(0,m.room) || Math.abs(lat)>120) continue;
-        cost+=(along*along+lat*lat)*60 - o.po*0.5; doneX=bx; }
-      const ch={x:ex,y:ey,a:ea,g:m.gOut,s:s2,cost:z.cost+cost,par:z,m,ne:z.ne,rg:z.rg||m.gIn,used:z.used,br:z.br,J:null};
+        if(bx.red){
+          if(Math.abs(lat)>150 || Math.abs(along)>Math.max(150,0.35*bx.L)) continue;
+          let under=true; for(const U of bx.under){ const t=(U.x-z.x)*c+(U.y-z.y)*s-m.mid; if(Math.abs(t)>Math.max(0,m.room)) under=false; }
+          if(!under) continue;
+          cost+=(along*along+lat*lat)*25 + (m.len-bx.L)**2*12 - o.po*0.5; }
+        else { if(Math.abs(along)>Math.max(0,m.room) || Math.abs(lat)>120) continue;
+          cost+=(along*along+lat*lat)*60 - o.po*0.5; }
+        doneX=bx; }
+      const ch={x:ex,y:ey,a:ea,g:m.gOut,s:s2,cost:z.cost+cost,par:z,m,ne:z.ne,rg:z.rg||m.gIn,used:z.used,br:z.br,J:null,lt:turn||z.lt,lts:turn?z.s:z.lts};
       if(m.sw){
         if(!ev || !ev.cands.includes(m)) continue;
         // the branch should leave along the drawn branch
@@ -3706,6 +3829,7 @@ function skSearch(st,o){
         ch.ne=z.ne+1; ch.J=ev.J; ch.br={...z.br,[ev.J]:{x:ox,y:oy,a:oa,g:m.oth.g}};
       } else if(ev && s2>ev.s+40) continue;      // no passing a switch point without the switch
       if(doneX) ch.done=(z.done||[]).concat([doneX]); else ch.done=z.done;
+      if(o.cross) for(const X of o.cross) if(X.red && s2>X.sb+60 && z.s<=X.sb+60 && !(ch.done&&ch.done.includes(X))){ ch.cost+=o.pmiss; ch.done=(ch.done||[]).concat([X]); }
       if(o.lim){ ch.used={...z.used}; if(m.isMac) for(const id in m.mac.need) ch.used[id]=(ch.used[id]||0)+m.mac.need[id]; else ch.used[m.id]=(ch.used[m.id]||0)+1; }
       final(ch);
       if(s2>=z.s+Math.max(B,0.3*m.len) && s2<L-2){ const bi=Math.min(nb-1,Math.floor(s2/B)); buckets[bi].push(ch); }
@@ -3816,21 +3940,26 @@ function skStrokesMM(A,k){
   return A.strokes.map((s,si)=>{ const raw=s.pts.map(q=>[(q[0]-cx)*k,(q[1]-cy)*k]), cum=[0];
     for(let i=1;i<raw.length;i++) cum.push(cum[i-1]+Math.hypot(raw[i][0]-raw[i-1][0],raw[i][1]-raw[i-1][1]));
     const st=skPrep(raw,s.closed,Math.max(20,Math.min(45,cum[cum.length-1]/40))), f=st.L/Math.max(1,cum[cum.length-1]);
-    return {si,st,closed:s.closed,ends:s.ends.slice(),ev:s.ev.map(e=>({node:e.node,s:cum[e.i]*f,under:!!e.under}))}; });
+    const Lr=cum[cum.length-1], sOf=i=>i<cum.length?cum[i]*f:(Lr+cum[i-cum.length+1])*f;
+    return {si,st,closed:s.closed,ends:s.ends.slice(),ev:s.ev.map(e=>({node:e.node,s:cum[e.i]*f,under:!!e.under})),
+            raised:(s.raised||[]).map(({r:[a,b]})=>({a:sOf(a),b:sOf(b)}))}; });
 }
 function skReverse(S1){ const n=S1.st.n, P=[]; for(let i=n-1;i>=0;i--) P.push([S1.st.px[i],S1.st.py[i]]);
-  S1.st=skPoly(P,S1.closed); S1.ev=S1.ev.map(e=>({...e,s:S1.st.L-e.s})).reverse(); S1.ends.reverse(); }
+  S1.st=skPoly(P,S1.closed); S1.ev=S1.ev.map(e=>({...e,s:S1.st.L-e.s})).reverse(); S1.ends.reverse();
+  S1.raised=S1.raised.map(r=>({a:S1.st.L-r.b,b:S1.st.L-r.a})).reverse(); }
 /* the line leaving node `node` along stroke S1 (which starts or ends there), in mm with headings: [[x,y,a],…] */
 function skBranchPts(S1,node){ const st=S1.st, fromEnd=S1.ends[1]===node&&S1.ends[0]!==node, out=[];
   for(let k=0;k<Math.min(st.n,130);k++){ const i=fromEnd?st.n-1-k:k; out.push([st.px[i],st.py[i],normA(st.ang[i]+(fromEnd?Math.PI:0))]); }
   return out; }
 function skBuild(A,k,o){
-  const t0=performance.now(), avail=skAvail(o.mode), lim=o.mode==="inv", rem={...avail};
+  const t0=performance.now(), avail=skAvail(o.mode), lim=o.mode==="inv", rem={...avail}, FW=SK_FOLLOW[SK.follow]||SK_FOLLOW.straight;
   const moves=skMoves(avail), straights=moves.filter(m=>m.straight);
   // bridges with any pieces: ramps, decks and adapters of any make (IKEA has no deck of its own)
   const bavail={...avail}; if(!lim) typeList.forEach(t=>{ if(t.ramp||t.deck||(avail[t.id]>0)) bavail[t.id]=40; else if(t.conns.length===2&&t.conns[0].g===t.conns[1].g&&!t.stop&&!t.carRamp&&!isRetired(t)) bavail[t.id]=40; });
   const foreign=m=>lim?0:m.seq.filter(e=>!SK.brands[brandOf(types[e.id])]).length;
-  const macros=o.bridges?genMacros(bavail).sort((a,b)=>foreign(a)-foreign(b)||a.adapters-b.adapters||a.len-b.len):[];
+  const anyRaised=A.strokes.some(s1=>s1.raised&&s1.raised.length);
+  let macros=o.bridges||anyRaised?genMacros(bavail,anyRaised?4:2).sort((a,b)=>foreign(a)-foreign(b)||a.adapters-b.adapters||a.len-b.len):[];
+  if(anyRaised){ const seen=new Set(); macros=macros.filter(m=>{ const key=foreign(m)+"|"+m.adapters+"|"+Math.round(m.len/15); if(seen.has(key)) return false; seen.add(key); return true; }).slice(0,120); }
   const SS=skStrokesMM(A,k), N=A.nodes, report={strokes:SS.length, ok:0, closedOK:0, loops:0, gaps:[], noSwitch:0, noBridge:0, bridges:0, partial:0, crossings:0};
   // who passes through / branches off at every switch and crossing
   const through={}, branchOf={};
@@ -3841,11 +3970,27 @@ function skBuild(A,k,o){
   const straightness=(S1,s)=>{ const st=S1.st, i0=Math.max(0,Math.round((s-half)/SKSTEP)), i1=Math.min(st.n-1,Math.round((s+half)/SKSTEP));
     const ax=st.px[i0], ay=st.py[i0], bx=st.px[i1], by=st.py[i1], L=Math.hypot(bx-ax,by-ay)||1; let m=0;
     for(let i=i0;i<=i1;i++) m=Math.max(m,Math.abs((st.px[i]-ax)*(by-ay)-(st.py[i]-ay)*(bx-ax))/L); return m+(i1-i0<2*half/SKSTEP-2?50:0); };
-  const crossN={}; SS.forEach(S1=>S1.ev.forEach(e=>{ if(N[e.node].kind==="cross") (crossN[e.node]=crossN[e.node]||[]).push({S1,e}); }));
+  const crossN={}; SS.forEach(S1=>S1.ev.forEach((e,k)=>{ if(N[e.node].kind==="cross") (crossN[e.node]=crossN[e.node]||[]).push({S1,e,k}); }));
   Object.entries(crossN).forEach(([nd,P])=>{ if(P.length!==2) return; report.crossings++;
+    const inR=q=>q.S1.raised.find(r=>q.e.s>=r.a-20&&q.e.s<=r.b+20);
     let oi = P[0].e.under&&!P[1].e.under ? 1 : P[1].e.under&&!P[0].e.under ? 0 : (straightness(P[0].S1,P[0].e.s)<=straightness(P[1].S1,P[1].e.s)?0:1);
-    if(SK.flip[nd]) oi=1-oi; P[oi].e.over=true; P[oi].e.oth=P[1-oi]; over.set(+nd,P[oi]); });
+    if(inR(P[0])&&!inR(P[1])) oi=0; else if(inR(P[1])&&!inR(P[0])) oi=1;
+    if(SK.flip[nd]) oi=1-oi;
+    const dec=A.over&&A.over[nd]; if(dec){ const q=P.findIndex(x=>x.S1.si===dec.si&&x.k===dec.k); if(q>=0) oi=q; }   // as shown (and maybe swapped) in the preview
+    const R0=inR(P[oi]); if(R0){ (R0.under=R0.under||[]).push({e:P[oi].e,oth:P[1-oi]}); P[oi].e.inRaised=true; }
+    P[oi].e.over=true; P[oi].e.oth=P[1-oi]; over.set(+nd,P[oi]); });
   const ctx={lim,rem,straights,macros,foreign,minStr:Math.min(...straights.map(m=>m.len),1e4)};
+  // the grid of directions: curves' turns (45° or 22.5° steps) and the offset that fits the drawn straight stretches best
+  const grid=(()=>{ const turns=moves.filter(m=>Math.abs(m.ea)>0.01).map(m=>Math.abs(m.ea));
+    const q=[Math.PI/4,Math.PI/8].find(q=>turns.length&&turns.every(t=>Math.abs(t/q-Math.round(t/q))<0.02)); if(!q) return null;
+    const runs=[]; SS.forEach(S1=>{ const st=S1.st, n=st.n; let i=0;
+      while(i<n-1){ if(Math.abs(normA(st.ang[i+1]-st.ang[i]))>=0.003){ i++; continue; } let j=i; while(j<n-1&&Math.abs(normA(st.ang[j+1]-st.ang[j]))<0.003) j++;
+        if(j-i>=24) runs.push({a:st.ang[(i+j)>>1],w:j-i}); i=j+1; } });
+    if(!runs.length) return {q,off:0};
+    let best=0, bv=1e18; for(let k=0;k<90;k++){ const off=q*k/90; let v=0; runs.forEach(r=>{ const d=normA(r.a-off), e=d-Math.round(d/q)*q; v+=r.w*e*e; }); if(v<bv){ bv=v; best=off; } }
+    // square to the paper when that fits nearly as well
+    let v0=0; runs.forEach(r=>{ const e=r.a-Math.round(r.a/q)*q; v0+=r.w*e*e; }); if(v0<=bv*1.5+runs.reduce((a,r)=>a+r.w,0)*0.0012) best=0;
+    return {q,off:best}; })();
   const pieces=[], brPose={}, fitted=new Set(), failedJ=new Set(), deadEnds=[];
   const ready=nd=>nd==null || N[nd].kind!=="switch" || brPose[nd] || failedJ.has(nd) || !through[nd];
   const endOK=(S1,nd)=>nd==null || N[nd].kind!=="switch" || branchOf[nd]!==S1 || ready(nd) || through[nd]===S1;
@@ -3872,12 +4017,22 @@ function skBuild(A,k,o){
       let bd=1e18; for(let i=0;i<Math.min(st.n,120);i++){ const d=(st.px[i]-P.x)**2+(st.py[i]-P.y)**2; if(d<bd){ bd=d; s0=i*SKSTEP; } } }
     else if(S1.closed){
       // start on the straightest bit, away from switch and crossing points
-      let bi=0, bv=1e18; const n=st.n-1;
-      for(let i=0;i<n;i+=2){ const s=i*SKSTEP; if(S1.ev.some(e=>{ const d=Math.abs(e.s-s); return Math.min(d,st.L-d)<(e.over?half+60:260); })) continue;
-        const a=st.ang[(i-12+n)%n], b=st.ang[(i+12)%n], v=Math.abs(normA(b-a)); if(v<bv){ bv=v; bi=i; } }
+      // the middle of the longest straight stretch (its direction is the side's true direction), else the least bent spot
+      let bi=0, bv=1e18; const n=st.n-1, ok=new Uint8Array(n), flat=new Uint8Array(n);
+      for(let i=0;i<n;i++){ const s=i*SKSTEP; ok[i]=!(S1.ev.some(e=>{ const d=Math.abs(e.s-s); return Math.min(d,st.L-d)<(e.over?half+60:260); }) ||
+          S1.raised.some(r=>{ const sa=s<r.a-150?s+st.L:s; return sa>=r.a-150&&sa<=r.b+150; }));
+        flat[i]=Math.abs(normA(st.ang[(i+1)%n]-st.ang[i]))<0.003?1:0; }
+      let run=null; for(let i=0;i<n;i++){ if(!flat[i]||flat[(i-1+n)%n]) continue; let j=i, len=0; while(flat[j%n]&&len<n){ j++; len++; }
+        const mid=(i+(len>>1))%n; if(ok[mid] && len>=24 && (!run||len>run.len)) run={mid,len}; }
+      if(run && !o.sm) bi=run.mid;
+      else for(let i=0;i<n;i+=2){ if(!ok[i]) continue; const a=st.ang[(i-12+n)%n], b=st.ang[(i+12)%n], v=Math.abs(normA(b-a)); if(v<bv){ bv=v; bi=i; } }
       const sh=bi*SKSTEP; st=skRotate(st,bi); S1.st=st; S1.ev=S1.ev.map(e=>({...e,s:(e.s-sh+st.L)%st.L})).sort((a,b)=>a.s-b.s);
+      S1.raised.forEach(r=>{ let a=(r.a-sh+2*st.L)%st.L; const len=r.b-r.a; r.a=a; r.b=a+len; });
       start={x:st.px[0],y:st.py[0],a:st.ang[0],g:null}; }
     else start={x:st.px[0],y:st.py[0],a:st.ang[0],g:null};
+    // every curve turns a multiple of 45° (or 22.5°), so the starting direction sets all the others: start on the grid
+    // of directions that best fits the drawing's straight stretches
+    if(!start.g && FW.dead && grid){ const q=grid.q, a=grid.off+Math.round((start.a-grid.off)/q)*q; start.a=normA(a); }
     if(kind==="loop") target=z=>({x:start.x,y:start.y,a:start.a,g:z.rg});
     const endN=S1.ends[1];
     if(!S1.closed && isBr(endN)){ const own=through[endN]===S1;
@@ -3897,9 +4052,16 @@ function skBuild(A,k,o){
       events.slice().sort((a,b)=>deadEnd(a)-deadEnd(b)).forEach(e=>{ const m=e.cands.find(m=>(left[m.id]||0)>0); if(m) left[m.id]--; else e.drop=true; });
       for(let i=events.length-1;i>=0;i--) if(events[i].drop){ failedJ.add(events[i].J); report.noSwitch++; events.splice(i,1); } }
     const overW=[]; S1.ev.forEach(e=>{ if(e.over&&macros.length){ overW.push({a:e.s-half,b:e.s+half}); if(S1.closed){ overW.push({a:e.s-half+st.L,b:e.s+half+st.L},{a:e.s-half-st.L,b:e.s+half-st.L}); } } });
-    const cross=[]; S1.ev.forEach(e=>{ if(e.over&&macros.length){ const i=Math.min(st.n-1,Math.max(0,Math.round(e.s/SKSTEP))); cross.push({s:e.s,x:st.px[i],y:st.py[i]}); } });
-    const opts={cross,macros,moves,lim,rem,K:o.K||8,start,s0,kind,target,events,over:overW,br0:{},looseLen:isBr(S1.ends[0])&&brPose[S1.ends[0]]?350:0,looseD2:200*200,maxd2:Math.pow(Math.max(90,0.06*st.L),2),gmax:Math.max(120,0.06*st.L),
-                wH:9000, wT:o.wT||4e4, pp:o.pp??14000, ps:20000, pa:3e5, po:4e6, wg:60};
+    const at=sv=>{ const i=Math.min(st.n-1,Math.max(0,Math.round(sv/SKSTEP))); return {x:st.px[i],y:st.py[i]}; };
+    const cross=[]; S1.ev.forEach(e=>{ if(e.over&&!e.inRaised&&macros.length) cross.push({s:e.s,...at(e.s)}); });
+    S1.raised.forEach(r=>{ if(!macros.length) return; const m=(r.a+r.b)/2;
+      cross.push({s:m,...at(m),red:true,L:r.b-r.a,sa:r.a,sb:r.b,under:(r.under||[]).map(u=>at(u.e.s))});
+      overW.push({a:r.a-30,b:r.b+30}); });
+    report.raised=(report.raised||0)+S1.raised.length;
+    cross.sort((a,b)=>a.s-b.s);
+    const opts={foreign,cross,macros,moves,lim,rem,K:o.K||8,start,s0,kind,target,events,over:overW,br0:{},looseLen:isBr(S1.ends[0])&&brPose[S1.ends[0]]?350:0,looseD2:200*200,maxd2:Math.pow(Math.max(90,0.06*st.L),2),gmax:Math.max(120,0.06*st.L),
+                wH:9000, wT:o.wT||4e4, pp:o.pp??14000, ps:20000, pa:3e5, po:4e6, wg:60,
+                dead:FW.dead, deadA:FW.dead?0.05:0, pc:FW.pc, pr:FW.pr, pmiss:1.2e6};
     let R=skSearch(st,opts);
     if(!R.ok && events.length){ // couldn't lay all the switches where drawn: drop sidings first, then the rest
       const deadEnd=e=>{ const B=branchOf[e.J]; return !B || B.ends.some(nd=>nd==null||N[nd].kind==="end"); };
@@ -3915,10 +4077,18 @@ function skBuild(A,k,o){
       gap=skClose(chain,T0,tgt,ctx,kMin); };
     if(closing) doClose();
     // bridges where this stroke goes over (after closing, so the track they span is where it will stay)
-    let nb=0, inChain=chain.filter(tk=>tk.mac).length; report.bridges+=inChain;
-    S1.ev.forEach(e=>{ if(!e.over) return; if(!macros.length){ report.noBridge++; return; } if(inChain>0){ inChain--; return; }
-      const i=Math.min(st.n-1,Math.max(0,Math.round(e.s/SKSTEP))), oS=e.oth.S1.st, oi=Math.min(oS.n-1,Math.max(0,Math.round(e.oth.e.s/SKSTEP)));
-      const X={x:st.px[i], y:st.py[i], oa:oS.ang[oi]};
+    // every crossing this line goes over and every stretch drawn raised needs a deck over it
+    const decks=()=>{ const W=skWalk(chain,T0), D=[]; chain.forEach((tk,k)=>{ if(!tk.mac) return; const T=W.Ts[k], ux=Math.cos(T.a), uy=Math.sin(T.a);
+      D.push({x0:T.x+ux*tk.mac.deckFrom, y0:T.y+uy*tk.mac.deckFrom, x1:T.x+ux*tk.mac.deckTo, y1:T.y+uy*tk.mac.deckTo}); }); return D; };
+    const covered=(X,D)=>D.some(d=>{ const vx=d.x1-d.x0, vy=d.y1-d.y0, L2=vx*vx+vy*vy||1, t=Math.max(0,Math.min(1,((X.x-d.x0)*vx+(X.y-d.y0)*vy)/L2));
+      return Math.hypot(d.x0+vx*t-X.x, d.y0+vy*t-X.y)<(X.red?Math.max(120,X.L*0.3):90); });
+    let nb=0; const need=[];
+    S1.ev.forEach(e=>{ if(!e.over||e.inRaised) return; const i=Math.min(st.n-1,Math.max(0,Math.round(e.s/SKSTEP))), oS=e.oth.S1.st, oi=Math.min(oS.n-1,Math.max(0,Math.round(e.oth.e.s/SKSTEP)));
+      need.push({x:st.px[i], y:st.py[i], oa:oS.ang[oi]}); });
+    cross.filter(X=>X.red).forEach(X=>need.push({x:X.x,y:X.y,oa:st.ang[Math.min(st.n-1,Math.round(X.s/SKSTEP))]+Math.PI/2,red:true,L:X.L}));
+    S1.raised.forEach(r=>{ if(!macros.length) need.push({red:true,none:true}); });
+    need.forEach(X=>{ if(X.none||!macros.length){ report.noBridge++; return; }
+      if(covered(X,decks())){ report.bridges++; return; }
       if(skBridge(chain,T0,X,ctx,pieces)){ report.bridges++; nb++; } else report.noBridge++; });
     if(closing && nb) doClose();
     if(closing && gap>8){ report.gaps.push(Math.round(gap)); report.why=skClose.why; }
@@ -3949,16 +4119,16 @@ function skBuild(A,k,o){
   report.need=Object.entries(used).filter(([id,n])=>n>(S.inv[id]||0)).map(([id,n])=>({id,n:n-(S.inv[id]||0)}));
   return {pieces,report,strokes:SS.map(S1=>{ const P=[]; for(let i=0;i<S1.st.n;i+=2) P.push([Math.round(S1.st.px[i]),Math.round(S1.st.py[i])]); return P; })};
 }
-const skQuality=r=>(r.partial*1e6)+(r.wiggles||0)*2500+(r.loops-r.closedOK)*3e5+r.gaps.length*1e5+r.noBridge*1.5e5+r.noSwitch*1e5;
+const skQuality=r=>(r.partial*1e6)+(r.wiggles||0)*(SK_FOLLOW[SK.follow]||SK_FOLLOW.straight).wWig+(r.loops-r.closedOK)*3e5+r.gaps.length*1e5+r.noBridge*1.5e5+r.noSwitch*1e5;
 /* mm per drawing pixel. Any pieces: fit the play area. Your pieces: the biggest size your track can cover, then a few
    smaller ones; keep the one that matches the drawing best (measured in drawing units, so sizes compare fairly). */
 function skBestBuild(A,o){
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; A.strokes.forEach(s=>s.pts.forEach(q=>{ x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1]); }));
   const bw=Math.max(1,x1-x0), bh=Math.max(1,y1-y0), g=S.gen||{w:200,d:150}, t0=o.t0||performance.now();
-  const Q=(r,k)=>skQuality(r.report)+r.report.rms/k*400;
+  const Q=(r,k)=>skQuality(r.report)+r.report.rms/k*(SK_FOLLOW[SK.follow]||SK_FOLLOW.straight).wRms;
   // a few search settings at one size; keep the best
   const variants=k=>{ let best=null;
-    for(const v of [{K:8,wT:4e4},{K:16,wT:4e4},{K:12,wT:1.2e5},{K:12,wT:1.5e4},{K:24,wT:8e4}]){
+    for(const v of [{K:8,wT:4e4},{K:8,wT:4e4,sm:1},{K:16,wT:4e4},{K:16,wT:4e4,sm:1},{K:12,wT:1.2e5},{K:12,wT:1.5e4},{K:24,wT:8e4}]){
       const r=skBuild(A,k,{...o,...v}), q=Q(r,k); if(!best||q<best.q) best={r,q};
       if(best.q<300 || performance.now()-t0>9000) break; }
     return best; };
@@ -3992,26 +4162,27 @@ function skPhotoStep(){
   scEl("scBody").innerHTML=`<div class="sctips"><h2>Draw a track, then photograph it</h2><ol>
     <li>Draw on <b>white paper</b> with a <b>dark felt-tip or marker</b>: one line for each track, in one go where you can.</li>
     <li><b>Switches:</b> let a line branch off another one, like a <b>Y</b>. A passing loop branches off and joins again; a siding just stops.</li>
-    <li><b>Bridges:</b> where two lines cross, leave a <b>small gap</b> in the line that goes <b>under</b>. (No gap: the straighter one goes over.)</li>
+    <li><b>Bridges:</b> mark each end of the raised part (ramps included) with a <b>short line across the track</b>, like <b>—|———|—</b>. It can go over another line or over nothing at all; keep that part straight. Where two lines simply cross, you can instead leave a <b>small gap</b> in the line that goes under. (Drawing the raised part in red works too.)</li>
     <li>Keep the drawing a little away from the paper's edges. Take the photo from straight above, or scan it.</li></ol>
-    <p>Next you can tap the paper's corners to straighten a photo taken at an angle, and choose the size and which pieces to use.</p>
+    <p>Next you can tap the paper's corners to straighten a photo taken at an angle, check what was found (and fix it: drag along a line to make a bridge, tap a crossing to swap which track goes over), and choose the size and which pieces to use.</p>
     <div class="row2"><button class="big primary" id="skPick">🖼 Choose or take a photo</button><button class="big" id="skDemo">✏️ Try an example drawing</button></div></div>`;
   scEl("scFoot").innerHTML=`<span class="hint">Everything runs on this device; the photo isn't uploaded anywhere.</span>`;
   scEl("skPick").onclick=()=>scEl("skFile").click();
   scEl("skDemo").onclick=()=>{ const c=skExample(); SK.img=c; SK.src=c; SK.corners=[]; SK.demo=true; skLinesStep(); };
 }
-/* a hand-drawn looking example: an oval with a passing loop along the top and a siding off the bottom */
+/* a hand-drawn looking example: an oval with a passing loop along the top, a siding off the bottom and a bridge marked with ticks */
 function skExample(){
   const c=document.createElement("canvas"); c.width=1100; c.height=780; const g=c.getContext("2d");
   g.fillStyle="#fbfaf6"; g.fillRect(0,0,c.width,c.height); g.strokeStyle="#1d2a44"; g.lineWidth=7; g.lineCap="round"; g.lineJoin="round";
   let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647-0.5; };
   const line=(pts,close)=>{ g.beginPath(); pts.forEach((p,i)=>{ const x=p[0]+rnd()*2, y=p[1]+rnd()*2; i?g.lineTo(x,y):g.moveTo(x,y); }); if(close) g.closePath(); g.stroke(); };
   const bez=(P,n=40)=>{ const o=[]; for(let i=0;i<=n;i++){ const t=i/n, u=1-t; o.push([u*u*u*P[0][0]+3*u*u*t*P[1][0]+3*u*t*t*P[2][0]+t*t*t*P[3][0], u*u*u*P[0][1]+3*u*u*t*P[1][1]+3*u*t*t*P[2][1]+t*t*t*P[3][1]]); } return o; };
-  const oval=[]; for(let i=0;i<=40;i++) oval.push([330+i*11,160]); for(let i=1;i<=40;i++){ const t=-Math.PI/2+i/40*Math.PI; oval.push([770+230*Math.cos(t),390+230*Math.sin(t)]); }
-  for(let i=1;i<=40;i++) oval.push([770-i*11,620]); for(let i=1;i<40;i++){ const t=Math.PI/2+i/40*Math.PI; oval.push([330+230*Math.cos(t),390+230*Math.sin(t)]); }
+  const oval=[]; for(let i=0;i<=40;i++) oval.push([280+i*13.5,160]); for(let i=1;i<=40;i++){ const t=-Math.PI/2+i/40*Math.PI; oval.push([820+230*Math.cos(t),390+230*Math.sin(t)]); }
+  for(let i=1;i<=40;i++) oval.push([820-i*13.5,620]); for(let i=1;i<40;i++){ const t=Math.PI/2+i/40*Math.PI; oval.push([280+230*Math.cos(t),390+230*Math.sin(t)]); }
   line(oval,true);
-  line([...bez([[350,160],[400,160],[420,82],[480,82]]),...bez([[480,82],[560,82],[560,82],[640,82]]).slice(1),...bez([[640,82],[700,82],[720,160],[770,160]]).slice(1)]);
-  line([...bez([[420,620],[480,620],[500,700],[570,700]]),...bez([[570,700],[640,700],[700,700],[760,700]]).slice(1)]);
+  line([...bez([[330,160],[390,160],[410,82],[480,82]]),...bez([[480,82],[600,82],[600,82],[700,82]]).slice(1),...bez([[700,82],[770,82],[790,160],[850,160]]).slice(1)]);
+  line([...bez([[290,620],[350,620],[370,700],[440,700]]),...bez([[440,700],[500,700],[540,700],[580,700]]).slice(1)]);
+  [oval[84],oval[110]].forEach(([x,y])=>line([[x,y-30],[x,y+30]]));   // a bridge on the bottom straight, between two ticks
   return c; }
 function skUseImage(src){ const max=1600, k=Math.min(1,max/Math.max(src.width,src.height)), c=document.createElement("canvas");
   c.width=Math.round(src.width*k); c.height=Math.round(src.height*k); c.getContext("2d").drawImage(src,0,0,c.width,c.height);
@@ -4047,25 +4218,60 @@ function skRectify(im,corners){
     if(u<0||v<0||u>=im.width-1||v>=im.height-1){ o[k]=o[k+1]=o[k+2]=255; o[k+3]=255; continue; }
     const s=((v|0)*im.width+(u|0))*4; o[k]=src[s]; o[k+1]=src[s+1]; o[k+2]=src[s+2]; o[k+3]=255; }
   g.putImageData(od,0,0); return out; }
-function skLinesStep(){
+function skLinesStep(reread=true){
   skSteps(3);
-  const src=SK.src, k=Math.min(1,1000/Math.max(src.width,src.height)), cv=document.createElement("canvas");
-  cv.width=Math.round(src.width*k); cv.height=Math.round(src.height*k); cv.getContext("2d").drawImage(src,0,0,cv.width,cv.height);
-  SK.G=skAnalyse(cv,SK.sens); const A=SK.G;
+  if(reread || !SK.G || !SK.cv){
+    const src=SK.src, k=Math.min(1,1000/Math.max(src.width,src.height)), cv=document.createElement("canvas");
+    cv.width=Math.round(src.width*k); cv.height=Math.round(src.height*k); cv.getContext("2d",{willReadFrequently:true}).drawImage(src,0,0,cv.width,cv.height);
+    SK.flip={}; SK.cv=cv; SK.G=skAnalyse(cv,SK.sens); }
+  const A=SK.G, cv=SK.cv;
   const V=scCanvas(cv.width,cv.height), COL=["#e8590c","#1971c2","#2f9e44","#9c36b5","#c2255c","#0c8599","#f08c00"];
+  let drag=null;
+  const path=(g,P)=>{ g.beginPath(); P.forEach((p,j)=>j?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); };
+  const span=(s,a,b)=>{ const n=s.pts.length, out=[]; for(let j=a;j<=b;j++) out.push(s.pts[j%n]); return out; };
   const draw=()=>{ const g=V.g; g.setTransform(V.k,0,0,V.k,0,0); g.fillStyle="#fff"; g.fillRect(0,0,cv.width,cv.height); g.globalAlpha=0.45; g.drawImage(cv,0,0); g.globalAlpha=1;
-    g.lineCap="round"; g.lineJoin="round";
-    A.strokes.forEach((s,i)=>{ g.beginPath(); s.pts.forEach((p,j)=>j?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); if(s.closed) g.closePath(); g.lineWidth=Math.max(4,A.thick*1.2); g.strokeStyle=COL[i%COL.length]; g.stroke(); });
+    g.lineCap="round"; g.lineJoin="round"; const lw=Math.max(4,A.thick*1.2);
+    A.strokes.forEach((s,i)=>{ path(g,s.pts); if(s.closed) g.closePath(); g.lineWidth=lw; g.strokeStyle=COL[i%COL.length]; g.stroke(); });
+    // bridges (between ticks, drawn in red, or marked here)
+    const bridge=(P,col)=>{ path(g,P); g.lineWidth=Math.max(12,A.thick*3.2); g.strokeStyle=col.replace("1)",".35)"); g.stroke();
+      g.setLineDash([10,7]); g.lineWidth=2.5; g.strokeStyle=col; g.stroke(); g.setLineDash([]); };
+    A.strokes.forEach(s=>(s.raised||[]).forEach(({r:[a,b]})=>{ const P=span(s,a,b); bridge(P,"rgba(232,89,12,1)");
+      const m=P[P.length>>1]; g.font=`bold ${Math.max(14,A.thick*4)}px system-ui,sans-serif`; g.fillStyle="#e8590c"; g.textAlign="center"; g.fillText("bridge",m[0],m[1]-Math.max(14,A.thick*3)); }));
+    if(drag&&drag.b!=null&&drag.moved){ const [a,b]=skSpan(A.strokes[drag.si],drag.a,drag.b); bridge(span(A.strokes[drag.si],a,b),"rgba(47,111,222,1)"); }
+    // ticks that were found
+    (A.ticks||[]).forEach(t=>{ const L=Math.max(10,A.thick*3), nx=-Math.sin(t.a), ny=Math.cos(t.a);
+      g.beginPath(); g.moveTo(t.x-nx*L,t.y-ny*L); g.lineTo(t.x+nx*L,t.y+ny*L); g.lineWidth=Math.max(3,A.thick); g.strokeStyle=t.used?"#e8590c":"#adb5bd"; g.stroke(); });
     const nodeUse=new Set(); A.strokes.forEach(s=>{ s.ev.forEach(e=>nodeUse.add(e.node)); s.ends.forEach(e=>e!=null&&nodeUse.add(e)); });
+    // crossings: the pass that goes over is drawn on top, in a white casing
+    Object.entries(A.over||{}).forEach(([nd,o])=>{ const s=A.strokes[o.si], e=s.ev[o.k], n=s.pts.length, w=Math.round(Math.max(18,A.thick*6)); if(!e) return;
+      const P=[]; for(let j=-w;j<=w;j++){ const q=s.closed?(e.i+j+n)%n:e.i+j; if(q>=0&&q<n) P.push(s.pts[q]); }
+      path(g,P); g.lineWidth=lw+8; g.strokeStyle="#fff"; g.stroke(); path(g,P); g.lineWidth=lw; g.strokeStyle=COL[o.si%COL.length]; g.stroke(); });
     A.nodes.forEach((nd,ni)=>{ if(!nodeUse.has(ni)) return; const r=Math.max(9,A.thick*2);
       if(nd.kind==="switch"){ g.beginPath(); g.arc(nd.x,nd.y,r,0,7); g.fillStyle="#fff"; g.fill(); g.lineWidth=4; g.strokeStyle="#1971c2"; g.stroke(); }
-      else if(nd.kind==="cross"){ g.save(); g.translate(nd.x,nd.y); g.rotate(Math.PI/4); g.fillStyle="#fff"; g.fillRect(-r,-r,2*r,2*r); g.lineWidth=4; g.strokeStyle="#e8590c"; g.strokeRect(-r,-r,2*r,2*r); g.restore(); }
+      else if(nd.kind==="cross"){ g.save(); g.translate(nd.x,nd.y); g.rotate(Math.PI/4); g.lineWidth=3; g.strokeStyle="#e8590c"; g.strokeRect(-r*0.8,-r*0.8,1.6*r,1.6*r); g.restore(); }
       else if(nd.kind==="end"){ g.beginPath(); g.arc(nd.x,nd.y,r*0.6,0,7); g.fillStyle="#495057"; g.fill(); } });
-    const nsw=A.nodes.filter((n,i)=>n.kind==="switch"&&nodeUse.has(i)).length, ncr=A.nodes.filter((n,i)=>n.kind==="cross"&&nodeUse.has(i)).length;
+    const nsw=A.nodes.filter((n,i)=>n.kind==="switch"&&nodeUse.has(i)).length, ncr=A.nodes.filter((n,i)=>n.kind==="cross"&&nodeUse.has(i)).length, nrs=A.strokes.reduce((q,s)=>q+(s.raised||[]).length,0);
     scEl("skHint3").innerHTML = !A.strokes.length ? "<b>No lines found.</b> Raise <b>Line sensitivity</b>, use a darker pen, or keep the drawing away from the paper's edges."
-      : `Found <b>${A.strokes.length}</b> line${A.strokes.length>1?"s":""}${nsw?`, <b>${nsw}</b> switch${nsw>1?"es":""} (●)`:""}${ncr?`, <b>${ncr}</b> crossing${ncr>1?"s":""} (◆)`:""}. `+
+      : `Found <b>${A.strokes.length}</b> line${A.strokes.length>1?"s":""}${nsw?`, <b>${nsw}</b> switch${nsw>1?"es":""} (●)`:""}${ncr?`, <b>${ncr}</b> crossing${ncr>1?"s":""} (◆)`:""}${nrs?`, <b>${nrs}</b> bridge${nrs>1?"s":""}`:""}. `+
+        `<b>Drag along a line</b> to make a bridge, tap a bridge to remove it${ncr?", tap a crossing to swap which track goes over":""}. `+
         (SK.mode==="inv" ? "Uses only <b>your pieces</b>; the size is chosen to suit them." : "Uses <b>any pieces</b> of the brands you pick, and lists what you'd need.");
   };
+  // editing: nearest line point to the finger
+  const near=(p,tol)=>{ let best=null; A.strokes.forEach((s,si)=>s.pts.forEach((q,i)=>{ const d=Math.hypot(q[0]-p[0],q[1]-p[1]); if(d<tol&&(!best||d<best.d)) best={si,i,d}; })); return best; };
+  const tolPx=()=>22*cv.width/V.cv.getBoundingClientRect().width;
+  V.cv.onpointerdown=e=>{ const p=V.toImg(e), h=near(p,tolPx()); drag={p,si:h?h.si:-1,a:h?h.i:null,b:null,moved:false}; V.cv.setPointerCapture(e.pointerId); };
+  V.cv.onpointermove=e=>{ if(!drag||drag.si<0) return; const p=V.toImg(e); if(Math.hypot(p[0]-drag.p[0],p[1]-drag.p[1])>tolPx()*0.7) drag.moved=true;
+    const s=A.strokes[drag.si]; let bi=-1, bd=1e18; s.pts.forEach((q,i)=>{ const d=(q[0]-p[0])**2+(q[1]-p[1])**2; if(d<bd){ bd=d; bi=i; } }); drag.b=bi; if(drag.moved) draw(); };
+  V.cv.onpointerup=e=>{ const d=drag; drag=null; if(!d) return;
+    if(d.moved && d.si>=0 && d.b!=null){ const s=A.strokes[d.si], [a,b]=skSpan(s,d.a,d.b);
+      if(skLen(span(s,a,b))>=0.04*A.diag){ s.raised=s.raised.filter(({r})=>!(r[0]<=b&&a<=r[1])); s.raised.push({r:[a,b],how:"tap"}); skDecideOver(A); } draw(); return; }
+    // a tap: on a crossing → swap; on a bridge → remove it
+    const p=d.p, tol=tolPx();
+    const ci=A.nodes.findIndex((nd,ni)=>nd.kind==="cross"&&A.over&&A.over[ni]&&Math.hypot(nd.x-p[0],nd.y-p[1])<tol*1.3);
+    if(ci>=0){ SK.flip[ci]=!SK.flip[ci]; skDecideOver(A); draw(); return; }
+    const h=near(p,tol); if(h){ const s=A.strokes[h.si], n=s.pts.length, k=s.raised.findIndex(({r})=>(h.i>=r[0]&&h.i<=r[1])||(h.i+n>=r[0]&&h.i+n<=r[1]));
+      if(k>=0){ s.raised.splice(k,1); skDecideOver(A); draw(); toast("Bridge removed"); } } };
+  V.cv.onpointercancel=()=>{ drag=null; draw(); };
   const hasCustom=typeList.some(t=>brandOf(t)==="Custom"), ncr=A.nodes.filter(n=>n.kind==="cross").length;
   scEl("scFoot").innerHTML=`<span class="hint" id="skHint3"></span>
     <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">Pieces: <button class="chip ${SK.mode==="inv"?"on":""}" data-skmode="inv">My pieces</button><button class="chip ${SK.mode==="any"?"on":""}" data-skmode="any">Any pieces</button>
@@ -4073,9 +4279,11 @@ function skLinesStep(){
     <span style="display:flex;gap:6px;align-items:center">Size: <button class="chip ${SK.auto?"on":""}" id="skAuto">Auto</button>
       <label style="display:flex;gap:4px;align-items:center">longest side <input type="number" id="skSize" min="40" max="1000" step="10" value="${SK.size||""}" placeholder="${SK.mode==="inv"?"fits your track":(S.gen?S.gen.w:200)}" style="width:76px;padding:8px"> cm</label></span>
     ${ncr?`<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skBr" ${SK.bridges?"checked":""}> bridges where lines cross</label>`:""}
+    <span style="display:flex;gap:6px;align-items:center">Follow drawing: ${[["straight","Straighter"],["balanced","Balanced"],["exact","Exact"]].map(([k,t])=>`<button class="chip ${SK.follow===k?"on":""}" data-skfollow="${k}">${t}</button>`).join("")}</span>
     <label style="display:flex;gap:6px;align-items:center">Line sensitivity <input type="range" id="skSens" min="1" max="10" value="${SK.sens}" style="width:120px"></label>
     <span class="sp"></span><button id="skBack3">Back</button><button id="skGo" class="primary big" ${A.strokes.length?"":"disabled"}>Make the track</button>`;
-  scEl("scFoot").querySelectorAll("[data-skmode]").forEach(b=>b.onclick=()=>{ SK.mode=b.dataset.skmode; skLinesStep(); });
+  scEl("scFoot").querySelectorAll("[data-skmode]").forEach(b=>b.onclick=()=>{ SK.mode=b.dataset.skmode; skLinesStep(false); });
+  scEl("scFoot").querySelectorAll("[data-skfollow]").forEach(b=>b.onclick=()=>{ SK.follow=b.dataset.skfollow; scEl("scFoot").querySelectorAll("[data-skfollow]").forEach(q=>q.classList.toggle("on",q===b)); });
   scEl("scFoot").querySelectorAll("[data-skbrand]").forEach(b=>b.onclick=()=>{ SK.brands[b.dataset.skbrand]=!SK.brands[b.dataset.skbrand]; b.classList.toggle("on",SK.brands[b.dataset.skbrand]); });
   const ret=scEl("skRet"); if(ret) ret.onchange=()=>SK.retired=ret.checked;
   const br=scEl("skBr"); if(br) br.onchange=()=>SK.bridges=br.checked;
@@ -4089,7 +4297,7 @@ function skLinesStep(){
   draw(); }
 function skMake(){
   let res=null; try{ res=skBestBuild(SK.G,{mode:SK.mode,auto:SK.auto||!SK.size,size:SK.size,bridges:SK.bridges,K:8,t0:performance.now()}); }catch(err){ console.error(err); }
-  if(!res||!res.pieces.length){ toast("Couldn't make a track from that drawing — try Any pieces, a bigger size, or a simpler drawing",5000); skLinesStep(); return; }
+  if(!res||!res.pieces.length){ toast("Couldn't make a track from that drawing — try Any pieces, a bigger size, or a simpler drawing",5000); skLinesStep(false); return; }
   const R=res.report;
   snapshot(); S.pieces=res.pieces.map(p=>({id:S.nextId++,type:p.type,x:p.x,y:p.y,rot:normA(p.rot),mirror:!!p.mirror,level:p.level||0}));
   S.sketch={lines:res.strokes, ids:S.pieces.map(p=>p.id)}; sel=null; active=null; GEN.kind="From a drawing"; save(); refresh();
@@ -4100,9 +4308,9 @@ function skMake(){
   const bits=[`${R.n} pieces`, size, `on average ${R.rms<10?"<1":Math.round(R.rms/10)} cm from your lines`];
   if(R.bridges) bits.push(`${R.bridges} bridge${R.bridges>1?"s":""}`);
   if(R.partial) bits.push(SK.mode==="inv"?"not every line could be laid with your pieces":"not every line could be followed");
-  if(open||R.gaps.length) bits.push(`${Math.max(open,R.gaps.length)} gap${Math.max(open,R.gaps.length)>1?"s":""} left to close by hand`);
+  if(open) bits.push(`${open} gap${open>1?"s":""} left to close by hand`);
   if(R.noSwitch) bits.push(`no fitting switch for ${R.noSwitch} branch${R.noSwitch>1?"es":""}`);
-  if(R.noBridge) bits.push(`${R.noBridge} crossing${R.noBridge>1?"s":""} without a bridge${SK.mode==="inv"?" (needs 2 ramps and a deck)":""}`);
+  if(R.noBridge) bits.push(`${R.noBridge} bridge${R.noBridge>1?"s":""} couldn't be built${SK.mode==="inv"?" (needs 2 ramps and a deck)":""}`);
   toast("✏️ "+bits.filter(Boolean).join(" · "), 6500);
   if(SK.mode==="any" && R.need.length) skShowNeed(R);
 }
@@ -4118,7 +4326,7 @@ function skShowNeed(R){
 scEl("skFile").onchange=e=>{ const f=e.target.files[0]; if(!f) return; const im=new Image();
   im.onload=()=>{ skUseImage(im); URL.revokeObjectURL(im.src); }; im.src=URL.createObjectURL(f); e.target.value=""; };
 document.getElementById("bSketch").onclick=openSketch;
-window.__skRect=skRectify; window.__sketch={skInk,skGraph,skTidy,skBridgeGaps,skStrokes,SK,skAnalyse,skBuild,skBestBuild,skMoves,skExample,skLinesStep,skMake,openSketch};
+window.__skRect=skRectify; window.__sketch={skLen,skInk,skGraph,skTidy,skBridgeGaps,skStrokes,SK,skAnalyse,skBuild,skBestBuild,skMoves,skExample,skLinesStep,skMake,openSketch};
 
 window.__dbg={_tp:()=>{ const mine={}, lots={}; typeList.forEach(t=>{ mine[t.id]=S.inv[t.id]||0; lots[t.id]=6; }); const r={}; let t0=performance.now(); const O=genOptions(); r.opt=performance.now()-t0; t0=performance.now(); const M=genMacros(mine); r.macMine=performance.now()-t0; t0=performance.now(); genPasses(O,mine,8); r.passMine=performance.now()-t0; t0=performance.now(); genMacros(lots); r.macLots=performance.now()-t0; t0=performance.now(); genPasses(O,lots,8); r.passLots=performance.now()-t0; const Om=tplOpts(mine); TPL.forEach(tp=>{ t0=performance.now(); tplBuild(tp,mine,Om); r[tp.name]=Math.round(performance.now()-t0); }); return r; },passes:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genPasses(genOptions(),a).length; }, samples:p=>pieceSamples(p,10), wc:p=>worldConns(p), macros:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genMacros(a); }, eight:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); const O=genOptions(); O.macros=genMacros(a); let ok=0; for(let i=0;i<500;i++) if(genEight(O,a)) ok++; return ok; }};
 window.__planner={generateLayout, runGenerator, addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
