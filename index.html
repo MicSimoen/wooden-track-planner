@@ -410,6 +410,7 @@
       <button id="bTrainM" class="phoneonly">🚂 Run a train</button>
       <button id="bBuild">👷 Build it step by step</button>
       <button id="bTpl">📐 Classic layouts</button>
+      <button id="bSketch">✏️ Track from a drawing</button>
       <button id="bShare">🔗 Share this track</button>
       <button id="bSettings">⚙︎ Play area &amp; settings</button>
       <button id="bFitM" class="phoneonly">⤢ Show the whole track</button>
@@ -537,6 +538,7 @@
   <div id="scFoot" class="scfoot"></div>
 </div>
 <input type="file" id="scFile" accept="image/*" style="display:none">
+<input type="file" id="skFile" accept="image/*" style="display:none">
 
 <script>
 (() => {
@@ -1128,6 +1130,9 @@ function renderFloor(){
   const el=document.getElementById("layerFloor"); const f=S.gen&&S.gen.show&&S.floor;
   el.innerHTML = f ? `<rect x="${-f.w/2}" y="${-f.d/2}" width="${f.w}" height="${f.d}" fill="#fff8e8" fill-opacity=".55" stroke="#c99a60" stroke-width="3" stroke-dasharray="18 10" rx="6"/>
     <text x="${-f.w/2+12}" y="${-f.d/2+28}" font-size="22" fill="#a8794a">Floor ${Math.round(f.w/10)} × ${Math.round(f.d/10)} cm</text>` : "";
+  // the drawing a track was made from, faintly underneath it (while any of those pieces are still on the plan)
+  const sk=S.sketch; if(sk && S.sketchShow!==false && sk.lines && S.pieces.some(p=>sk.ids.includes(p.id)))
+    el.innerHTML+=sk.lines.map(P=>`<polyline points="${P.map(q=>q[0]+","+q[1]).join(" ")}" fill="none" stroke="#2f6fde" stroke-opacity=".28" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>`).join("");
 }
 function refresh(full=true){
   computeLinks(); renderFloor(); renderPieces(); if(typeof updateLike==="function") updateLike(); if(typeof buildPaint==="function") buildPaint(); const free=renderMarks(); renderStatus(free);
@@ -3060,7 +3065,7 @@ function classify(b){
 
 /* -- steps & UI -- */
 function scSetSteps(n){ SC.step=n; scEl("scSteps").textContent=["","1 Photo","2 Paper corners","3 Colours","4 Check"][n]?`Step ${n} of 4 · ${["","Photo","Paper corners","Colours","Check results"][n]}`:""; }
-function openScan(){ scEl("scan").classList.add("show"); scPhotoStep(); }
+function openScan(){ scEl("scTitle").textContent="Scan pieces"; scEl("scan").classList.add("show"); scPhotoStep(); }
 function closeScan(){ stopCam(); scEl("scan").classList.remove("show"); }
 function stopCam(){ if(SC.stream){ SC.stream.getTracks().forEach(t=>t.stop()); SC.stream=null; } }
 scEl("scClose").onclick=closeScan;
@@ -3353,6 +3358,768 @@ function scAddToInv(){
   let n=0; SC.bodies.forEach(b=>{ if(b.pick){ S.inv[b.pick]=(S.inv[b.pick]||0)+(b.mult||1); n+=(b.mult||1); } });
   SC.bodies=[]; refresh(); if(n) toast(`Added ${n} piece${n>1?"s":""} to your inventory`);
 }
+/* ---------- Track from a drawing ----------
+   Draw the track on paper → photo or scan → (optional) tap the paper's corners → the lines are found (ink that is darker
+   than the paper around it), thinned to centre lines and turned into a graph: line ends, switches (three lines meet) and
+   crossings (four lines meet; a line drawn with a gap where it crosses another goes UNDER it). Lines are chained into
+   strokes through switches (the straightest pair continues) and crossings, then each stroke is followed with real pieces
+   (see skSearch). Two modes: only the pieces you own, or any pieces of the brands you pick (plus what you'd need). */
+const SK={img:null, src:null, corners:[], sens:5, mode:"inv", brands:{BRIO:true,IKEA:true,Custom:true}, retired:false,
+          size:0, auto:true, bridges:true, G:null, flip:{}};
+
+/* ink = noticeably darker than the paper around it (local mean over a big box, from an integral image) */
+function skInk(cv,sens){
+  const w=cv.width, h=cv.height, n=w*h, d=cv.getContext("2d").getImageData(0,0,w,h).data, G=grayOf(d,n);
+  const valid=new Uint8Array(n); for(let i=0;i<n;i++) valid[i]=d[i*4+3]>200?1:0;
+  const r=Math.max(8,Math.round(Math.max(w,h)/28)), W1=w+1, I=new Float64Array(W1*(h+1)), C=new Float64Array(W1*(h+1));
+  for(let y=0;y<h;y++){ let rs=0, rn=0; for(let x=0;x<w;x++){ const i=y*w+x; if(valid[i]){ rs+=G[i]; rn++; }
+    I[(y+1)*W1+x+1]=I[y*W1+x+1]+rs; C[(y+1)*W1+x+1]=C[y*W1+x+1]+rn; } }
+  const D=new Float32Array(n);
+  for(let y=0;y<h;y++){ const y0=Math.max(0,y-r), y1=Math.min(h,y+r+1);
+    for(let x=0;x<w;x++){ const i=y*w+x; if(!valid[i]) continue; const x0=Math.max(0,x-r), x1=Math.min(w,x+r+1);
+      const s=I[y1*W1+x1]-I[y0*W1+x1]-I[y1*W1+x0]+I[y0*W1+x0], c=C[y1*W1+x1]-C[y0*W1+x1]-C[y1*W1+x0]+C[y0*W1+x0];
+      D[i]=s/Math.max(1,c)-G[i]; } }
+  // threshold from the paper's own noise; sensitivity 1 (only bold lines) … 10 (faint pencil too)
+  const vals=[]; for(let i=0;i<n;i+=5) if(valid[i]) vals.push(D[i]); vals.sort((a,b)=>a-b);
+  const med=vals[vals.length>>1]||0, mad=Math.max(1,(vals.map(v=>Math.abs(v-med)).sort((a,b)=>a-b)[vals.length>>1]||1)*1.4826);
+  const T=Math.max(6+(10-sens)*2.2, med+(2.5+(10-sens)*0.8)*mad);
+  // strong pixels start a line, weaker ones (half the threshold) may continue it: pencil strokes stay in one piece
+  const weak=new Uint8Array(n); for(let i=0;i<n;i++) weak[i]=valid[i]&&D[i]>T*0.55?1:0;
+  const wc=components(weak,w,h,1,true), strong=new Set();
+  for(let i=0;i<n;i++) if(wc.lab[i] && D[i]>T) strong.add(wc.lab[i]);
+  let m=new Uint8Array(n); for(let i=0;i<n;i++) if(weak[i] && strong.has(wc.lab[i])) m[i]=1;
+  m=closeM(m,w,h,1);
+  // drop specks and anything touching the picture's edge (paper edges, table, shadows)
+  const cc=components(m,w,h,1,true), keep=new Set(), minPx=Math.max(30,n*0.00006), touch=new Set();
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ if(x>2&&y>2&&x<w-3&&y<h-3) continue; const l=cc.lab[y*w+x]; if(l) touch.add(l); }
+  cc.comps.forEach(c=>{ if(c.n>=minPx && !touch.has(c.id)) keep.add(c.id); });
+  for(let i=0;i<n;i++) m[i]=keep.has(cc.lab[i])?1:0;
+  // fill small holes (a thick marker line drawn twice leaves slivers of paper that would become tiny loops)
+  const inv=new Uint8Array(n); for(let i=0;i<n;i++) inv[i]=m[i]?0:1;
+  const hc=components(inv,w,h,1,false), holeMax=Math.pow(Math.max(w,h)/45,2);
+  const outer=new Set(); for(let x=0;x<w;x++){ outer.add(hc.lab[x]); outer.add(hc.lab[(h-1)*w+x]); } for(let y=0;y<h;y++){ outer.add(hc.lab[y*w]); outer.add(hc.lab[y*w+w-1]); }
+  const fill=new Set(); hc.comps.forEach(c=>{ if(c.n<holeMax && !outer.has(c.id)) fill.add(c.id); });
+  for(let i=0;i<n;i++) if(fill.has(hc.lab[i])) m[i]=1;
+  return {m,w,h};
+}
+
+/* skeleton → graph. Pixels are classed by their crossing number (0→1 changes around the 8 neighbours):
+   1 = line end, 2 = on a line, ≥3 = junction. Touching end/junction pixels form one node. */
+function skGraph(sk,w,h){
+  const n=w*h, OFF=[[0,-1],[1,-1],[1,0],[1,1],[0,1],[-1,1],[-1,0],[-1,-1]], at=(x,y)=>x>=0&&y>=0&&x<w&&y<h&&sk[y*w+x]===1;
+  const cn=new Int8Array(n).fill(-1);
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const i=y*w+x; if(!sk[i]) continue; let t=0,b=0;
+    for(let k=0;k<8;k++){ const a=at(x+OFF[k][0],y+OFF[k][1]), c=at(x+OFF[(k+1)%8][0],y+OFF[(k+1)%8][1]); if(a) b++; if(!a&&c) t++; }
+    cn[i]= b===0 ? 0 : (t===0 ? 3 : t); }
+  const cl=new Int32Array(n), nodes=[];
+  for(let i=0;i<n;i++){ if(cn[i]===2||cn[i]<1||cl[i]) continue;
+    const id=nodes.length+1, st=[i]; cl[i]=id; let sx=0,sy=0,c=0, px=[];
+    while(st.length){ const k=st.pop(), x=k%w, y=(k/w)|0; sx+=x; sy+=y; c++; px.push(k);
+      for(const [dx,dy] of OFF){ const xx=x+dx, yy=y+dy; if(!at(xx,yy)) continue; const kk=yy*w+xx; if(cl[kk]||cn[kk]===2) continue; cl[kk]=id; st.push(kk); } }
+    nodes.push({x:sx/c+0.5, y:sy/c+0.5, px}); }
+  const vis=new Uint8Array(n), edges=[];
+  const step=(cur,prev,startId,len)=>{   // next pixel: a node ends the edge; else an unvisited line pixel, straight neighbours first
+    const x=cur%w, y=(cur/w)|0; let endAt=0;
+    for(const [dx,dy] of OFF){ const xx=x+dx, yy=y+dy; if(!at(xx,yy)) continue; const k=yy*w+xx; if(k===prev) continue;
+      if(cl[k] && (cl[k]!==startId || len>6)) { endAt=cl[k]; break; } }
+    if(endAt) return {end:endAt};
+    let nx=-1;
+    for(const pass of [0,1]) for(let j=0;j<8 && nx<0;j++){ if((j%2===1)!==(pass===1)) continue; const [dx,dy]=OFF[j], xx=x+dx, yy=y+dy;
+      if(!at(xx,yy)) continue; const k=yy*w+xx; if(k===prev||vis[k]||cl[k]) continue; nx=k; }
+    return {next:nx}; };
+  nodes.forEach((nd,ni)=>{ const id=ni+1;
+    nd.px.forEach(p=>{ const x=p%w, y=(p/w)|0;
+      for(const [dx,dy] of OFF){ const xx=x+dx, yy=y+dy; if(!at(xx,yy)) continue; const q=yy*w+xx; if(cl[q]||vis[q]) continue;
+        vis[q]=1; const pts=[[nd.x,nd.y],[xx+0.5,yy+0.5]]; let cur=q, prev=p, b=0;
+        for(let guard=0;guard<n;guard++){ const r=step(cur,prev,id,pts.length);
+          if(r.end){ b=r.end; break; } if(r.next<0) break;
+          vis[r.next]=1; prev=cur; cur=r.next; pts.push([cur%w+0.5,((cur/w)|0)+0.5]); }
+        if(!b){ // ran out inside a junction clump: attach to a node pixel within 3 px
+          const x=cur%w, y=(cur/w)|0; let bd=1e9;
+          for(let dy=-3;dy<=3;dy++) for(let dx=-3;dx<=3;dx++){ const xx=x+dx, yy=y+dy; if(!at(xx,yy)) continue; const c2=cl[yy*w+xx];
+            if(c2 && (c2!==id||pts.length>12) && dx*dx+dy*dy<bd){ bd=dx*dx+dy*dy; b=c2; } } }
+        if(b){ pts.push([nodes[b-1].x,nodes[b-1].y]); edges.push({a:ni,b:b-1,pts}); }
+        else edges.push({a:ni,b:-1,pts});             // ran out (shouldn't happen): a loose end
+      } }); });
+  // lines with no ends or junctions at all: closed loops
+  for(let i=0;i<n;i++){ if(cn[i]!==2||vis[i]) continue; vis[i]=1; const pts=[[i%w+0.5,((i/w)|0)+0.5]]; let cur=i, prev=-1, back=false;
+    for(let guard=0;guard<n;guard++){ const x=cur%w, y=(cur/w)|0; let nx=-1;
+      for(const pass of [0,1]) for(let j=0;j<8&&nx<0;j++){ if((j%2===1)!==(pass===1)) continue; const xx=x+OFF[j][0], yy=y+OFF[j][1]; if(!at(xx,yy)) continue; const k=yy*w+xx;
+        if(k===i && pts.length>8 && k!==prev){ back=true; break; } if(k===prev||vis[k]) continue; nx=k; }
+      if(back||nx<0) break; vis[nx]=1; prev=cur; cur=nx; pts.push([nx%w+0.5,((nx/w)|0)+0.5]); }
+    if(pts.length>20) edges.push({a:-1,b:-1,pts,closed:true}); }
+  // loose ends (b=-1) become their own end nodes
+  edges.forEach(e=>{ if(e.closed) return; if(e.b<0){ const q=e.pts[e.pts.length-1]; nodes.push({x:q[0],y:q[1],px:[]}); e.b=nodes.length-1; } });
+  return {nodes:nodes.map(q=>({x:q.x,y:q.y})), edges};
+}
+const skLen=P=>{ let L=0; for(let i=1;i<P.length;i++) L+=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]); return L; };
+/* the direction a line leaves node `end` (0 = its start, 1 = its end), looking dd along it */
+function skDir(e,end,dd){ const P=end?e.pts.slice().reverse():e.pts, o=P[0]; let acc=0, q=P[P.length-1];
+  for(let i=1;i<P.length;i++){ acc+=Math.hypot(P[i][0]-P[i-1][0],P[i][1]-P[i-1][1]); if(acc>=dd){ q=P[i]; break; } }
+  return Math.atan2(q[1]-o[1],q[0]-o[0]); }
+/* remove spurs and specks, merge junctions that thinning split in two, join lines through 2-way nodes */
+function skTidy(Gr,thick,diag){
+  const N=Gr.nodes, deg=()=>{ N.forEach(q=>q.deg=0); Gr.edges.forEach(e=>{ if(e.closed||e.dead) return; N[e.a].deg++; N[e.b].deg++; }); };
+  for(let it=0; it<600; it++){ let ch=false; deg();
+    for(const e of Gr.edges){ if(e.dead||e.closed) continue; const L=skLen(e.pts), da=N[e.a].deg, db=N[e.b].deg;
+      if(e.a===e.b && L<Math.max(5*thick,0.04*diag)){ e.dead=true; ch=true; break; }                      // tiny loop (hole)
+      if(e.a!==e.b && ((da===1&&db>=3)||(db===1&&da>=3)) && L<Math.max(3*thick,0.035*diag)){ e.dead=true; ch=true; break; }   // spur
+      if(da===1&&db===1 && L<0.05*diag){ e.dead=true; ch=true; break; }                                      // speck
+      if(e.a!==e.b && da>=3 && db>=3 && L<Math.max(2.5*thick,0.03*diag)){                                    // split junction
+        const A=N[e.a], B=N[e.b]; A.x=(A.x+B.x)/2; A.y=(A.y+B.y)/2;
+        Gr.edges.forEach(f=>{ if(f===e||f.dead||f.closed) return; if(f.a===e.b){ f.a=e.a; f.pts[0]=[A.x,A.y]; } if(f.b===e.b){ f.b=e.a; f.pts[f.pts.length-1]=[A.x,A.y]; } });
+        e.dead=true; ch=true; break; } }
+    if(ch) continue;
+    for(let ni=0; ni<N.length; ni++){ if(N[ni].deg!==2) continue;
+      const es=Gr.edges.filter(e=>!e.dead&&!e.closed&&(e.a===ni||e.b===ni));
+      if(es.length===1){ const e=es[0]; e.closed=true; e.a=e.b=-1; ch=true; break; }                         // a loop through a 2-way node
+      const [e1,e2]=es, p1=e1.b===ni?e1.pts:e1.pts.slice().reverse(), p2=e2.a===ni?e2.pts:e2.pts.slice().reverse();
+      const a=e1.b===ni?e1.a:e1.b, b=e2.a===ni?e2.b:e2.a;
+      e1.pts=p1.concat(p2.slice(1)); e1.a=a; e1.b=b; e2.dead=true;
+      if(a===b && a===ni){ e1.closed=true; e1.a=e1.b=-1; }
+      ch=true; break; }
+    if(!ch) break; }
+  Gr.edges=Gr.edges.filter(e=>!e.dead); deg();
+}
+/* A line drawn with a gap where it passes another one goes under it (or the pen just skipped): join two line ends that
+   face each other across a short gap. If the join crosses a line, that becomes a crossing with this line underneath. */
+function skBridgeGaps(Gr,thick,diag){
+  const N=Gr.nodes, ends=[]; N.forEach((q,i)=>q.deg=0); Gr.edges.forEach(e=>{ if(e.closed) return; N[e.a].deg++; N[e.b].deg++; });
+  Gr.edges.forEach(e=>{ if(e.closed) return; [0,1].forEach(s=>{ const ni=s?e.b:e.a; if(N[ni].deg!==1) return;
+    ends.push({ni,e,s,dir:skDir(e,s,Math.max(4*thick,0.04*diag))+Math.PI}); }); });
+  const segX=(p,q,a,b)=>{ const d=(q[0]-p[0])*(b[1]-a[1])-(q[1]-p[1])*(b[0]-a[0]); if(Math.abs(d)<1e-9) return null;
+    const t=((a[0]-p[0])*(b[1]-a[1])-(a[1]-p[1])*(b[0]-a[0]))/d, u=((a[0]-p[0])*(q[1]-p[1])-(a[1]-p[1])*(q[0]-p[0]))/d;
+    return t>0.02&&t<0.98&&u>=0&&u<=1 ? {t,u} : null; };
+  const pairs=[];
+  for(let i=0;i<ends.length;i++) for(let j=i+1;j<ends.length;j++){ const A=ends[i], B=ends[j]; if(A.e===B.e && A.e.a!==A.e.b && skLen(A.e.pts)<0.3*diag) continue;
+    const P=N[A.ni], Q=N[B.ni], d=Math.hypot(Q.x-P.x,Q.y-P.y); if(d>0.12*diag) continue;
+    let e1, e2;
+    if(d<3*thick){ e1=e2=Math.abs(normA(A.dir-B.dir-Math.PI))/2; if(e1>0.6) continue; }   // ends almost touching: just carry on
+    else { const ab=Math.atan2(Q.y-P.y,Q.x-P.x); e1=Math.abs(normA(ab-A.dir)); e2=Math.abs(normA(ab+Math.PI-B.dir)); if(e1>0.55||e2>0.55) continue; }
+    let hit=null; for(const f of Gr.edges){ for(let k=1;k<f.pts.length;k++){ const x=segX([P.x,P.y],[Q.x,Q.y],f.pts[k-1],f.pts[k]); if(x){ hit={f,k,x}; break; } } if(hit) break; }
+    if(!hit && d>0.035*diag) continue;
+    if(d<3*thick) hit=null;
+    pairs.push({A,B,d,hit,sc:d*(1+e1+e2)}); }
+  pairs.sort((a,b)=>a.sc-b.sc); const used=new Set(), gaps=[];
+  for(const pr of pairs){ if(used.has(pr.A.ni)||used.has(pr.B.ni)) continue; used.add(pr.A.ni); used.add(pr.B.ni);
+    const P=N[pr.A.ni], Q=N[pr.B.ni];
+    if(!pr.hit){ Gr.edges.push({a:pr.A.ni,b:pr.B.ni,pts:[[P.x,P.y],[Q.x,Q.y]]}); continue; }
+    // split the crossed line at the crossing point and add the two halves of the join through a new 4-way node
+    const {f,k,x}=pr.hit, X=[P.x+(Q.x-P.x)*x.t, P.y+(Q.y-P.y)*x.t]; N.push({x:X[0],y:X[1]}); const xi=N.length-1;
+    const f2={a:xi,b:f.b,pts:[X,...f.pts.slice(k)]}; f.pts=[...f.pts.slice(0,k),X]; f.b=xi; Gr.edges.push(f2);
+    Gr.edges.push({a:pr.A.ni,b:xi,pts:[[P.x,P.y],X]},{a:xi,b:pr.B.ni,pts:[X,[Q.x,Q.y]]});
+    N[xi].gapDir=Math.atan2(Q.y-P.y,Q.x-P.x); gaps.push({x:X[0],y:X[1],node:xi}); }
+  return gaps;
+}
+/* pair up the lines at every node: at a switch the straightest pair carries on and the third line branches off; at a
+   crossing the two straightest pairs carry on */
+function skStrokes(Gr,thick,diag){
+  const N=Gr.nodes, at=N.map(()=>[]), dd=Math.max(3*thick,0.03*diag);
+  Gr.edges.forEach((e,ei)=>{ if(e.closed) return; at[e.a].push({ei,s:0,dir:skDir(e,0,dd)}); at[e.b].push({ei,s:1,dir:skDir(e,1,dd)}); });
+  const mate=new Map(), K=(ei,s)=>ei*2+s, dev=(p,q)=>Math.abs(Math.abs(normA(p.dir-q.dir))-Math.PI);
+  N.forEach((nd,ni)=>{ const E=at[ni]; nd.kind=E.length===1?"end":E.length===3?"switch":E.length===4?"cross":E.length===2?"pass":E.length?"multi":"none";
+    const left=E.slice();
+    if(E.length===4){ const opts=[[0,1,2,3],[0,2,1,3],[0,3,1,2]].map(o=>({o,c:dev(E[o[0]],E[o[1]])+dev(E[o[2]],E[o[3]])})).sort((a,b)=>a.c-b.c);
+      const o=opts[0].o; mate.set(K(E[o[0]].ei,E[o[0]].s),E[o[1]]); mate.set(K(E[o[1]].ei,E[o[1]].s),E[o[0]]);
+      mate.set(K(E[o[2]].ei,E[o[2]].s),E[o[3]]); mate.set(K(E[o[3]].ei,E[o[3]].s),E[o[2]]); return; }
+    // a loop that leaves and comes back to the same switch nearly straight is the main line (an oval with a siding)
+    const loopBonus=(p,q)=>p.ei===q.ei&&Gr.edges[p.ei].a===Gr.edges[p.ei].b&&dev(p,q)<0.6?0.45:0;
+    while(left.length>=2){ let bi=0,bj=1,bc=1e9; for(let i=0;i<left.length;i++) for(let j=i+1;j<left.length;j++){ const c=dev(left[i],left[j])-loopBonus(left[i],left[j]); if(c<bc){bc=c;bi=i;bj=j;} }
+      if(E.length>=3 && bc>2.2) break;      // nothing continues (three lines meeting at sharp angles): leave them as ends
+      const p=left[bi], q=left[bj]; mate.set(K(p.ei,p.s),q); mate.set(K(q.ei,q.s),p); left.splice(bj,1); left.splice(bi,1);
+      if(E.length===3) break; }
+    nd.branch=E.length===3&&left.length===1?left[0]:null; });
+  // walk the pairings into strokes
+  const done=new Set(), strokes=[];
+  Gr.edges.forEach((e,ei)=>{ if(e.closed){ strokes.push({pts:e.pts.slice(),closed:true,ev:[],ends:[null,null]}); done.add(ei); } });
+  const walk=(ei,s)=>{ // from edge ei entered at end s, return list of [ei,s] in order
+    const out=[]; let cur={ei,s};
+    for(let g=0; g<1000; g++){ out.push(cur); done.add(cur.ei); const far=1-cur.s, m=mate.get(K(cur.ei,far)); if(!m) return {out,closed:false};
+      if(m.ei===out[0].ei && m.s===out[0].s) return {out,closed:true};
+      cur={ei:m.ei,s:m.s}; }
+    return {out,closed:false}; };
+  Gr.edges.forEach((e,ei)=>{ if(done.has(ei)) return;
+    // go back to where this chain starts
+    let st={ei,s:0}; const seen=new Set([K(ei,0)]);
+    for(let g=0;g<1000;g++){ const m=mate.get(K(st.ei,st.s)); if(!m) break; const back={ei:m.ei,s:1-m.s}; if(seen.has(K(back.ei,back.s))){ st={ei,s:0}; break; } seen.add(K(back.ei,back.s)); st=back; }
+    const {out,closed}=walk(st.ei,st.s), pts=[], ev=[];
+    out.forEach((c,k)=>{ const E=Gr.edges[c.ei], P=c.s?E.pts.slice().reverse():E.pts, ni=c.s?E.b:E.a;
+      if(k>0){ ev.push({node:ni, i:pts.length-1}); pts.push(...P.slice(1)); } else pts.push(...P); });
+    const first=out[0], last=out[out.length-1], E0=Gr.edges[first.ei], E1=Gr.edges[last.ei];
+    const n0=first.s?E0.b:E0.a, n1=last.s?E1.a:E1.b;
+    if(closed) ev.push({node:n0, i:pts.length-1});
+    // a crossing drawn with a gap: the pass running along the gap goes under
+    ev.forEach(q=>{ const nd=N[q.node]; if(nd.gapDir==null) return; const P=pts, a=P[Math.max(0,q.i-4)], b=P[Math.min(P.length-1,q.i+4)];
+      const d=Math.atan2(b[1]-a[1],b[0]-a[0]), x=Math.abs(normA(d-nd.gapDir)); q.under=Math.min(x,Math.PI-x)<0.5; });
+    strokes.push({pts,closed,ev,ends:closed?[null,null]:[n0,n1]}); });
+  return strokes;
+}
+/* the whole picture → strokes, in image pixels */
+function skAnalyse(cv,sens){
+  const {m,w,h}=skInk(cv,sens); let sk=thin(m,w,h); let skN=0, inkN=0; for(let i=0;i<w*h;i++){ skN+=sk[i]; inkN+=m[i]; }
+  const thick=Math.max(1.5,inkN/Math.max(1,skN)); sk=prune(sk,w,h,Math.round(thick)+2);
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(let i=0;i<w*h;i++) if(sk[i]){ const x=i%w,y=(i/w)|0; x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y); }
+  const diag=x1>x0?Math.hypot(x1-x0,y1-y0):Math.hypot(w,h);
+  const Gr=skGraph(sk,w,h); skTidy(Gr,thick,diag); const gaps=skBridgeGaps(Gr,thick,diag); skTidy(Gr,thick,diag);
+  const strokes=skStrokes(Gr,thick,diag).filter(s=>skLen(s.pts)>0.06*diag || s.closed&&skLen(s.pts)>0.15*diag);
+  return {w,h,thick,diag,nodes:Gr.nodes,strokes,gaps,mask:m};
+}
+
+/* ---- following the strokes with real pieces ----
+   Each stroke becomes a smooth polyline in mm (resampled every 5 mm). A beam search lays pieces from its start: every
+   partial track is scored by how far its pieces stray from the line (squared distance along each piece) plus how much its
+   end points away from the line's direction; partial tracks are grouped by how far along the line they got (15 mm steps)
+   and only the best few in each group are kept. At a switch point it must lay a switch whose branch leaves to the same
+   side (and forwards/backwards) as the drawn branch. A loop is accepted when it comes back within a few cm of its start
+   facing the same way; the rest of the gap is closed by lengthening or shortening two straight runs that point in
+   different directions, and the last few mm by the play in the joints. */
+const SKSTEP=5;
+function skResample(P,step,closed){
+  const Q=closed&&Math.hypot(P[0][0]-P[P.length-1][0],P[0][1]-P[P.length-1][1])>0.01 ? P.concat([P[0]]) : P;
+  const out=[[Q[0][0],Q[0][1]]]; let need=step;
+  for(let i=1;i<Q.length;i++){ let ax=Q[i-1][0], ay=Q[i-1][1]; const bx=Q[i][0], by=Q[i][1]; let seg=Math.hypot(bx-ax,by-ay);
+    while(seg>=need){ const t=need/seg; ax+=(bx-ax)*t; ay+=(by-ay)*t; out.push([ax,ay]); seg-=need; need=step; }
+    need-=seg; }
+  const last=Q[Q.length-1]; if(Math.hypot(out[out.length-1][0]-last[0],out[out.length-1][1]-last[1])>step*0.3) out.push([last[0],last[1]]);
+  return out; }
+function skPrep(Pmm,closed,smooth){
+  let P=skResample(Pmm,SKSTEP,closed); if(closed) P.pop();
+  const k=Math.max(1,Math.round(smooth/SKSTEP));
+  for(let pass=0;pass<3;pass++){ const n=P.length, o=[];
+    for(let i=0;i<n;i++){ if(!closed && (i===0||i===n-1)){ o.push(P[i]); continue; }
+      const kk=closed?k:Math.min(k,i,n-1-i); let sx=0,sy=0;
+      for(let j=-kk;j<=kk;j++){ const q=P[closed?((i+j)%n+n)%n:i+j]; sx+=q[0]; sy+=q[1]; } o.push([sx/(2*kk+1),sy/(2*kk+1)]); }
+    P=o; }
+  P=skResample(P,SKSTEP,closed); if(closed) P.push([P[0][0],P[0][1]]);
+  return skPoly(P,closed); }
+function skPoly(P,closed){
+  const n=P.length, px=new Float64Array(n), py=new Float64Array(n), ang=new Float64Array(n);
+  P.forEach((q,i)=>{ px[i]=q[0]; py[i]=q[1]; });
+  for(let i=0;i<n;i++){ let a=Math.max(0,i-3), b=Math.min(n-1,i+3);
+    if(closed){ const A=i-3<0?n-1+(i-3):a, Bq=i+3>n-1?(i+3)-(n-1):b; ang[i]=Math.atan2(py[Bq]-py[A],px[Bq]-px[A]); }
+    else ang[i]=Math.atan2(py[b]-py[a],px[b]-px[a]); }
+  return {px,py,ang,n,L:(n-1)*SKSTEP,closed}; }
+/* rotate a closed polyline so it starts at index i0 */
+function skRotate(st,i0){ const n=st.n-1, P=[]; for(let k=0;k<n;k++){ const i=(i0+k)%n; P.push([st.px[i],st.py[i]]); } P.push(P[0].slice()); return skPoly(P,true); }
+
+/* every way to lay each piece: entered by either end, mirrored or not; switches entered at any end with exactly one
+   other end left over (that's the branch). Moves are in a frame where the track arrives at (0,0) heading +x. */
+function skMoves(avail){
+  const T0={x:0,y:0,a:0,g:"M",lv:0}, mv=[], seen=new Set();
+  typeList.forEach(t=>{
+    if(!((avail[t.id]||0)>0) || t.ramp || t.deck || t.stop || t.carRamp) return;
+    const C=t.conns, isSw=catOf(t)==="Switches"; if(C.length!==2 && !isSw) return;
+    [false,true].forEach(mirror=>C.forEach((c,ci)=>{
+      const p={type:t.id,x:0,y:0,rot:0,mirror,level:0}; alignTo(p,ci,T0); const wc=worldConns(p);
+      wc.forEach((e,ei)=>{ if(ei===ci || !(Math.cos(e.a)>0.5 && e.x>15)) return;
+        const oth=wc.map((o,oi)=>({x:o.x,y:o.y,a:normA(o.a),g:o.g,oi})).filter(o=>o.oi!==ci&&o.oi!==ei);
+        if(isSw && oth.length!==1) return;
+        const key=[t.id,Math.round(e.x*10),Math.round(e.y*10),Math.round(normA(e.a)*1000),c.g,e.g,oth.map(o=>Math.round(o.x)+","+Math.round(o.y)).join(";")].join("|");
+        if(seen.has(key)) return; seen.add(key);
+        // samples along the lane this route uses (switch S-bends: along the chord)
+        let pts=[]; const lane=t.lanes.find(l=>{ const a=lanePose(l,0,0), b=lanePose(l,1,0), A=worldPt(p,a.x,a.y), B=worldPt(p,b.x,b.y);
+          return (Math.hypot(A.x,A.y)<0.8&&Math.hypot(B.x-e.x,B.y-e.y)<0.8)||(Math.hypot(B.x,B.y)<0.8&&Math.hypot(A.x-e.x,A.y-e.y)<0.8); });
+        const len=lane?laneLen(lane):Math.hypot(e.x,e.y), ns=Math.max(2,Math.ceil(len/30));
+        for(let k=1;k<=ns;k++){ if(lane){ const q=lanePose(lane,k/ns,0), w=worldPt(p,q.x,q.y); pts.push([w.x,w.y]); } else pts.push([e.x*k/ns,e.y*k/ns]); }
+        if(lane && Math.hypot(pts[pts.length-1][0]-e.x,pts[pts.length-1][1]-e.y)>1){ pts=pts.map((_,k)=>{ const q=lanePose(lane,1-(k+1)/ns,0), w=worldPt(p,q.x,q.y); return [w.x,w.y]; }); }
+        const straight=!isSw && Math.abs(normA(e.a))<1e-6 && Math.abs(e.y)<0.5 && t.lanes.every(l=>l.k==="s");
+        const m={id:t.id,mirror,ci,eci:ei,ex:e.x,ey:e.y,ea:normA(e.a),gIn:c.g,gOut:e.g,len,sx:pts.map(q=>q[0]),sy:pts.map(q=>q[1]),dw:len/pts.length,
+                 straight, adapt:!isSw&&C[0].g===C[1].g, sw:isSw};
+        if(isSw){ const o=oth[0]; m.oth=o; m.side=Math.sign(e.x*o.y-e.y*o.x)||1; m.fwd=Math.cos(o.a)>0; }
+        mv.push(m); }); })); });
+  return mv;
+}
+function skWalk(chain,T0){
+  let T={x:T0.x,y:T0.y,a:T0.a,g:T0.g,lv:0}; const out=[], br={}, Ts=[];
+  for(const tk of chain){ Ts.push(T);
+    if(tk.mac){ for(const e of tk.mac.seq){ const p={type:e.id,x:0,y:0,rot:0,mirror:false,level:0}; const lv=levelFor(p,e.ci,T); p.level=lv===null?0:lv; alignTo(p,e.ci,T); out.push(p); T=worldConns(p)[1-e.ci]; } continue; }
+    const m=tk.m, p={type:m.id,x:0,y:0,rot:0,mirror:m.mirror,level:T.lv||0}; alignTo(p,m.ci,T); out.push(p); const wc=worldConns(p);
+    if(m.sw && tk.J!=null) br[tk.J]=wc[m.oth.oi];
+    T=wc[m.eci]; }
+  Ts.push(T); return {pieces:out,T,br,Ts}; }
+const skTokGin=tk=>tk.mac ? types[tk.mac.seq[0].id].conns[tk.mac.seq[0].ci].g : tk.m.gIn;
+const skUse=(chain,u={})=>{ chain.forEach(tk=>{ if(tk.mac) for(const id in tk.mac.need) u[id]=(u[id]||0)+tk.mac.need[id]; else u[tk.m.id]=(u[tk.m.id]||0)+1; }); return u; };
+/* straights adding up to `target` mm (± tol), starting after a connector of gender g0 and ending so the next piece (whose
+   entry is gEnd) fits; the closest such list, shortest first */
+function skFill(target,g0,gEnd,straights,left,tol){
+  let best=null, nodes=0; const cnt={}, acc=[], st=straights.slice().sort((a,b)=>b.len-a.len);
+  const dfs=(rest,g,depth)=>{ if(++nodes>5000) return;
+    if(Math.abs(rest)<=tol && (!gEnd||genderOK(g,gEnd))){ const e=Math.abs(rest); if(!best||e<best.e-0.3||(e<best.e+0.3&&acc.length<best.list.length)) best={e,list:acc.slice()}; if(e<0.6) return; }
+    if(depth>=10||rest<-tol) return;
+    for(const m of st){ if(m.len>rest+tol || (g&&!genderOK(m.gIn,g)) || (left(m.id)-(cnt[m.id]||0))<=0) continue;
+      cnt[m.id]=(cnt[m.id]||0)+1; acc.push(m); dfs(rest-m.len,m.gOut,depth+1); acc.pop(); cnt[m.id]--; if(best&&best.e<0.6) return; } };
+  dfs(target,g0,0); return best; }
+
+function skSearch(st,o){
+  const B=15, n=st.n, px=st.px, py=st.py, ang=st.ang, L=st.L, nb=Math.ceil(L/B)+3, buckets=[]; for(let i=0;i<nb;i++) buckets.push([]);
+  const PJ={d:0,i:0}, proj=(x,y,s,lo,hi)=>{ const i0=Math.max(0,Math.floor((s+lo)/SKSTEP)), i1=Math.min(n-1,Math.ceil((s+hi)/SKSTEP)); let bd=1e18, bi=i0;
+    for(let i=i0;i<=i1;i++){ const dx=px[i]-x, dy=py[i]-y, d=dx*dx+dy*dy; if(d<bd){ bd=d; bi=i; } } PJ.d=bd; PJ.i=bi; };
+  const root={x:o.start.x,y:o.start.y,a:o.start.a,g:o.start.g||null,s:o.s0||0,cost:0,par:null,m:null,ne:0,rg:null,used:o.lim?{}:null,br:o.br0||{}};
+  buckets[Math.min(nb-1,Math.floor(root.s/B))].push(root);
+  let best=null, far=root, nexp=0;
+  const regular=o.moves.filter(m=>!m.sw), sws=o.moves.filter(m=>m.sw);
+  // bridge sections as single straight moves, offered only just before a crossing this line goes over
+  const macMoves=(o.macros||[]).slice(0,8).map(mac=>{ const L=mac.len, ns=Math.ceil(L/30), last=mac.seq[mac.seq.length-1];
+    return {isMac:true,mac,id:null,len:L,ex:L,ey:0,ea:0,sx:Array.from({length:ns},(_,k)=>L*(k+1)/ns),sy:new Array(ns).fill(0),dw:L/ns,
+      gIn:types[mac.seq[0].id].conns[mac.seq[0].ci].g, gOut:types[last.id].conns[1-last.ci].g, straight:false, mid:(mac.deckFrom+mac.deckTo)/2, room:(mac.deckTo-mac.deckFrom)/2-HALF-12}; });
+  const fin=(z,score,gap)=>{ if(!best||score<best.score) best={z,score,gap}; };
+  const final=z=>{
+    if(z.ne<o.events.length) return;
+    if(o.kind==="open"){ if(z.s<L-90) return; const ta=ang[n-1], ov=(z.x-px[n-1])*Math.cos(ta)+(z.y-py[n-1])*Math.sin(ta), sh=Math.max(0,L-z.s);
+      if(ov>120) return; fin(z, z.cost+5*sh*sh+5*Math.max(0,ov)**2, 0); return; }
+    if(z.s<Math.min(L*0.5,L-500)) return;
+    const T=o.target(z); if(!T) return; const gap=Math.hypot(z.x-T.x,z.y-T.y);
+    if(gap>o.gmax || Math.abs(normA(z.a-T.a))>0.02 || (T.g && !genderOK(z.g,T.g))) return;
+    fin(z, z.cost+o.wg*gap*gap, gap); };
+  const expand=z=>{ nexp++;
+    const ev=o.events[z.ne], c=Math.cos(z.a), s=Math.sin(z.a);
+    let lst=ev && z.s>=ev.s-280 ? regular.concat(ev.cands) : regular;
+    const xs=(o.cross||[]).filter(X=>!(z.done&&z.done.includes(X)) && X.s>z.s && X.s<z.s+900);
+    if(xs.length && macMoves.length) lst=lst.concat(macMoves);
+    for(const m of lst){
+      if(m.isMac){ if(o.lim && Object.entries(m.mac.need).some(([id,k])=>(z.used[id]||0)+k>(o.rem[id]||0))) continue; }
+      else if(o.lim && (z.used[m.id]||0)>=(o.rem[m.id]||0)) continue;
+      if(z.g && !genderOK(m.gIn,z.g)) continue;
+      let cost=0, maxd=0;
+      for(let k=0;k<m.sx.length;k++){ proj(z.x+c*m.sx[k]-s*m.sy[k], z.y+s*m.sx[k]+c*m.sy[k], z.s,-40,m.len+160); cost+=PJ.d*m.dw; if(PJ.d>maxd) maxd=PJ.d; }
+      if(maxd>(z.s<(o.s0||0)+o.looseLen?o.looseD2:o.maxd2)) continue;   // a branch may stray more while it leaves its switch
+      const ex=z.x+c*m.ex-s*m.ey, ey=z.y+s*m.ex+c*m.ey, ea=normA(z.a+m.ea);
+      proj(ex,ey,z.s,-40,m.len+160); const s2=PJ.i*SKSTEP, herr=normA(ea-ang[PJ.i]);
+      if(Math.abs(herr)>1.0) continue;
+      // turn the way the drawing turns over this piece (stops left-right wiggles that use up heading)
+      const i0=Math.min(n-1,Math.max(0,Math.round(z.s/SKSTEP))), dt=normA(m.ea-normA(ang[PJ.i]-ang[i0]));
+      cost+=o.wH*herr*herr*m.len + o.wT*dt*dt + o.pp + (m.adapt?o.pa:0) + (!m.adapt&&!m.isMac&&m.len<80?o.ps:0);   // mini straights only where they're needed
+      if(o.over && !m.straight && !m.isMac) for(const w of o.over) if(z.s<w.b && s2>w.a) cost+=o.po;
+      let doneX=null;
+      if(m.isMac){ // the deck must be over the crossing
+        let bx=null, bd=1e18; for(const X of xs){ const cx=z.x+c*m.mid, cy=z.y+s*m.mid, d=(cx-X.x)**2+(cy-X.y)**2; if(d<bd){ bd=d; bx=X; } }
+        const along=(bx.x-z.x)*c+(bx.y-z.y)*s-m.mid, lat=-(bx.x-z.x)*s+(bx.y-z.y)*c;
+        if(Math.abs(along)>Math.max(0,m.room) || Math.abs(lat)>120) continue;
+        cost+=(along*along+lat*lat)*60 - o.po*0.5; doneX=bx; }
+      const ch={x:ex,y:ey,a:ea,g:m.gOut,s:s2,cost:z.cost+cost,par:z,m,ne:z.ne,rg:z.rg||m.gIn,used:z.used,br:z.br,J:null};
+      if(m.sw){
+        if(!ev || !ev.cands.includes(m)) continue;
+        // the branch should leave along the drawn branch
+        const ox=z.x+c*m.oth.x-s*m.oth.y, oy=z.y+s*m.oth.x+c*m.oth.y, oa=normA(z.a+m.oth.a);
+        let bd=1e18, bi=0; for(let i=0;i<ev.bp.length;i++){ const d=(ev.bp[i][0]-ox)**2+(ev.bp[i][1]-oy)**2; if(d<bd){ bd=d; bi=i; } }
+        const be=normA(oa-ev.bp[bi][2]); ch.cost+=(bd+o.wH*be*be*150)*1.2;
+        ch.ne=z.ne+1; ch.J=ev.J; ch.br={...z.br,[ev.J]:{x:ox,y:oy,a:oa,g:m.oth.g}};
+      } else if(ev && s2>ev.s+40) continue;      // no passing a switch point without the switch
+      if(doneX) ch.done=(z.done||[]).concat([doneX]); else ch.done=z.done;
+      if(o.lim){ ch.used={...z.used}; if(m.isMac) for(const id in m.mac.need) ch.used[id]=(ch.used[id]||0)+m.mac.need[id]; else ch.used[m.id]=(ch.used[m.id]||0)+1; }
+      final(ch);
+      if(s2>=z.s+Math.max(B,0.3*m.len) && s2<L-2){ const bi=Math.min(nb-1,Math.floor(s2/B)); buckets[bi].push(ch); }
+      if(s2>far.s || (s2===far.s && ch.cost<far.cost)) far=ch;
+    } };
+  for(let b=0;b<nb;b++){
+    const Lb=buckets[b]; if(!Lb.length) continue; buckets[b]=null;
+    Lb.sort((p,q)=>p.cost-q.cost); const seen=new Set(); let kept=0;
+    for(const z of Lb){ const key=Math.round(z.x/6)+","+Math.round(z.y/6)+","+Math.round(z.a*20)+","+z.g+","+z.ne+","+(z.done?z.done.length:0);
+      if(seen.has(key)) continue; seen.add(key); expand(z); if(++kept>=o.K) break; }
+    buckets[b]=[];
+  }
+  const chainOf=z=>{ const out=[]; for(let q=z;q&&q.m;q=q.par) out.push(q.m.isMac?{mac:q.m.mac,s:q.s}:{m:q.m,s:q.s,J:q.J}); return out.reverse(); };
+  if(best) return {chain:chainOf(best.z), ok:true, gap:best.gap, cost:best.z.cost, nexp};
+  return {chain:chainOf(far), ok:false, cost:far.cost, s:far.s, nexp};
+}
+/* put a bridge (ramp, deck, ramp from what you have) into the straight run passing over crossing X */
+const skStr=tk=>tk&&tk.m&&tk.m.straight&&!tk.lock;
+function skBridge(chain,T0,X,ctx,laid){
+  const W=skWalk(chain,T0), runs=[];
+  for(let i=0;i<chain.length;i++){ if(!skStr(chain[i]) || (i>0&&skStr(chain[i-1]))) continue;
+    let j=i, len=0; while(j<chain.length&&skStr(chain[j])){ len+=chain[j].m.len; j++; }
+    const T=W.Ts[i], ux=Math.cos(T.a), uy=Math.sin(T.a); let t=(X.x-T.x)*ux+(X.y-T.y)*uy, lat=Math.abs(-(X.x-T.x)*uy+(X.y-T.y)*ux), oa=X.oa;
+    // where does the real track (already laid, or the rest of this chain) cross this run?
+    let bestD=1e9; const tracks=[...laid, ...W.pieces.filter((p,k)=>k<i||k>=j)];
+    for(const p of tracks){ const sm=pieceSamples(p,10); for(let q=1;q<sm.length;q++){ const a=sm[q-1], b=sm[q];
+      const ta=(a.x-T.x)*ux+(a.y-T.y)*uy, la=-(a.x-T.x)*uy+(a.y-T.y)*ux, tb=(b.x-T.x)*ux+(b.y-T.y)*uy, lb=-(b.x-T.x)*uy+(b.y-T.y)*ux;
+      if((la>0)===(lb>0) || Math.abs(la-lb)<1e-9) continue; const u=la/(la-lb), tc=ta+(tb-ta)*u; if(tc<-20||tc>len+20) continue;
+      const dd=Math.hypot(T.x+ux*tc-X.x,T.y+uy*tc-X.y); if(dd<bestD&&dd<250){ bestD=dd; t=tc; lat=0; oa=Math.atan2(b.y-a.y,b.x-a.x); } } }
+    if(t>-30 && t<len+30 && lat<90) runs.push({i,j,len,t,lat,T,oa}); }
+  runs.sort((a,b)=>a.lat-b.lat);
+  const use=skUse(chain);
+  for(const r of runs){
+    const sinX=Math.max(0.3,Math.abs(Math.sin(r.T.a-r.oa))), inRun=skUse(chain.slice(r.i,r.j));
+    const left=id=>ctx.lim?(ctx.rem[id]||0)-(use[id]||0)+(inRun[id]||0):99;
+    let best=null;
+    for(const mac of ctx.macros){
+      if(mac.len>r.len+60) continue;
+      if(ctx.lim && Object.entries(mac.need).some(([id,k])=>left(id)<k)) continue;
+      const left2=id=>left(id)-(mac.need[id]||0), mid=(mac.deckFrom+mac.deckTo)/2, room=(mac.deckTo-mac.deckFrom)/2-(HALF/sinX+12);
+      if(room<0) continue;
+      const g0=r.T.g, gIn=skTokGin({mac}), last=mac.seq[mac.seq.length-1], gOut=types[last.id].conns[1-last.ci].g;
+      const gEnd=r.j<chain.length?skTokGin(chain[r.j]):null;
+      // deck centred over the crossing as far as the straights allow; the run keeps its length as closely as possible
+      for(const tol1 of [Math.min(room,12),room]){
+        const f1=skFill(Math.max(0,r.t-mid),g0,gIn,ctx.straights,left2,Math.max(6,tol1)); if(!f1) continue;
+        const a1=f1.list.reduce((q,m)=>q+m.len,0); if(Math.abs(a1+mid-r.t)>room) continue;
+        const left3=id=>left2(id)-f1.list.filter(m=>m.id===id).length;
+        const f2=skFill(Math.max(0,r.len-a1-mac.len),gOut,gEnd,ctx.straights,left3,60); if(!f2) continue;
+        const shift=Math.abs(a1+mac.len+f2.list.reduce((q,m)=>q+m.len,0)-r.len);
+        const sc=(ctx.foreign?ctx.foreign(mac):0)*500+mac.adapters*15+shift;
+        if(!best||sc<best.sc) best={sc,f1,f2,mac};
+        break; } }
+    if(best){ chain.splice(r.i,r.j-r.i,...best.f1.list.map(m=>({m,lock:true})),{mac:best.mac},...best.f2.list.map(m=>({m,lock:true}))); return true; } }
+  return false;
+}
+/* close the gap between the end of a chain and where it must end by changing the lengths of two straight runs that
+   point in different directions (a run can also be new: straights put in at a joint) */
+function skClose(chain,T0,tgtOf,ctx,kMin){
+  let gap=1e9;
+  for(let it=0; it<4; it++){
+    const W=skWalk(chain,T0), R=tgtOf(W); if(!R) return gap;
+    const rx=R.x-W.T.x, ry=R.y-W.T.y; gap=Math.hypot(rx,ry);
+    if(gap<=4 || Math.abs(normA(W.T.a-R.a))>0.03){ skClose.why=gap<=4?'ok':'heading'; return gap; }
+    const groups=new Map();
+    for(let k=kMin;k<=chain.length;k++){ if(k<chain.length&&(chain[k].lock||chain[k].mac) || k>0&&(chain[k-1].lock||chain[k-1].mac)) continue;
+      const a=W.Ts[k].a, key=Math.round(normA(a)*180/Math.PI*2);
+      let G=groups.get(key); if(!G){ G={a,run:null,joint:k}; groups.set(key,G); }
+      if(k<chain.length && skStr(chain[k]) && (k===kMin || !skStr(chain[k-1]))){
+        let j=k, len=0; while(j<chain.length&&skStr(chain[j])){ len+=chain[j].m.len; j++; }
+        if(!G.run||len>G.run.len) G.run={i:k,j,len}; } }
+    const gs=[...groups.values()], cands=[];
+    for(let p=0;p<gs.length;p++) for(let q=p+1;q<gs.length;q++){ const A=gs[p], Bq=gs[q], u1=[Math.cos(A.a),Math.sin(A.a)], u2=[Math.cos(Bq.a),Math.sin(Bq.a)];
+      const det=u1[0]*u2[1]-u1[1]*u2[0]; if(Math.abs(det)<0.35) continue;
+      const d1=(rx*u2[1]-ry*u2[0])/det, d2=(u1[0]*ry-u1[1]*rx)/det;
+      const r1=A.run||{i:A.joint,j:A.joint,len:0}, r2=Bq.run||{i:Bq.joint,j:Bq.joint,len:0};
+      if(r1.len+d1<-8 || r2.len+d2<-8) continue;
+      const can=L=>L<=10 || L>=ctx.minStr-10; if(!can(r1.len+d1)||!can(r2.len+d2)) continue;   // no straight is that short
+      if((r1.i<r2.j && r2.i<r1.j) || (r1.i===r2.i && r1.j===r2.j)) continue;
+      cands.push({r1,r2,d1,d2,sc:Math.abs(d1)+Math.abs(d2)+(A.run?0:40)+(Bq.run?0:40)}); }
+    cands.sort((a,b)=>a.sc-b.sc);
+    let done=false;
+    for(const c of cands.slice(0,40)){
+      const use=skUse(chain), back=skUse(chain.slice(c.r1.i,c.r1.j),skUse(chain.slice(c.r2.i,c.r2.j)));
+      const cnt={}, left=id=>ctx.lim?(ctx.rem[id]||0)-(use[id]||0)+(back[id]||0)-(cnt[id]||0):99;
+      const fillRun=(r,d)=>{ const g0=W.Ts[r.i].g, gEnd=r.j<chain.length?skTokGin(chain[r.j]):R.g;
+        const f=skFill(Math.max(0,r.len+d),g0,gEnd,ctx.straights,left,12); if(f) f.list.forEach(m=>cnt[m.id]=(cnt[m.id]||0)+1); return f; };
+      const f1=fillRun(c.r1,c.d1); if(!f1) continue; const f2=fillRun(c.r2,c.d2); if(!f2) continue;
+      const [ra,fa,rb,fb]=c.r1.i>c.r2.i?[c.r1,f1,c.r2,f2]:[c.r2,f2,c.r1,f1];
+      chain.splice(ra.i,ra.j-ra.i,...fa.list.map(m=>({m}))); chain.splice(rb.i,rb.j-rb.i,...fb.list.map(m=>({m})));
+      done=true; break; }
+    if(!done){ skClose.why='nocand:'+cands.length+':'+gs.length; return gap; }
+  }
+  const W=skWalk(chain,T0), R=tgtOf(W); return R?Math.hypot(R.x-W.T.x,R.y-W.T.y):gap;
+}
+
+/* ---- the whole drawing ---- */
+function skAvail(mode){
+  const a={}; typeList.forEach(t=>{
+    if(mode==="inv"){ a[t.id]=S.inv[t.id]||0; return; }
+    const ok=SK.brands[brandOf(t)] && (SK.retired || !isRetired(t) || (S.inv[t.id]||0)>0);
+    a[t.id]=ok?1e6:0; });
+  return a; }
+/* strokes in mm, centred on (0,0); events (switch/crossing points) as distances along each stroke */
+function skStrokesMM(A,k){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; A.strokes.forEach(s=>s.pts.forEach(q=>{ x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1]); }));
+  const cx=(x0+x1)/2, cy=(y0+y1)/2;
+  return A.strokes.map((s,si)=>{ const raw=s.pts.map(q=>[(q[0]-cx)*k,(q[1]-cy)*k]), cum=[0];
+    for(let i=1;i<raw.length;i++) cum.push(cum[i-1]+Math.hypot(raw[i][0]-raw[i-1][0],raw[i][1]-raw[i-1][1]));
+    const st=skPrep(raw,s.closed,Math.max(20,Math.min(45,cum[cum.length-1]/40))), f=st.L/Math.max(1,cum[cum.length-1]);
+    return {si,st,closed:s.closed,ends:s.ends.slice(),ev:s.ev.map(e=>({node:e.node,s:cum[e.i]*f,under:!!e.under}))}; });
+}
+function skReverse(S1){ const n=S1.st.n, P=[]; for(let i=n-1;i>=0;i--) P.push([S1.st.px[i],S1.st.py[i]]);
+  S1.st=skPoly(P,S1.closed); S1.ev=S1.ev.map(e=>({...e,s:S1.st.L-e.s})).reverse(); S1.ends.reverse(); }
+/* the line leaving node `node` along stroke S1 (which starts or ends there), in mm with headings: [[x,y,a],…] */
+function skBranchPts(S1,node){ const st=S1.st, fromEnd=S1.ends[1]===node&&S1.ends[0]!==node, out=[];
+  for(let k=0;k<Math.min(st.n,130);k++){ const i=fromEnd?st.n-1-k:k; out.push([st.px[i],st.py[i],normA(st.ang[i]+(fromEnd?Math.PI:0))]); }
+  return out; }
+function skBuild(A,k,o){
+  const t0=performance.now(), avail=skAvail(o.mode), lim=o.mode==="inv", rem={...avail};
+  const moves=skMoves(avail), straights=moves.filter(m=>m.straight);
+  // bridges with any pieces: ramps, decks and adapters of any make (IKEA has no deck of its own)
+  const bavail={...avail}; if(!lim) typeList.forEach(t=>{ if(t.ramp||t.deck||(avail[t.id]>0)) bavail[t.id]=40; else if(t.conns.length===2&&t.conns[0].g===t.conns[1].g&&!t.stop&&!t.carRamp&&!isRetired(t)) bavail[t.id]=40; });
+  const foreign=m=>lim?0:m.seq.filter(e=>!SK.brands[brandOf(types[e.id])]).length;
+  const macros=o.bridges?genMacros(bavail).sort((a,b)=>foreign(a)-foreign(b)||a.adapters-b.adapters||a.len-b.len):[];
+  const SS=skStrokesMM(A,k), N=A.nodes, report={strokes:SS.length, ok:0, closedOK:0, loops:0, gaps:[], noSwitch:0, noBridge:0, bridges:0, partial:0, crossings:0};
+  // who passes through / branches off at every switch and crossing
+  const through={}, branchOf={};
+  SS.forEach(S1=>{ S1.ev.forEach(e=>{ if(N[e.node].kind==="switch") through[e.node]=S1; });
+    S1.ends.forEach(nd=>{ if(nd!=null && N[nd].kind==="switch") branchOf[nd]=S1; }); });
+  // over or under at every crossing: a pass drawn with a gap goes under, else the straighter pass goes over
+  const minMac=macros.length?Math.min(...macros.map(m=>m.len)):600, half=minMac/2+40, over=new Map();
+  const straightness=(S1,s)=>{ const st=S1.st, i0=Math.max(0,Math.round((s-half)/SKSTEP)), i1=Math.min(st.n-1,Math.round((s+half)/SKSTEP));
+    const ax=st.px[i0], ay=st.py[i0], bx=st.px[i1], by=st.py[i1], L=Math.hypot(bx-ax,by-ay)||1; let m=0;
+    for(let i=i0;i<=i1;i++) m=Math.max(m,Math.abs((st.px[i]-ax)*(by-ay)-(st.py[i]-ay)*(bx-ax))/L); return m+(i1-i0<2*half/SKSTEP-2?50:0); };
+  const crossN={}; SS.forEach(S1=>S1.ev.forEach(e=>{ if(N[e.node].kind==="cross") (crossN[e.node]=crossN[e.node]||[]).push({S1,e}); }));
+  Object.entries(crossN).forEach(([nd,P])=>{ if(P.length!==2) return; report.crossings++;
+    let oi = P[0].e.under&&!P[1].e.under ? 1 : P[1].e.under&&!P[0].e.under ? 0 : (straightness(P[0].S1,P[0].e.s)<=straightness(P[1].S1,P[1].e.s)?0:1);
+    if(SK.flip[nd]) oi=1-oi; P[oi].e.over=true; P[oi].e.oth=P[1-oi]; over.set(+nd,P[oi]); });
+  const ctx={lim,rem,straights,macros,foreign,minStr:Math.min(...straights.map(m=>m.len),1e4)};
+  const pieces=[], brPose={}, fitted=new Set(), failedJ=new Set(), deadEnds=[];
+  const ready=nd=>nd==null || N[nd].kind!=="switch" || brPose[nd] || failedJ.has(nd) || !through[nd];
+  const endOK=(S1,nd)=>nd==null || N[nd].kind!=="switch" || branchOf[nd]!==S1 || ready(nd) || through[nd]===S1;
+  for(let guard=0; guard<SS.length; guard++){
+    const todo=SS.filter(S1=>!fitted.has(S1)); if(!todo.length) break;
+    const score=S1=>(S1.ends.every(nd=>nd==null||N[nd].kind!=="switch"||branchOf[nd]!==S1)?2e6:0)+(S1.closed?1e6:0)+S1.st.L;
+    let pick=null, rev=false;
+    const tryPick=strict=>{ for(const S1 of todo.slice().sort((a,b)=>score(b)-score(a))){
+      const isB=nd=>nd!=null&&N[nd].kind==="switch"&&branchOf[nd]===S1&&through[nd]!==S1;
+      const sOK=!isB(S1.ends[0])||ready(S1.ends[0]), eOK=!isB(S1.ends[1])||ready(S1.ends[1]);
+      if(sOK && (eOK||!strict)){ pick=S1; rev=isB(S1.ends[1])&&!isB(S1.ends[0])&&(eOK||!strict); return true; }   // a siding starts at its switch
+      if(eOK && isB(S1.ends[1]) && (sOK||!strict||!isB(S1.ends[0]))){ pick=S1; rev=true; return true; } }
+      return false; };
+    if(!tryPick(true) && !tryPick(false)){ pick=todo[0]; }
+    fitted.add(pick); if(rev) skReverse(pick);
+    const S1=pick; let st=S1.st;
+    const isBr=nd=>nd!=null&&N[nd].kind==="switch"&&branchOf[nd]===S1;
+    // a branch whose switch couldn't be laid: a siding is left out; a loop branch hangs on at its other end only
+    const lost=nd=>isBr(nd)&&!brPose[nd]&&failedJ.has(nd)&&through[nd]!==S1;
+    if(lost(S1.ends[0]) && (lost(S1.ends[1]) || !isBr(S1.ends[1]))){ report.skipped=(report.skipped||0)+1; continue; }
+    // start
+    let start, s0=0, kind=S1.closed?"loop":"open", target=null, kMin=0;
+    if(isBr(S1.ends[0]) && brPose[S1.ends[0]]){ const P=brPose[S1.ends[0]]; start={x:P.x,y:P.y,a:P.a,g:P.g};
+      let bd=1e18; for(let i=0;i<Math.min(st.n,120);i++){ const d=(st.px[i]-P.x)**2+(st.py[i]-P.y)**2; if(d<bd){ bd=d; s0=i*SKSTEP; } } }
+    else if(S1.closed){
+      // start on the straightest bit, away from switch and crossing points
+      let bi=0, bv=1e18; const n=st.n-1;
+      for(let i=0;i<n;i+=2){ const s=i*SKSTEP; if(S1.ev.some(e=>{ const d=Math.abs(e.s-s); return Math.min(d,st.L-d)<(e.over?half+60:260); })) continue;
+        const a=st.ang[(i-12+n)%n], b=st.ang[(i+12)%n], v=Math.abs(normA(b-a)); if(v<bv){ bv=v; bi=i; } }
+      const sh=bi*SKSTEP; st=skRotate(st,bi); S1.st=st; S1.ev=S1.ev.map(e=>({...e,s:(e.s-sh+st.L)%st.L})).sort((a,b)=>a.s-b.s);
+      start={x:st.px[0],y:st.py[0],a:st.ang[0],g:null}; }
+    else start={x:st.px[0],y:st.py[0],a:st.ang[0],g:null};
+    if(kind==="loop") target=z=>({x:start.x,y:start.y,a:start.a,g:z.rg});
+    const endN=S1.ends[1];
+    if(!S1.closed && isBr(endN)){ const own=through[endN]===S1;
+      if(brPose[endN]||own){ kind="target"; target=z=>{ const P=brPose[endN]||(z.br&&z.br[endN]); return P?{x:P.x,y:P.y,a:normA(P.a+Math.PI),g:P.g}:null; }; } }
+    // switch points on this stroke
+    const events=[];
+    S1.ev.forEach(e=>{ const nd=e.node; if(N[nd].kind!=="switch" || through[nd]!==S1) return; const B=branchOf[nd]; if(!B){ return; }
+      const bp=skBranchPts(B,nd); if(bp.length<4) return;
+      const i=Math.min(st.n-1,Math.max(0,Math.round(e.s/SKSTEP))), tA=st.ang[i], bA=Math.atan2(bp[Math.min(bp.length-1,8)][1]-bp[0][1],bp[Math.min(bp.length-1,8)][0]-bp[0][0]);
+      const fwd=Math.cos(bA-tA)>-0.2, side=Math.sign(Math.sin(bA-tA))||1;
+      const cands=moves.filter(m=>m.sw && m.fwd===fwd && m.side===side);
+      if(!cands.length){ failedJ.add(nd); report.noSwitch++; return; }
+      events.push({s:e.s,J:nd,bp,cands}); });
+    events.sort((a,b)=>a.s-b.s);
+    // not enough switches for every branch: keep passing loops (both ends) before sidings
+    if(lim){ const left={...rem}, deadEnd=e=>{ const B=branchOf[e.J]; return !B || B.ends.some(nd=>nd==null||N[nd].kind==="end"); };
+      events.slice().sort((a,b)=>deadEnd(a)-deadEnd(b)).forEach(e=>{ const m=e.cands.find(m=>(left[m.id]||0)>0); if(m) left[m.id]--; else e.drop=true; });
+      for(let i=events.length-1;i>=0;i--) if(events[i].drop){ failedJ.add(events[i].J); report.noSwitch++; events.splice(i,1); } }
+    const overW=[]; S1.ev.forEach(e=>{ if(e.over&&macros.length){ overW.push({a:e.s-half,b:e.s+half}); if(S1.closed){ overW.push({a:e.s-half+st.L,b:e.s+half+st.L},{a:e.s-half-st.L,b:e.s+half-st.L}); } } });
+    const cross=[]; S1.ev.forEach(e=>{ if(e.over&&macros.length){ const i=Math.min(st.n-1,Math.max(0,Math.round(e.s/SKSTEP))); cross.push({s:e.s,x:st.px[i],y:st.py[i]}); } });
+    const opts={cross,macros,moves,lim,rem,K:o.K||8,start,s0,kind,target,events,over:overW,br0:{},looseLen:isBr(S1.ends[0])&&brPose[S1.ends[0]]?350:0,looseD2:200*200,maxd2:Math.pow(Math.max(90,0.06*st.L),2),gmax:Math.max(120,0.06*st.L),
+                wH:9000, wT:o.wT||4e4, pp:o.pp??14000, ps:20000, pa:3e5, po:4e6, wg:60};
+    let R=skSearch(st,opts);
+    if(!R.ok && events.length){ // couldn't lay all the switches where drawn: drop sidings first, then the rest
+      const deadEnd=e=>{ const B=branchOf[e.J]; return !B || B.ends.some(nd=>nd==null||N[nd].kind==="end"); };
+      const tries=[events.filter(e=>!deadEnd(e)), []].filter((l,i,a)=>l.length<events.length && (i===0||l.length!==a[0].length));
+      for(const keep of tries){ opts.events=keep; R=skSearch(st,opts); if(R.ok){ break; } }
+      events.filter(e=>!opts.events.includes(e)).forEach(e=>{ failedJ.add(e.J); report.noSwitch++; }); }
+    const chain=R.chain, T0={x:start.x,y:start.y,a:start.a,g:start.g};
+    if(!chain.length || !R.ok && (R.s-s0)<0.35*st.L){ report.partial++; continue; }   // only a stub: leave it out
+    let gap=0; const closing=R.ok && (kind==="loop"||kind==="target");
+    const tgt=W=>{ if(kind==="loop") return {x:start.x,y:start.y,a:start.a,g:skTokGin(chain[0])};
+      const P=brPose[endN]||W.br[endN]; return P?{x:P.x,y:P.y,a:normA(P.a+Math.PI),g:P.g}:null; };
+    const doClose=()=>{ if(kind==="target" && !brPose[endN]){ const k2=chain.findIndex(tk=>tk.J===endN); kMin=k2+1; } else kMin=kind==="loop"?1:0;
+      gap=skClose(chain,T0,tgt,ctx,kMin); };
+    if(closing) doClose();
+    // bridges where this stroke goes over (after closing, so the track they span is where it will stay)
+    let nb=0, inChain=chain.filter(tk=>tk.mac).length; report.bridges+=inChain;
+    S1.ev.forEach(e=>{ if(!e.over) return; if(!macros.length){ report.noBridge++; return; } if(inChain>0){ inChain--; return; }
+      const i=Math.min(st.n-1,Math.max(0,Math.round(e.s/SKSTEP))), oS=e.oth.S1.st, oi=Math.min(oS.n-1,Math.max(0,Math.round(e.oth.e.s/SKSTEP)));
+      const X={x:st.px[i], y:st.py[i], oa:oS.ang[oi]};
+      if(skBridge(chain,T0,X,ctx,pieces)){ report.bridges++; nb++; } else report.noBridge++; });
+    if(closing && nb) doClose();
+    if(closing && gap>8){ report.gaps.push(Math.round(gap)); report.why=skClose.why; }
+    const W=skWalk(chain,T0);
+    Object.assign(brPose,W.br);
+    if(lim){ const u=skUse(chain); for(const id in u) rem[id]=(rem[id]||0)-u[id]; }
+    pieces.push(...W.pieces);
+    // left-right reversals the drawing doesn't have (wiggles)
+    { let last=0, rv=0; chain.forEach(tk=>{ if(!tk.m||Math.abs(tk.m.ea)<0.01) return; const sg=Math.sign(tk.m.ea); if(last&&sg!==last) rv++; last=sg; });
+      let dl=0, dr=0; for(let i=0;i+16<st.n;i+=8){ const t=normA(st.ang[i+16]-st.ang[i]); if(Math.abs(t)<0.12) continue; const sg=Math.sign(t); if(dl&&sg!==dl) dr++; dl=sg; }
+      report.wiggles=(report.wiggles||0)+Math.max(0,rv-dr); }
+    if(R.ok) report.ok++; else report.partial++;
+    if(S1.closed) report.loops++; if(S1.closed&&R.ok&&gap<=8) report.closedOK++;
+    // dead ends get a buffer stop when there is one
+    const firstP=W.pieces[0], lastIsFree=kind==="open"||!R.ok;
+    if(!S1.closed && !isBr(S1.ends[0]) && firstP) deadEnds.push(worldConns(firstP)[chain[0].mac?chain[0].mac.seq[0].ci:chain[0].m.ci]);
+    if(lastIsFree && !S1.closed) deadEnds.push(W.T);
+  }
+  // buffer stops
+  deadEnds.forEach(c=>{ const cap=typeList.find(t=>t.stop && (rem[t.id]||0)>0 && genderOK(t.conns[0].g,c.g)); if(!cap) return;
+    const p={type:cap.id,x:0,y:0,rot:0,mirror:false,level:c.lv||0}; alignTo(p,0,c); pieces.push(p); if(lim) rem[cap.id]--; });
+  // how well does it match? average distance from the drawn lines to the track's centre lines
+  let sq=0, cnt=0; const tp=[]; pieces.forEach(p=>pieceSamples(p,20).forEach(q=>tp.push(q)));
+  SS.forEach(S1=>{ const st=S1.st; for(let i=0;i<st.n;i+=4){ let bd=1e18; for(const q of tp){ const d=(q.x-st.px[i])**2+(q.y-st.py[i])**2; if(d<bd) bd=d; } sq+=Math.min(bd,250*250); cnt++; } });
+  report.rms=Math.sqrt(sq/Math.max(1,cnt)); report.ms=Math.round(performance.now()-t0); report.n=pieces.length;
+  report.drawnLen=SS.reduce((a,S1)=>a+S1.st.L,0);
+  const used={}; pieces.forEach(p=>used[p.type]=(used[p.type]||0)+1); report.used=used;
+  report.need=Object.entries(used).filter(([id,n])=>n>(S.inv[id]||0)).map(([id,n])=>({id,n:n-(S.inv[id]||0)}));
+  return {pieces,report,strokes:SS.map(S1=>{ const P=[]; for(let i=0;i<S1.st.n;i+=2) P.push([Math.round(S1.st.px[i]),Math.round(S1.st.py[i])]); return P; })};
+}
+const skQuality=r=>(r.partial*1e6)+(r.wiggles||0)*2500+(r.loops-r.closedOK)*3e5+r.gaps.length*1e5+r.noBridge*1.5e5+r.noSwitch*1e5;
+/* mm per drawing pixel. Any pieces: fit the play area. Your pieces: the biggest size your track can cover, then a few
+   smaller ones; keep the one that matches the drawing best (measured in drawing units, so sizes compare fairly). */
+function skBestBuild(A,o){
+  let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; A.strokes.forEach(s=>s.pts.forEach(q=>{ x0=Math.min(x0,q[0]);x1=Math.max(x1,q[0]);y0=Math.min(y0,q[1]);y1=Math.max(y1,q[1]); }));
+  const bw=Math.max(1,x1-x0), bh=Math.max(1,y1-y0), g=S.gen||{w:200,d:150}, t0=o.t0||performance.now();
+  const Q=(r,k)=>skQuality(r.report)+r.report.rms/k*400;
+  // a few search settings at one size; keep the best
+  const variants=k=>{ let best=null;
+    for(const v of [{K:8,wT:4e4},{K:16,wT:4e4},{K:12,wT:1.2e5},{K:12,wT:1.5e4},{K:24,wT:8e4}]){
+      const r=skBuild(A,k,{...o,...v}), q=Q(r,k); if(!best||q<best.q) best={r,q};
+      if(best.q<300 || performance.now()-t0>9000) break; }
+    return best; };
+  let k;
+  if(!o.auto) k=o.size*10/Math.max(bw,bh);
+  else if(o.mode!=="inv") k=Math.max(0.2,Math.min((g.w*10-150)/bw,(g.d*10-150)/bh));
+  else {
+    // your pieces: the biggest size your track can cover, then smaller ones; keep the one that matches best
+    // (measured in drawing units, so sizes compare fairly)
+    const len=A.strokes.reduce((a,s)=>a+skLen(s.pts),0);
+    let have=0; typeList.forEach(t=>{ const n=S.inv[t.id]||0; if(!n||t.stop||t.carRamp||t.deck) return; have+=n*Math.max(...t.lanes.map(laneLen)); });
+    if(!have) return null;
+    const kMax=0.95*have/len; let best=null;
+    for(const f of [1,0.86,0.74,0.64,0.55,0.47,0.4]){ const kk=kMax*f, r=skBuild(A,kk,{...o,K:5}), q=Q(r,kk);
+      if(!best||q<best.q) best={k:kk,q}; if(performance.now()-t0>5000) break; }
+    k=best.k; }
+  return variants(k).r;
+}
+/* ---- steps & UI (shares the scanner's full-screen window) ---- */
+function skSteps(n){ scEl("scSteps").textContent=`Step ${n} of 3 · ${["","Photo","Paper corners","Lines & pieces"][n]}`; }
+function openSketch(){
+  scEl("scTitle").textContent="✏️ Track from a drawing"; scEl("scan").classList.add("show");
+  // any pieces: default to the brand you own most of
+  const by={}; typeList.forEach(t=>{ const b=brandOf(t); by[b]=(by[b]||0)+(S.inv[t.id]||0); });
+  const main=Object.entries(by).filter(([b])=>b!=="Custom").sort((a,b)=>b[1]-a[1])[0];
+  if(main && main[1]>0){ SK.brands.BRIO=main[0]==="BRIO"||by.BRIO>0; SK.brands.IKEA=main[0]==="IKEA"||by.IKEA>0; }
+  if(!typeList.some(t=>(S.inv[t.id]||0)>0)) SK.mode="any";
+  skPhotoStep(); }
+function skPhotoStep(){
+  skSteps(1); stopCam();
+  scEl("scBody").innerHTML=`<div class="sctips"><h2>Draw a track, then photograph it</h2><ol>
+    <li>Draw on <b>white paper</b> with a <b>dark felt-tip or marker</b>: one line for each track, in one go where you can.</li>
+    <li><b>Switches:</b> let a line branch off another one, like a <b>Y</b>. A passing loop branches off and joins again; a siding just stops.</li>
+    <li><b>Bridges:</b> where two lines cross, leave a <b>small gap</b> in the line that goes <b>under</b>. (No gap: the straighter one goes over.)</li>
+    <li>Keep the drawing a little away from the paper's edges. Take the photo from straight above, or scan it.</li></ol>
+    <p>Next you can tap the paper's corners to straighten a photo taken at an angle, and choose the size and which pieces to use.</p>
+    <div class="row2"><button class="big primary" id="skPick">🖼 Choose or take a photo</button><button class="big" id="skDemo">✏️ Try an example drawing</button></div></div>`;
+  scEl("scFoot").innerHTML=`<span class="hint">Everything runs on this device; the photo isn't uploaded anywhere.</span>`;
+  scEl("skPick").onclick=()=>scEl("skFile").click();
+  scEl("skDemo").onclick=()=>{ const c=skExample(); SK.img=c; SK.src=c; SK.corners=[]; SK.demo=true; skLinesStep(); };
+}
+/* a hand-drawn looking example: an oval with a passing loop along the top and a siding off the bottom */
+function skExample(){
+  const c=document.createElement("canvas"); c.width=1100; c.height=780; const g=c.getContext("2d");
+  g.fillStyle="#fbfaf6"; g.fillRect(0,0,c.width,c.height); g.strokeStyle="#1d2a44"; g.lineWidth=7; g.lineCap="round"; g.lineJoin="round";
+  let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647-0.5; };
+  const line=(pts,close)=>{ g.beginPath(); pts.forEach((p,i)=>{ const x=p[0]+rnd()*2, y=p[1]+rnd()*2; i?g.lineTo(x,y):g.moveTo(x,y); }); if(close) g.closePath(); g.stroke(); };
+  const bez=(P,n=40)=>{ const o=[]; for(let i=0;i<=n;i++){ const t=i/n, u=1-t; o.push([u*u*u*P[0][0]+3*u*u*t*P[1][0]+3*u*t*t*P[2][0]+t*t*t*P[3][0], u*u*u*P[0][1]+3*u*u*t*P[1][1]+3*u*t*t*P[2][1]+t*t*t*P[3][1]]); } return o; };
+  const oval=[]; for(let i=0;i<=40;i++) oval.push([330+i*11,160]); for(let i=1;i<=40;i++){ const t=-Math.PI/2+i/40*Math.PI; oval.push([770+230*Math.cos(t),390+230*Math.sin(t)]); }
+  for(let i=1;i<=40;i++) oval.push([770-i*11,620]); for(let i=1;i<40;i++){ const t=Math.PI/2+i/40*Math.PI; oval.push([330+230*Math.cos(t),390+230*Math.sin(t)]); }
+  line(oval,true);
+  line([...bez([[350,160],[400,160],[420,82],[480,82]]),...bez([[480,82],[560,82],[560,82],[640,82]]).slice(1),...bez([[640,82],[700,82],[720,160],[770,160]]).slice(1)]);
+  line([...bez([[420,620],[480,620],[500,700],[570,700]]),...bez([[570,700],[640,700],[700,700],[760,700]]).slice(1)]);
+  return c; }
+function skUseImage(src){ const max=1600, k=Math.min(1,max/Math.max(src.width,src.height)), c=document.createElement("canvas");
+  c.width=Math.round(src.width*k); c.height=Math.round(src.height*k); c.getContext("2d").drawImage(src,0,0,c.width,c.height);
+  SK.img=c; SK.src=c; SK.corners=[]; SK.demo=false; skCornerStep(); }
+function skCornerStep(){
+  skSteps(2); const im=SK.img, V=scCanvas(im.width,im.height); let dragI=-1;
+  const draw=()=>{ const g=V.g; g.setTransform(V.k,0,0,V.k,0,0); g.drawImage(im,0,0);
+    const C=SK.corners.length===4?orderCorners(SK.corners):SK.corners, dp=window.devicePixelRatio||1, r=14/V.k*dp;
+    if(C.length>1){ g.beginPath(); C.forEach((p,i)=>i?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); if(C.length===4) g.closePath(); g.lineWidth=3/V.k*dp; g.strokeStyle="#2f6fde"; g.stroke(); }
+    C.forEach(p=>{ g.beginPath(); g.arc(p[0],p[1],r,0,7); g.fillStyle="rgba(255,255,255,.85)"; g.fill(); g.lineWidth=3/V.k*dp; g.strokeStyle="#2f6fde"; g.stroke(); });
+    scEl("skNext2").textContent=SK.corners.length===4?"Straighten & next":"Skip (use whole picture)";
+    scEl("skHint2").textContent=SK.corners.length<4?`A photo taken at an angle? Tap the paper's ${4-SK.corners.length} remaining corner${SK.corners.length===3?"":"s"}. A scan or a photo from straight above can skip this.`:"Drag a corner to fine-tune.";
+  };
+  scEl("scFoot").innerHTML=`<span class="hint" id="skHint2"></span><button id="skReset2">Reset corners</button><button id="skBack2">New photo</button><button id="skNext2" class="primary big"></button>`;
+  scEl("skReset2").onclick=()=>{ SK.corners=[]; draw(); };
+  scEl("skBack2").onclick=skPhotoStep;
+  scEl("skNext2").onclick=()=>{ SK.src = SK.corners.length===4 ? skRectify(im,SK.corners) : im; skLinesStep(); };
+  V.cv.onpointerdown=e=>{ const p=V.toImg(e), near=SK.corners.findIndex(c=>Math.hypot(c[0]-p[0],c[1]-p[1])<40*im.width/V.cv.getBoundingClientRect().width);
+    if(near>=0) dragI=near; else if(SK.corners.length<4){ SK.corners.push(p); dragI=SK.corners.length-1; } V.cv.setPointerCapture(e.pointerId); draw(); };
+  V.cv.onpointermove=e=>{ if(dragI<0) return; SK.corners[dragI]=V.toImg(e); draw(); };
+  V.cv.onpointerup=V.cv.onpointercancel=()=>{ dragI=-1; };
+  draw(); }
+/* paper corners → a straight-on picture of just the paper (A4 / Letter proportions, whichever is closer) */
+function skRectify(im,corners){
+  let C=orderCorners(corners); try{ const sn=snapCorners(im,C); C=orderCorners(sn.corners); }catch(e){}
+  const side=(a,b)=>Math.hypot(C[a][0]-C[b][0],C[a][1]-C[b][1]), wide=side(0,1)+side(2,3)>=side(1,2)+side(3,0);
+  const ratio=(side(0,1)+side(2,3))/(side(1,2)+side(3,0)+1e-9), r=Math.max(ratio,1/ratio), asp=Math.abs(r-1.414)<Math.abs(r-1.294)?1.414:1.294;
+  const Lp=1400, Sp=Math.round(Lp/asp), w=wide?Lp:Sp, h=wide?Sp:Lp, m=Math.round(Lp*0.012);
+  const Hm=homography([[m,m],[w-m,m],[w-m,h-m],[m,h-m]].map(q=>q),C);   // output pixel → photo pixel (trim the very edge)
+  const src=im.getContext("2d").getImageData(0,0,im.width,im.height).data, out=document.createElement("canvas"); out.width=w; out.height=h;
+  const g=out.getContext("2d"), od=g.createImageData(w,h), o=od.data;
+  for(let y=0;y<h;y++) for(let x=0;x<w;x++){ const [u,v]=applyH(Hm,x,y), k=(y*w+x)*4;
+    if(u<0||v<0||u>=im.width-1||v>=im.height-1){ o[k]=o[k+1]=o[k+2]=255; o[k+3]=255; continue; }
+    const s=((v|0)*im.width+(u|0))*4; o[k]=src[s]; o[k+1]=src[s+1]; o[k+2]=src[s+2]; o[k+3]=255; }
+  g.putImageData(od,0,0); return out; }
+function skLinesStep(){
+  skSteps(3);
+  const src=SK.src, k=Math.min(1,1000/Math.max(src.width,src.height)), cv=document.createElement("canvas");
+  cv.width=Math.round(src.width*k); cv.height=Math.round(src.height*k); cv.getContext("2d").drawImage(src,0,0,cv.width,cv.height);
+  SK.G=skAnalyse(cv,SK.sens); const A=SK.G;
+  const V=scCanvas(cv.width,cv.height), COL=["#e8590c","#1971c2","#2f9e44","#9c36b5","#c2255c","#0c8599","#f08c00"];
+  const draw=()=>{ const g=V.g; g.setTransform(V.k,0,0,V.k,0,0); g.fillStyle="#fff"; g.fillRect(0,0,cv.width,cv.height); g.globalAlpha=0.45; g.drawImage(cv,0,0); g.globalAlpha=1;
+    g.lineCap="round"; g.lineJoin="round";
+    A.strokes.forEach((s,i)=>{ g.beginPath(); s.pts.forEach((p,j)=>j?g.lineTo(p[0],p[1]):g.moveTo(p[0],p[1])); if(s.closed) g.closePath(); g.lineWidth=Math.max(4,A.thick*1.2); g.strokeStyle=COL[i%COL.length]; g.stroke(); });
+    const nodeUse=new Set(); A.strokes.forEach(s=>{ s.ev.forEach(e=>nodeUse.add(e.node)); s.ends.forEach(e=>e!=null&&nodeUse.add(e)); });
+    A.nodes.forEach((nd,ni)=>{ if(!nodeUse.has(ni)) return; const r=Math.max(9,A.thick*2);
+      if(nd.kind==="switch"){ g.beginPath(); g.arc(nd.x,nd.y,r,0,7); g.fillStyle="#fff"; g.fill(); g.lineWidth=4; g.strokeStyle="#1971c2"; g.stroke(); }
+      else if(nd.kind==="cross"){ g.save(); g.translate(nd.x,nd.y); g.rotate(Math.PI/4); g.fillStyle="#fff"; g.fillRect(-r,-r,2*r,2*r); g.lineWidth=4; g.strokeStyle="#e8590c"; g.strokeRect(-r,-r,2*r,2*r); g.restore(); }
+      else if(nd.kind==="end"){ g.beginPath(); g.arc(nd.x,nd.y,r*0.6,0,7); g.fillStyle="#495057"; g.fill(); } });
+    const nsw=A.nodes.filter((n,i)=>n.kind==="switch"&&nodeUse.has(i)).length, ncr=A.nodes.filter((n,i)=>n.kind==="cross"&&nodeUse.has(i)).length;
+    scEl("skHint3").innerHTML = !A.strokes.length ? "<b>No lines found.</b> Raise <b>Line sensitivity</b>, use a darker pen, or keep the drawing away from the paper's edges."
+      : `Found <b>${A.strokes.length}</b> line${A.strokes.length>1?"s":""}${nsw?`, <b>${nsw}</b> switch${nsw>1?"es":""} (●)`:""}${ncr?`, <b>${ncr}</b> crossing${ncr>1?"s":""} (◆)`:""}. `+
+        (SK.mode==="inv" ? "Uses only <b>your pieces</b>; the size is chosen to suit them." : "Uses <b>any pieces</b> of the brands you pick, and lists what you'd need.");
+  };
+  const hasCustom=typeList.some(t=>brandOf(t)==="Custom"), ncr=A.nodes.filter(n=>n.kind==="cross").length;
+  scEl("scFoot").innerHTML=`<span class="hint" id="skHint3"></span>
+    <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">Pieces: <button class="chip ${SK.mode==="inv"?"on":""}" data-skmode="inv">My pieces</button><button class="chip ${SK.mode==="any"?"on":""}" data-skmode="any">Any pieces</button>
+      ${SK.mode==="any"?["BRIO","IKEA",...(hasCustom?["Custom"]:[])].map(b=>`<button class="chip ${SK.brands[b]?"on":""}" data-skbrand="${b}">${b==="IKEA"?"IKEA LILLABO":b}</button>`).join("")+`<label style="display:flex;gap:4px;align-items:center"><input type="checkbox" id="skRet" ${SK.retired?"checked":""}> retired too</label>`:""}</span>
+    <span style="display:flex;gap:6px;align-items:center">Size: <button class="chip ${SK.auto?"on":""}" id="skAuto">Auto</button>
+      <label style="display:flex;gap:4px;align-items:center">longest side <input type="number" id="skSize" min="40" max="1000" step="10" value="${SK.size||""}" placeholder="${SK.mode==="inv"?"fits your track":(S.gen?S.gen.w:200)}" style="width:76px;padding:8px"> cm</label></span>
+    ${ncr?`<label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="skBr" ${SK.bridges?"checked":""}> bridges where lines cross</label>`:""}
+    <label style="display:flex;gap:6px;align-items:center">Line sensitivity <input type="range" id="skSens" min="1" max="10" value="${SK.sens}" style="width:120px"></label>
+    <span class="sp"></span><button id="skBack3">Back</button><button id="skGo" class="primary big" ${A.strokes.length?"":"disabled"}>Make the track</button>`;
+  scEl("scFoot").querySelectorAll("[data-skmode]").forEach(b=>b.onclick=()=>{ SK.mode=b.dataset.skmode; skLinesStep(); });
+  scEl("scFoot").querySelectorAll("[data-skbrand]").forEach(b=>b.onclick=()=>{ SK.brands[b.dataset.skbrand]=!SK.brands[b.dataset.skbrand]; b.classList.toggle("on",SK.brands[b.dataset.skbrand]); });
+  const ret=scEl("skRet"); if(ret) ret.onchange=()=>SK.retired=ret.checked;
+  const br=scEl("skBr"); if(br) br.onchange=()=>SK.bridges=br.checked;
+  scEl("skAuto").onclick=()=>{ SK.auto=!SK.auto; scEl("skAuto").classList.toggle("on",SK.auto); };
+  scEl("skSize").oninput=e=>{ const v=+e.target.value; if(v>=40){ SK.size=v; SK.auto=false; scEl("skAuto").classList.remove("on"); } };
+  scEl("skSens").onchange=e=>{ SK.sens=+e.target.value; skLinesStep(); };
+  scEl("skBack3").onclick=()=>SK.demo?skPhotoStep():skCornerStep();
+  scEl("skGo").onclick=()=>{ if(SK.mode==="inv"&&!typeList.some(t=>(S.inv[t.id]||0)>0)){ toast("Enter your pieces in the Inventory first — or choose Any pieces"); return; }
+    if(SK.mode==="any"&&!["BRIO","IKEA","Custom"].some(b=>SK.brands[b])){ toast("Pick at least one brand"); return; }
+    scEl("skGo").textContent="Laying track…"; scEl("skGo").disabled=true; setTimeout(skMake,40); };
+  draw(); }
+function skMake(){
+  let res=null; try{ res=skBestBuild(SK.G,{mode:SK.mode,auto:SK.auto||!SK.size,size:SK.size,bridges:SK.bridges,K:8,t0:performance.now()}); }catch(err){ console.error(err); }
+  if(!res||!res.pieces.length){ toast("Couldn't make a track from that drawing — try Any pieces, a bigger size, or a simpler drawing",5000); skLinesStep(); return; }
+  const R=res.report;
+  snapshot(); S.pieces=res.pieces.map(p=>({id:S.nextId++,type:p.type,x:p.x,y:p.y,rot:normA(p.rot),mirror:!!p.mirror,level:p.level||0}));
+  S.sketch={lines:res.strokes, ids:S.pieces.map(p=>p.id)}; sel=null; active=null; GEN.kind="From a drawing"; save(); refresh();
+  for(let i=0;i<8;i++){ const gp=GAPS.find(q=>q.fx&&q.fx.ok); if(!gp) break; closeWithPlay(gp.A.p.id+":"+gp.A.ci, gp.B.p.id+":"+gp.B.ci); refresh(); }
+  fit(); GEN.lastPieces=layoutKey(S.pieces); closeScan();
+  const b=bbox(), size=b?`${Math.round((b.x1-b.x0)/10)} × ${Math.round((b.y1-b.y0)/10)} cm`:"";
+  const open=GAPS.filter(q=>!(q.fx&&q.fx.ok)).length;
+  const bits=[`${R.n} pieces`, size, `on average ${R.rms<10?"<1":Math.round(R.rms/10)} cm from your lines`];
+  if(R.bridges) bits.push(`${R.bridges} bridge${R.bridges>1?"s":""}`);
+  if(R.partial) bits.push(SK.mode==="inv"?"not every line could be laid with your pieces":"not every line could be followed");
+  if(open||R.gaps.length) bits.push(`${Math.max(open,R.gaps.length)} gap${Math.max(open,R.gaps.length)>1?"s":""} left to close by hand`);
+  if(R.noSwitch) bits.push(`no fitting switch for ${R.noSwitch} branch${R.noSwitch>1?"es":""}`);
+  if(R.noBridge) bits.push(`${R.noBridge} crossing${R.noBridge>1?"s":""} without a bridge${SK.mode==="inv"?" (needs 2 ramps and a deck)":""}`);
+  toast("✏️ "+bits.filter(Boolean).join(" · "), 6500);
+  if(SK.mode==="any" && R.need.length) skShowNeed(R);
+}
+function skShowNeed(R){
+  const M=document.getElementById("impModal"), T=document.getElementById("impTitle"), B=document.getElementById("impBody"), K=document.getElementById("impBtns");
+  const total=R.need.reduce((a,q)=>a+q.n,0), have=Object.entries(R.used).reduce((a,[id,n])=>a+Math.min(n,S.inv[id]||0),0);
+  T.textContent="🛒 Pieces you'd need";
+  B.innerHTML=`<p class="hint2">This track uses ${R.n} pieces. ${have?`${have} of them are in your inventory; `:""}you'd need ${total} more:</p>
+    <div class="implist">${R.need.sort((a,b)=>b.n-a.n).map(q=>`<div>${q.n}× ${esc(shortName(types[q.id]))} <b>${q.id}</b></div>`).join("")}</div>`;
+  K.innerHTML=`<button id="skNeedOK" class="primary">OK</button>`;
+  document.getElementById("skNeedOK").onclick=()=>M.classList.remove("show");
+  M.classList.add("show"); }
+scEl("skFile").onchange=e=>{ const f=e.target.files[0]; if(!f) return; const im=new Image();
+  im.onload=()=>{ skUseImage(im); URL.revokeObjectURL(im.src); }; im.src=URL.createObjectURL(f); e.target.value=""; };
+document.getElementById("bSketch").onclick=openSketch;
+window.__skRect=skRectify; window.__sketch={skInk,skGraph,skTidy,skBridgeGaps,skStrokes,SK,skAnalyse,skBuild,skBestBuild,skMoves,skExample,skLinesStep,skMake,openSketch};
+
 window.__dbg={_tp:()=>{ const mine={}, lots={}; typeList.forEach(t=>{ mine[t.id]=S.inv[t.id]||0; lots[t.id]=6; }); const r={}; let t0=performance.now(); const O=genOptions(); r.opt=performance.now()-t0; t0=performance.now(); const M=genMacros(mine); r.macMine=performance.now()-t0; t0=performance.now(); genPasses(O,mine,8); r.passMine=performance.now()-t0; t0=performance.now(); genMacros(lots); r.macLots=performance.now()-t0; t0=performance.now(); genPasses(O,lots,8); r.passLots=performance.now()-t0; const Om=tplOpts(mine); TPL.forEach(tp=>{ t0=performance.now(); tplBuild(tp,mine,Om); r[tp.name]=Math.round(performance.now()-t0); }); return r; },passes:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genPasses(genOptions(),a).length; }, samples:p=>pieceSamples(p,10), wc:p=>worldConns(p), macros:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); return genMacros(a); }, eight:()=>{ const a={}; typeList.forEach(t=>a[t.id]=S.inv[t.id]||0); const O=genOptions(); O.macros=genMacros(a); let ok=0; for(let i=0;i<500;i++) if(genEight(O,a)) ok++; return ok; }};
 window.__planner={generateLayout, runGenerator, addPiece, closeWithPlay, state:()=>S, gaps:()=>GAPS, refresh:()=>refresh(), reset:()=>{ S.pieces=[]; active=null; sel=null; refresh(); }};
 window.__trackScan={snapCorners,orderCorners,parallax,scLearn,cameraFromH,homography,applyH,segment,refFeatures,classify,types:()=>types,typeList:()=>typeList,SC,scRectify,scDetect,MMPX,colourSeparation,dilateR,openM,grooveResponse,grooveMask,thin,distTo,grayOf,boxBlur,components,closeM};
