@@ -13,7 +13,7 @@ Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own
 - **Run a train** 🚂: a little train drives along your track; tap a switch to send it the other way; it reverses at buffer stops
 - **Ride along** in 3D: first-person view from the engine, over bridges and through passing loops; 🎥 hops from the 2D train onto the engine and 🗺️ back, ⇄ turns the train round, 🐢🐇🚀 sets the speed
 - **Build it step by step** 👷: pieces light up one at a time in building order, with a big ✓ for the next one (great with kids); a 3/4 view of the next piece, its length, which end of a ramp goes up (▲ on the plan) and 📏 actual size to lay the real piece on the screen (fine-tune with a bank card)
-- **Track from a drawing** ✏️ (⋯ menu): draw a track on paper, photograph or scan it, and the app lays it with real pieces as closely as it can. Lines that branch off become switches (passing loops, sidings with buffer stops), lines that cross become a bridge (leave a small gap in the line that goes under). Choose **My pieces** (only what's in your inventory; the size is picked to suit them) or **Any pieces** of the brands you pick, with a list of what you'd need to buy. The drawing is shown faintly under the track so you can compare. Tap the paper's corners to straighten a photo taken at an angle; try the built-in example drawing first
+- **Track from a drawing** ✏️ (⋯ menu): draw a track on paper, photograph or scan it, and the app lays it with real pieces as closely as it can. Lines that branch off become switches (passing loops, sidings with buffer stops). Mark a bridge with a short line across the track at each end of the raised part (`—|———|—`), over another track or over nothing; or leave a small gap where a line passes under another (drawing the raised part in red also works). Before building you can fix what was read: drag along a line to make a bridge, tap a bridge to remove it, tap a crossing to swap which track goes over. **Follow drawing** chooses how literally to take your lines: *Straighter* (default) turns wobbly but nearly straight lines into straight track, *Exact* follows every bend. Choose **My pieces** (only what's in your inventory; the size is picked to suit them) or **Any pieces** of the brands you pick, with a list of what you'd need to buy. The drawing is shown faintly under the track so you can compare. Tap the paper's corners to straighten a photo taken at an angle; try the built-in example drawing first
 - **Classic layouts** 📐: circle, oval, peanut, dog bone, sidings, bridges — built from whichever brand you own, showing what you'd still need
 - **Share** 🔗 a track or your whole inventory as a link, through the share sheet, or as a QR code
 - **Sounds** in kids mode (whistle, choo-choo), can be switched off
@@ -63,7 +63,10 @@ An open app updates the next time it is started while online.
 
 - White paper and a dark felt-tip or marker; one line per track, drawn in one go where you can.
 - A switch is a line branching off another one (like a Y). A passing loop branches off and joins again; a siding just stops.
-- Where two tracks cross, leave a small gap in the one that goes under. With no gap, the straighter one goes over.
+- For a bridge, draw a short line across the track (about 1–2 cm on paper) at each end of the raised part, ramps included, and keep that part straight; a bridge needs about 60–75 cm of track. It can cross another line or stand alone. A single tick on its own is ignored.
+- Or, where two tracks cross, leave a small gap in the one that goes under. With no gap or ticks, the straighter one goes over — tap the crossing in the preview to swap.
+- Coloured pens: a stretch drawn in red, orange or pink is also read as a bridge.
+- Lines come out wiggly? Keep **Follow drawing** on *Straighter*; use *Exact* only when every bend matters.
 - Keep the drawing away from the paper's edges (anything touching the edge of the picture is ignored).
 - Faint pencil? Raise **Line sensitivity**. With **My pieces**, a passing loop made from two identical switches needs two-hole/two-peg adapters, just like on the floor.
 
