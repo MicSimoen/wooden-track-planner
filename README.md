@@ -22,6 +22,18 @@ Plan BRIO and IKEA LILLABO wooden train layouts using the track you actually own
 - Made for iPad and iPhone: on a phone the plan fills the screen, the pieces open as a bottom sheet and extra tools sit under ⋯; pinch to zoom, big buttons, a floating toolbar next to the selected piece, +/− steppers
 - Works offline and can be added to the iPad/iPhone home screen as an app
 
+## Beta: room scan
+
+Settings → **🧪 Room scan (beta)** puts a 3D scan of your real room around the track: as a picture under the 2D plan, in the 3D view and when you **Ride along**.
+
+1. Scan the room with a free app such as Polycam, Scaniverse or 3D Scanner App and export it as **.glb** (save it to Files).
+2. Turn on the beta, tap **Load room scan…** and pick the file. The app finds the floor and works out whether the file is in metres, centimetres or millimetres.
+3. Tap **✋ Move / turn the room** to drag the room under your layout and turn it with ↺ ↻.
+
+Options: how strong the room shows on the plan, a height above which the room is cut away so you can see in from above (the ceiling stays on the ride), and a floor correction if the track sinks into the scanned floor or floats above it. The scan is stored on the device (IndexedDB) and comes back next time.
+
+**To remove the beta:** delete `room-beta.js`, delete the three lines marked `ROOM-BETA` in `index.html` and the lines marked `ROOM-BETA` in `sw.js`, then bump `VERSION` in `sw.js`.
+
 ## Put it online with GitHub Pages
 
 1. On GitHub, create a new **public** repository, e.g. `wooden-track-planner` (no README needed).

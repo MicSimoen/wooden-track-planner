@@ -2711,6 +2711,7 @@ function build3D(){
   // floor + grid sized to the layout (kids mode: a play room with a rug and toys around the track)
   const b=bbox()||{x0:-300,y0:-300,x1:300,y1:300}, cx=(b.x0+b.x1)/2, cz=(b.y0+b.y1)/2;
   const sz=Math.max(b.x1-b.x0,b.y1-b.y0)+(S.kids?1800:600);
+  if(window.RoomBeta && RoomBeta.add3D(G)){} else   // ROOM-BETA: a scanned room replaces the floor (delete this line to remove)
   if(S.kids){ kidsRoom(G,b,cx,cz,sz); V3.scene.background=new THREE.Color(0xfdf1dc); }
   else {
     V3.scene.background=new THREE.Color(0xeef2f6);
@@ -4343,7 +4344,9 @@ refresh();
 if("serviceWorker" in navigator && location.protocol==="https:") navigator.serviceWorker.register("sw.js").catch(()=>{});
 if(!S.pieces.length){ demo(); hist=[]; refresh(); } else fit();
 handleShared();
+window.RoomBetaApp={V3, svg, svgPt, bbox, loadScript, toast, build3D};   // ROOM-BETA: what room-beta.js may use (delete this line to remove)
 })();
 </script>
+<script src="room-beta.js"></script><!-- ROOM-BETA: delete this line to remove the room scan beta -->
 </body>
 </html>
