@@ -806,41 +806,78 @@ function flexSolve(path,A,B){
   const y=solveLin(M,r), u=cols.map(c=>c[0]*y[0]+c[1]*y[1]+c[2]*y[2]);
   return {u, worst:Math.max(0,...u.map(Math.abs)), aPer, pPer, K};
 }
-function flexCheck(A,B,d,ang){
-  const path=chainPath(A.p.id,B.p.id);
-  if(!path||!path.joints.length) return {ok:false, loop:false};
-  const sol=flexSolve(path,A.c,B.c);
-  return {ok: sol.worst<=1, loop:true, need:sol.worst, path};
-}
-/* Bend the chain shut by applying the solve a few times (re-linearising), never past a joint's play. Joints keep
-   within the snap tolerance, so every connection still holds. */
-function closeWithPlay(aKey,bKey){
-  const [aid,aci]=aKey.split(":").map(Number), [bid,bci]=bKey.split(":").map(Number);
-  computeLinks(); const path=chainPath(aid,bid); if(!path||!path.joints.length) return;
-  snapshot(); const backup=JSON.stringify(S.pieces);
-  const sideOf=k=>{ const j=path.joints[k], seen=new Set([j.b]), q=[j.b];
+/* Only joints whose far side hangs free can turn or slide: if the pieces beyond a joint also reach end A some other
+   way (the joint sits inside another loop, e.g. behind a switch), bending it would tear that loop open. */
+function flexMovable(path,aid){
+  return path.joints.map(j=>{ const seen=new Set([j.b]), q=[j.b];
     while(q.length){ const id=q.pop(); (W[id]||[]).forEach((c,ci)=>{ const l=linkOf[id+":"+ci]; if(!l) return;
       if((id===j.b&&l.pid===j.a)||(id===j.a&&l.pid===j.b)) return; if(!seen.has(l.pid)){ seen.add(l.pid); q.push(l.pid); } }); }
-    return seen.has(aid)?null:[...seen]; };
-  const movers=path.joints.map((_,k)=>sideOf(k)), total=path.joints.map(()=>[0,0]);
-  const ends=()=>({A:worldConns(byId(aid))[aci], B:worldConns(byId(bid))[bci]});
-  for(let it=0; it<12; it++){
-    const {A,B}=ends(); if(Math.hypot(A.x-B.x,A.y-B.y)<0.5 && Math.abs(normA(A.a-B.a-Math.PI))<0.2*D2R) break;
-    const sol=flexSolve(path,A,B);
-    // apply from the far end back, so each joint's own point is still where the solve assumed
-    for(let k=path.joints.length-1;k>=0;k--){ if(!movers[k]) continue;
-      let du=sol.u[2*k], dv=sol.u[2*k+1];
+    return seen.has(aid)?null:[...seen]; });
+}
+/* ---- Play across the whole layout ----
+   Real track takes up small mismatches everywhere at once: in a passing loop or a shortcut both tracks between the
+   switches give a little. So the closing solve uses every joint of the connected layout: a spanning tree of the joints
+   moves the pieces, and every joint that closes a loop (plus the gaps to close) is a constraint. Linearised and solved
+   for the smallest movements relative to each joint's play: u = Jᵀ (J Jᵀ + λI)⁻¹ r. Feasible when no joint needs more
+   than its play. Gap ends in different, unconnected bits of track can't be closed this way. */
+function flexSystem(gaps){
+  computeLinks();
+  const rootId=gaps[0][0].pid, parent=new Map([[rootId,null]]), order=[rootId], tree=new Set();
+  for(let h=0;h<order.length;h++){ const id=order[h]; (W[id]||[]).forEach((c,ci)=>{ const l=linkOf[id+":"+ci]; if(!l||parent.has(l.pid)) return;
+    parent.set(l.pid,{a:id,ci,b:l.pid,bci:l.ci}); order.push(l.pid); tree.add(id+":"+ci); tree.add(l.pid+":"+l.ci); }); }
+  if(gaps.some(([A,B])=>!parent.has(A.pid)||!parent.has(B.pid))) return null;
+  const joints=order.slice(1).map(id=>parent.get(id));                       // one per piece, in tree order
+  const kids=new Map(order.map(id=>[id,[]])); joints.forEach(j=>kids.get(j.a).push(j.b));
+  const sub=new Map(); for(let h=order.length-1;h>=0;h--){ const id=order[h], set=new Set([id]); kids.get(id).forEach(k=>sub.get(k).forEach(x=>set.add(x))); sub.set(id,set); }
+  // constraints: joints that close a loop (not in the tree), and the gaps
+  const cons=[]; const seen=new Set();
+  order.forEach(id=>(W[id]||[]).forEach((c,ci)=>{ const k=id+":"+ci, l=linkOf[k]; if(!l||tree.has(k)) return; const k2=l.pid+":"+l.ci; if(seen.has(k2)) return; seen.add(k);
+    cons.push({A:{pid:id,ci},B:{pid:l.pid,ci:l.ci}}); }));
+  gaps.forEach(([A,B])=>cons.push({A,B,gap:true}));
+  return {joints,sub,cons};
+}
+function flexStep(sys){
+  const aPer=Math.max(1e-6,S.playAng*D2R), pPer=Math.max(1e-6,S.playPos), AW=100, {joints,sub,cons}=sys;
+  const pose=e=>worldConns(byId(e.pid))[e.ci];
+  const r=[]; cons.forEach(c=>{ const A=pose(c.A), B=pose(c.B); r.push(B.x-A.x, B.y-A.y, -AW*normA(A.a+Math.PI-B.a)); });
+  // columns: what turning / sliding joint k does to every constraint (A−B), per unit of its play
+  const cols=[]; joints.forEach(j=>{ const P=worldConns(byId(j.a))[j.ci], S2=sub.get(j.b), turn=[], slide=[];
+    cons.forEach(c=>{ const inA=S2.has(c.A.pid), inB=S2.has(c.B.pid), sg=(inA?1:0)-(inB?1:0);
+      if(!sg){ turn.push(0,0,0); slide.push(0,0,0); return; }
+      const E=pose(inA?c.A:c.B);
+      turn.push(sg*aPer*-(E.y-P.y), sg*aPer*(E.x-P.x), sg*AW*aPer);
+      slide.push(sg*pPer*Math.cos(P.a), sg*pPer*Math.sin(P.a), 0); });
+    cols.push(turn,slide); });
+  const n=r.length, M=Array.from({length:n},(_,i)=>Array.from({length:n},(_,k)=>i===k?1e-6:0));
+  cols.forEach(c=>{ for(let i=0;i<n;i++){ if(!c[i]) continue; for(let k=0;k<n;k++) M[i][k]+=c[i]*c[k]; } });
+  const y=solveLin(M,r), u=cols.map(c=>c.reduce((a,v,i)=>a+v*y[i],0));
+  return {u, worst:Math.max(0,...u.map(Math.abs)), aPer, pPer, res:Math.max(...cons.map((c,i)=>Math.hypot(r[3*i],r[3*i+1])))};
+}
+function flexCheck(A,B,d,ang){
+  const sys=flexSystem([[{pid:A.p.id,ci:A.ci},{pid:B.p.id,ci:B.ci}]]);
+  if(!sys) return {ok:false, loop:false};
+  const sol=flexStep(sys);
+  return {ok: sol.worst<=1, loop:true, need:sol.worst};
+}
+/* Bend the layout shut by applying the solve a few times (re-linearising), never past a joint's play. */
+function closeWithPlay(aKey,bKey){
+  const [aid,aci]=aKey.split(":").map(Number), [bid,bci]=bKey.split(":").map(Number);
+  const sys=flexSystem([[{pid:aid,ci:aci},{pid:bid,ci:bci}]]); if(!sys){ toast("Couldn't close it within the play"); return; }
+  snapshot(); const backup=JSON.stringify(S.pieces), total=sys.joints.map(()=>[0,0]);
+  for(let it=0; it<14; it++){
+    const sol=flexStep(sys); if(sol.res<0.3) break;
+    // apply from the leaves back to the root, so each joint's own point is still where the solve assumed
+    for(let k=sys.joints.length-1;k>=0;k--){ const j=sys.joints[k];
+      let du=sol.u[2*k], dv=sol.u[2*k+1]; if(Math.abs(du)<1e-9&&Math.abs(dv)<1e-9) continue;
       du=Math.max(-1-total[k][0],Math.min(1-total[k][0],du)); dv=Math.max(-1-total[k][1],Math.min(1-total[k][1],dv));
       total[k][0]+=du; total[k][1]+=dv;
-      const P=jointPos(path.joints[k]), phi=du*sol.aPer, sh=dv*sol.pPer, c=Math.cos(phi), sn=Math.sin(phi);
-      movers[k].forEach(id=>{ const q=byId(id), dx=q.x-P.x, dy=q.y-P.y;
-        q.x=P.x+dx*c-dy*sn+sh*Math.cos(P.a); q.y=P.y+dx*sn+dy*c+sh*Math.sin(P.a); q.rot=normA(q.rot+phi); });
-    }
-    computeLinks();
+      const P=worldConns(byId(j.a))[j.ci], phi=du*sol.aPer, sh=dv*sol.pPer, c=Math.cos(phi), sn=Math.sin(phi);
+      sys.sub.get(j.b).forEach(id=>{ const q=byId(id), dx=q.x-P.x, dy=q.y-P.y;
+        q.x=P.x+dx*c-dy*sn+sh*Math.cos(P.a); q.y=P.y+dx*sn+dy*c+sh*Math.sin(P.a); q.rot=normA(q.rot+phi); }); }
   }
   computeLinks();
   if(!isFree(aid,aci) || !isFree(bid,bci)){
-    const turn=Math.max(...total.map(t=>Math.abs(t[0])))*S.playAng, slide=Math.max(...total.map(t=>Math.abs(t[1])))*S.playPos;
+    const turn=Math.max(0,...total.map(t=>Math.abs(t[0])))*S.playAng, slide=Math.max(0,...total.map(t=>Math.abs(t[1])))*S.playPos;
     toast(`Closed — each joint turns ≤ ${turn.toFixed(1)}° and slides ≤ ${slide.toFixed(1)} mm`); refresh();
   } else { S.pieces=JSON.parse(backup); hist.pop(); toast("Couldn't close it within the play"); refresh(); }
 }
@@ -3546,6 +3583,33 @@ function skBridgeGaps(Gr,thick,diag){
     N[xi].gapDir=Math.atan2(Q.y-P.y,Q.x-P.x); gaps.push({x:X[0],y:X[1],node:xi}); }
   return gaps;
 }
+/* A branch drawn starting just off another line (the pen didn't quite touch it): join that loose end onto the nearest
+   point of the other line, which makes the three-way junction a switch needs. Only when the end is within a few line
+   widths, and the branch leaves at a switch-like angle (not square on, like a T). */
+function skSnapEnds(Gr,thick,diag){
+  const N=Gr.nodes, R=Math.max(4.5*thick,0.03*diag), dd=Math.max(4*thick,0.04*diag);
+  for(let guard=0; guard<40; guard++){
+    N.forEach(q=>q.deg=0); Gr.edges.forEach(e=>{ if(e.closed||e.dead) return; N[e.a].deg++; N[e.b].deg++; });
+    let best=null;
+    Gr.edges.forEach(e=>{ if(e.closed||e.dead) return; [0,1].forEach(sd=>{ const ni=sd?e.b:e.a; if(N[ni].deg!==1) return;
+      const P=N[ni], din=skDir(e,sd,dd);                         // the way the line runs, leaving this end
+      Gr.edges.forEach(f=>{ if(f===e||f.dead) return;
+        for(let k=1;k<f.pts.length;k++){ const a=f.pts[k-1], b=f.pts[k], vx=b[0]-a[0], vy=b[1]-a[1], L2=vx*vx+vy*vy; if(!L2) continue;
+          const t=Math.max(0,Math.min(1,((P.x-a[0])*vx+(P.y-a[1])*vy)/L2)), qx=a[0]+vx*t, qy=a[1]+vy*t, d=Math.hypot(qx-P.x,qy-P.y);
+          if(d>R || (best&&d>=best.d)) continue;
+          // not too near the other line's own ends (that's an end-to-end gap, handled elsewhere)
+          const fa=N[f.a], fb=N[f.b], nearEnd=(f.closed?false:Math.min(Math.hypot(qx-fa.x,qy-fa.y),Math.hypot(qx-fb.x,qy-fb.y))<1.5*thick);
+          if(nearEnd) continue;
+          const fd=Math.atan2(vy,vx), cross=Math.abs(Math.sin(din-fd));          // 0 = parallel, 1 = square on
+          if(cross>0.87) continue;                                             // a T, not a switch
+          best={d,e,sd,ni,f,k,X:[qx,qy]}; } }); }); });
+    if(!best) break;
+    const {ni,f,k,X}=best, P=N[ni]; N.push({x:X[0],y:X[1]}); const xi=N.length-1;
+    if(f.closed){ const pts=[...f.pts.slice(k),...f.pts.slice(1,k),X]; f.pts=[X,...pts]; f.closed=false; f.a=f.b=xi; }
+    else { const f2={a:xi,b:f.b,pts:[X,...f.pts.slice(k)]}; f.pts=[...f.pts.slice(0,k),X]; f.b=xi; Gr.edges.push(f2); }
+    Gr.edges.push({a:ni,b:xi,pts:[[P.x,P.y],X]});
+  }
+}
 /* pair up the lines at every node: at a switch the straightest pair carries on and the third line branches off; at a
    crossing the two straightest pairs carry on */
 function skStrokes(Gr,thick,diag){
@@ -3647,7 +3711,7 @@ function skAnalyse(cv,sens){
   const thick=Math.max(1.5,inkN/Math.max(1,skN)); sk=prune(sk,w,h,Math.round(thick)+2);
   let x0=1e9,y0=1e9,x1=-1e9,y1=-1e9; for(let i=0;i<w*h;i++) if(sk[i]){ const x=i%w,y=(i/w)|0; x0=Math.min(x0,x);x1=Math.max(x1,x);y0=Math.min(y0,y);y1=Math.max(y1,y); }
   const diag=x1>x0?Math.hypot(x1-x0,y1-y0):Math.hypot(w,h);
-  const ticks=[], Gr=skGraph(sk,w,h,thick); skTidy(Gr,thick,diag,ticks); const gaps=skBridgeGaps(Gr,thick,diag); skTidy(Gr,thick,diag,ticks);
+  const ticks=[], Gr=skGraph(sk,w,h,thick); skTidy(Gr,thick,diag,ticks); const gaps=skBridgeGaps(Gr,thick,diag); skSnapEnds(Gr,thick,diag); skTidy(Gr,thick,diag,ticks);
   const strokes=skStrokes(Gr,thick,diag).filter(s=>skLen(s.pts)>0.06*diag || s.closed&&skLen(s.pts)>0.15*diag);
   strokes.forEach(st=>{ st.raised=skRaised(st,m,d,w,h,thick,diag).map(r=>({r,how:"red"})); });
   skTickBridges(strokes,ticks,thick,diag);
@@ -3706,6 +3770,31 @@ function skPoly(P,closed){
     if(closed){ const A=i-3<0?n-1+(i-3):a, Bq=i+3>n-1?(i+3)-(n-1):b; ang[i]=Math.atan2(py[Bq]-py[A],px[Bq]-px[A]); }
     else ang[i]=Math.atan2(py[b]-py[a],px[b]-px[a]); }
   return {px,py,ang,n,L:(n-1)*SKSTEP,closed}; }
+/* Bend the ends of a drawn line so they run exactly into switches already on the plan: from start pose A (heading A.a)
+   and/or into end pose B (arriving with heading B.a). The real switch's connector is rarely exactly where the line was
+   drawn, and a branch that follows the drawing faithfully then misses it by centimetres, which straights can't fix.
+   The ends are replaced by smooth curves (cubic Bézier) blending into the drawing; events keep their place on the line. */
+function skWarp(S1,A,B){
+  const st=S1.st; let P=[]; for(let i=0;i<st.n;i++) P.push([st.px[i],st.py[i]]);
+  const at=sv=>{ const i=Math.min(st.n-1,Math.max(0,Math.round(sv/SKSTEP))); return [st.px[i],st.py[i]]; };
+  const evXY=S1.ev.map(e=>at(e.s)), rXY=S1.raised.map(r=>[at(r.a),at(r.b)]);
+  const cum=a=>{ const c=[0]; for(let i=1;i<a.length;i++) c.push(c[i-1]+Math.hypot(a[i][0]-a[i-1][0],a[i][1]-a[i-1][1])); return c; };
+  const near=(x,y,lo,hi)=>{ let bi=lo, bd=1e18; for(let i=lo;i<=hi;i++){ const d=(P[i][0]-x)**2+(P[i][1]-y)**2; if(d<bd){ bd=d; bi=i; } } return bi; };
+  const bez=(p0,t0,p1,t1,L)=>{ const k=L/3, c0=[p0[0]+Math.cos(t0)*k,p0[1]+Math.sin(t0)*k], c1=[p1[0]-Math.cos(t1)*k,p1[1]-Math.sin(t1)*k], o=[], n=Math.max(4,Math.ceil(L/SKSTEP));
+    for(let i=0;i<=n;i++){ const t=i/n, u=1-t; o.push([u*u*u*p0[0]+3*u*u*t*c0[0]+3*u*t*t*c1[0]+t*t*t*p1[0], u*u*u*p0[1]+3*u*u*t*c0[1]+3*u*t*t*c1[1]+t*t*t*p1[1]]); } return o; };
+  const dirAt=(a,i)=>{ const j0=Math.max(0,i-4), j1=Math.min(a.length-1,i+4); return Math.atan2(a[j1][1]-a[j0][1],a[j1][0]-a[j0][0]); };
+  if(B){ const iB=near(B.x,B.y,Math.floor(P.length*0.4),P.length-1); P=P.slice(0,iB+1);
+    const c=cum(P), tot=c[c.length-1], Lh=Math.max(60,Math.min(300,0.35*tot)); let iH=P.length-1; while(iH>0 && tot-c[iH]<Lh) iH--;
+    const seg=bez(P[iH],dirAt(P,iH),[B.x,B.y],B.a,Math.max(40,Math.hypot(B.x-P[iH][0],B.y-P[iH][1])));
+    P=P.slice(0,iH).concat(seg); }
+  if(A){ const iA=near(A.x,A.y,0,Math.ceil(P.length*0.5)); P=P.slice(iA);
+    const c=cum(P), tot=c[c.length-1], Lh=Math.max(60,Math.min(300,0.35*tot)); let iH=0; while(iH<P.length-1 && c[iH]<Lh) iH++;
+    const seg=bez([A.x,A.y],A.a,P[iH],dirAt(P,iH),Math.max(40,Math.hypot(A.x-P[iH][0],A.y-P[iH][1])));
+    P=seg.concat(P.slice(iH+1)); }
+  const nst=skPoly(skResample(P,SKSTEP,false),false), sOf=([x,y])=>{ let bi=0,bd=1e18; for(let i=0;i<nst.n;i++){ const d=(nst.px[i]-x)**2+(nst.py[i]-y)**2; if(d<bd){bd=d;bi=i;} } return bi*SKSTEP; };
+  S1.st=nst; S1.ev=S1.ev.map((e,k)=>({...e,s:sOf(evXY[k])})); S1.raised=S1.raised.map((r,k)=>({...r,a:sOf(rXY[k][0]),b:sOf(rXY[k][1])}));
+  return nst;
+}
 /* rotate a closed polyline so it starts at index i0 */
 function skRotate(st,i0){ const n=st.n-1, P=[]; for(let k=0;k<n;k++){ const i=(i0+k)%n; P.push([st.px[i],st.py[i]]); } P.push(P[0].slice()); return skPoly(P,true); }
 
@@ -4037,6 +4126,9 @@ function skBuild(A,k,o){
     const endN=S1.ends[1];
     if(!S1.closed && isBr(endN)){ const own=through[endN]===S1;
       if(brPose[endN]||own){ kind="target"; target=z=>{ const P=brPose[endN]||(z.br&&z.br[endN]); return P?{x:P.x,y:P.y,a:normA(P.a+Math.PI),g:P.g}:null; }; } }
+    // run the drawn line exactly into switches that are already laid (where it starts, and where it must end)
+    { const fromSw=isBr(S1.ends[0])&&brPose[S1.ends[0]]?start:null, toSw=kind==="target"&&brPose[endN]?{x:brPose[endN].x,y:brPose[endN].y,a:normA(brPose[endN].a+Math.PI)}:null;
+      if((fromSw||toSw) && !S1.closed){ st=skWarp(S1,fromSw,toSw); if(fromSw) s0=0; } }
     // switch points on this stroke
     const events=[];
     S1.ev.forEach(e=>{ const nd=e.node; if(N[nd].kind!=="switch" || through[nd]!==S1) return; const B=branchOf[nd]; if(!B){ return; }
